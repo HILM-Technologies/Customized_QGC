@@ -16,13 +16,15 @@ Item {
     readonly property int _editingToolMission:  0
     readonly property int _editingToolFence:    1
     readonly property int _editingToolRally:    2
+    readonly property int _editingToolPatrol:   3
 
     property int _editingTool:              _editingToolMission
     property var _missionController:        planMasterController.missionController
     property var _geoFenceController:       planMasterController.geoFenceController
     property var _rallyPointController:     planMasterController.rallyPointController
+    property var _patrolController:         planMasterController.patrolController
     property var _visualItems:              _missionController.visualItems
-    property var _editingToolComponents:    [ missionToolComponent, fenceToolComponent, rallyToolComponent ]
+    property var _editingToolComponents:    [ missionToolComponent, fenceToolComponent, rallyToolComponent, patrolToolComponent ]
     property real _toolsMargin:             ScreenTools.defaultFontPixelWidth * 0.75
 
     function selectNextNotReady() {
@@ -121,6 +123,10 @@ Item {
                     text:       qsTr("Rally")
                     onClicked:  { root._editingTool = root._editingToolRally; _editingLayer = _layerRally }
                 }
+                QGCTabButton {
+                    text:       qsTr("Patrol")
+                    onClicked:  { root._editingTool = root._editingToolPatrol; _editingLayer = _layerPatrol }
+                }
             }
 
             Loader {
@@ -206,6 +212,22 @@ Item {
                 }
             }
         }
+
+        Component {
+            id: patrolToolComponent
+
+            Column {
+                spacing: ScreenTools.defaultFontPixelHeight / 2
+
+                PatrolEditor {
+                    id: patrolEditor
+                    width: parent.width
+                    visible: true
+                    patrolController: root._patrolController
+                }
+            }
+        }
+
 
         Component {
             id: utmspToolComponent

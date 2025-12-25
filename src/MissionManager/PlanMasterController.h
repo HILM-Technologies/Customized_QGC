@@ -16,6 +16,7 @@
 #include "MissionController.h"
 #include "GeoFenceController.h"
 #include "RallyPointController.h"
+#include "PatrolController.h"
 
 Q_DECLARE_LOGGING_CATEGORY(PlanMasterControllerLog)
 
@@ -46,6 +47,7 @@ public:
     Q_PROPERTY(MissionController*       missionController       READ missionController                      CONSTANT)
     Q_PROPERTY(GeoFenceController*      geoFenceController      READ geoFenceController                     CONSTANT)
     Q_PROPERTY(RallyPointController*    rallyPointController    READ rallyPointController                   CONSTANT)
+    Q_PROPERTY(PatrolController*        patrolController        READ patrolController                       CONSTANT)
     Q_PROPERTY(bool                     offline                 READ offline                                NOTIFY offlineChanged)          ///< true: controller is not connected to an active vehicle
     Q_PROPERTY(bool                     containsItems           READ containsItems                          NOTIFY containsItemsChanged)    ///< true: Elemement is non-empty
     Q_PROPERTY(bool                     syncInProgress          READ syncInProgress                         NOTIFY syncInProgressChanged)   ///< true: Information is currently being saved/sent, false: no active save/send in progress
@@ -90,6 +92,8 @@ public:
     MissionController*      missionController(void)     { return &_missionController; }
     GeoFenceController*     geoFenceController(void)    { return &_geoFenceController; }
     RallyPointController*   rallyPointController(void)  { return &_rallyPointController; }
+    PatrolController*       patrolController()          { return &_patrolController; }
+
 
     bool        offline         (void) const { return _offline; }
     bool        containsItems   (void) const;
@@ -117,6 +121,7 @@ public:
     static constexpr const char* kJsonMissionObjectKey =       "mission";
     static constexpr const char* kJsonGeoFenceObjectKey =      "geoFence";
     static constexpr const char* kJsonRallyPointsObjectKey =   "rallyPoints";
+    static constexpr const char* kJsonPatrolObjectKey =        "patrol";
 
 signals:
     void containsItemsChanged               ();
@@ -134,9 +139,11 @@ private slots:
     void _loadMissionComplete       (void);
     void _loadGeoFenceComplete      (void);
     void _loadRallyPointsComplete   (void);
+    void _loadPatrolComplete        (void);
     void _sendMissionComplete       (void);
     void _sendGeoFenceComplete      (void);
     void _sendRallyPointsComplete   (void);
+    void _sendPatrolComplete        (void);
     void _updateOverallDirty        (void);
     void _updatePlanCreatorsList    (void);
 
@@ -152,10 +159,12 @@ private:
     MissionController       _missionController;
     GeoFenceController      _geoFenceController;
     RallyPointController    _rallyPointController;
+    PatrolController        _patrolController;
     bool                    _loadGeoFence =             false;
     bool                    _loadRallyPoints =          false;
     bool                    _sendGeoFence =             false;
     bool                    _sendRallyPoints =          false;
+    bool                    _sendPatrol =               false;  //This need to set true once patrol configuration send to vehicle on defined time
     QString                 _currentPlanFile;
     bool                    _deleteWhenSendCompleted =  false;
     bool                    _previousOverallDirty =     false;
