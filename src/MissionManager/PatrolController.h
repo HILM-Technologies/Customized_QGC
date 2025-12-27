@@ -14,31 +14,6 @@ class PatrolController : public PlanElementController
     QML_ELEMENT
     QML_UNCREATABLE("")
 
-   public:
-    // ---------------------------
-    // Loop mode enum (QML visible)
-    // ---------------------------
-    enum PatrolLoopMode : uint8_t {
-        Forever  = 0,
-        NTimes   = 1,
-        Duration = 2
-    };
-    Q_ENUM(PatrolLoopMode)
-
-            // ---------------------------
-            // Internal config
-            // ---------------------------
-    struct PatrolConfig {
-        bool            enabled       = false;
-        PatrolLoopMode  loopMode       = Forever;
-        float           speed_mps      = 5.0f;
-        int             loopCount      = 3;
-        int             duration_min   = 20;
-        QString         startTime      = "22:00";
-    };
-
-    PatrolController(PlanMasterController* master, QObject* parent = nullptr);
-
             // ---------------------------
             // QML Properties
             // ---------------------------
@@ -49,9 +24,30 @@ class PatrolController : public PlanElementController
     Q_PROPERTY(int duration READ duration WRITE setDuration NOTIFY durationChanged)
     Q_PROPERTY(QString startTime READ startTime WRITE setStartTime NOTIFY startTimeChanged)
 
-            // ---------------------------
-            // Accessors
-            // ---------------------------
+   public:
+
+    enum PatrolLoopMode : uint8_t {
+        Forever  = 0,
+        NTimes   = 1,
+        Duration = 2
+    };
+
+    struct PatrolConfig {
+        bool            enabled       = false;
+        PatrolLoopMode  loopMode       = Forever;
+        float           speed_mps      = 5.0f;
+        int             loopCount      = 3;
+        int             duration_min   = 20;
+        QString         startTime      = "22:00";
+    };
+
+    Q_ENUM(PatrolLoopMode)
+    PatrolController(PlanMasterController* master, QObject* parent = nullptr);
+
+    Q_INVOKABLE void saveToINI();
+          // ---------------------------
+          // Accessors
+          // ---------------------------
     bool enabled() const { return _config.enabled; }
     float speed() const { return _config.speed_mps; }
     int loops() const { return _config.loopCount; }
@@ -76,6 +72,7 @@ class PatrolController : public PlanElementController
     void start(bool flyView) override;
     void save(QJsonObject& json) override;
     bool load(const QJsonObject& json, QString& errorString) override;
+    void loadFromINI();
     void loadFromVehicle() override;
     void sendToVehicle() override;
     void removeAll() override;

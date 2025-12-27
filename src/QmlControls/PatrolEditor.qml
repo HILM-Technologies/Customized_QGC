@@ -168,7 +168,7 @@ Rectangle {
                     text: qsTr("Apply Patrol Settings")
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    onClicked: if (patrolController) patrolController.sendToVehicle()
+                    onClicked: if (patrolController) patrolController.saveToINI();
                 }
 
                 QGCButton {

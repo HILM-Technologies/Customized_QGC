@@ -1,6 +1,8 @@
 #include "PatrolController.h"
 #include "PlanMasterController.h"
-
+#include <QSettings>
+#include <QStandardPaths>
+#include <QDir>
 #include <QDebug>
 
 PatrolController::PatrolController(PlanMasterController* master, QObject* parent)
@@ -29,6 +31,7 @@ bool PatrolController::containsItems() const
 void PatrolController::start(bool flyView)
 {
     _flyView = flyView;
+    loadFromINI();
 }
 
 void PatrolController::save(QJsonObject& json)
@@ -65,6 +68,59 @@ bool PatrolController::load(const QJsonObject& json, QString&)
 void PatrolController::loadFromVehicle()
 {
     setDirty(false);
+}
+
+void PatrolController::saveToINI()
+{
+    // Resolve app data directory
+    const QString appDataPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+
+    QDir().mkpath(appDataPath);
+
+    const QString iniPath = appDataPath + "/patrol.ini";
+
+    QSettings settings(iniPath, QSettings::IniFormat);
+
+    settings.beginGroup("Patrol");
+    settings.setValue("Enabled",     _config.enabled);
+    settings.setValue("LoopMode",    static_cast<int>(_config.loopMode));
+    settings.setValue("SpeedMps",    _config.speed_mps);
+    settings.setValue("LoopCount",   _config.loopCount);
+    settings.setValue("DurationMin", _config.duration_min);
+    settings.setValue("StartTime",   _config.startTime);
+    settings.endGroup();
+
+    settings.sync();
+
+    // qCDebug(QGCLoggingCategory("PatrolController"))
+    //     << "Patrol config saved to INI:" << iniPath;
+}
+
+void PatrolController::loadFromINI()
+{
+    const QString iniPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + "/patrol.ini";
+
+    QSettings settings(iniPath, QSettings::IniFormat);
+
+    settings.beginGroup("Patrol");
+
+    setEnabled(settings.value("Enabled", false).toBool());
+    setLoopsMode(static_cast<PatrolLoopMode>(
+        settings.value("LoopMode", 0).toInt()));
+    setSpeed(settings.value("SpeedMps", 5.0f).toFloat());
+    setLoops(settings.value("LoopCount", 3).toInt());
+    setDuration(settings.value("DurationMin", 20).toInt());
+    setStartTime(settings.value("StartTime", "22:00").toString());
+
+    settings.endGroup();
+
+    setDirty(false);
+
+    // qCDebug(QGCLoggingCategory("PatrolController"))
+    //     << "Patrol config loaded from INI";
 }
 
 void PatrolController::sendToVehicle()
