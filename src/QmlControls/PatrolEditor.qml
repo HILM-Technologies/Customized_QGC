@@ -72,6 +72,26 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
 
+                // ---------- DRONE SELECTION ----------
+                QGCLabel { text: qsTr("Selected Drone") }
+
+                QGCTextField {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    readOnly: true
+                    text: patrolController && patrolController.droneUID !== ""
+                          ? patrolController.droneUID
+                          : qsTr("No drone selected")
+                }
+
+                QGCButton {
+                    text: qsTr("Select Drone…")
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    onClicked: selectDroneDialog.open()
+                }
+
+
                 // ---------- SPEED ----------
                 QGCLabel { text: qsTr("Patrol Speed (m/s)") }
 
@@ -180,4 +200,102 @@ Rectangle {
             }
         }
     }
+    Popup {
+        id: selectDroneDialog
+        modal: true
+        focus: true
+        width: patrolEditorRect.width * 0.9
+        height: 300
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: ScreenTools.defaultFontPixelHeight / 2
+
+            QGCLabel {
+                text: qsTr("Select Drone")
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: qgcPal.windowShade
+
+                ScrollView {
+                    anchors.fill: parent
+
+                    ListView {
+                        id: droneListView
+                        width: parent.width
+                        clip: true
+
+                        currentIndex: -1
+                        focus: true
+
+                        model: patrolController
+                               ? patrolController.availableDrones
+                               : []
+
+                        delegate: Rectangle {
+                            width: droneListView.width
+                            height: ScreenTools.defaultFontPixelHeight * 2
+                            radius: 4
+
+                            // ✅ Selection visuals
+                            color: ListView.isCurrentItem
+                                   ? qgcPal.buttonHighlight
+                                   : "transparent"
+
+                            border.width: ListView.isCurrentItem ? 2 : 0
+                            border.color: qgcPal.buttonHighlight
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: ScreenTools.defaultFontPixelWidth
+                                text: modelData
+                                color: ListView.isCurrentItem
+                                       ? qgcPal.buttonText
+                                       : qgcPal.text
+                                elide: Text.ElideRight
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    droneListView.currentIndex = index
+                                }
+                                onDoubleClicked: {
+                                    patrolController.droneUID = modelData
+                                    selectDroneDialog.close()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: ScreenTools.defaultFontPixelWidth
+
+                QGCButton {
+                    text: qsTr("Cancel")
+                    onClicked: selectDroneDialog.close()
+                }
+
+                QGCButton {
+                    text: qsTr("OK")
+                    enabled: droneListView.currentIndex >= 0
+                    onClicked: {
+                        patrolController.droneUID =
+                                patrolController.availableDrones[droneListView.currentIndex]
+                        selectDroneDialog.close()
+                    }
+                }
+            }
+        }
+    }
 }
+

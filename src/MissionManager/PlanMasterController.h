@@ -149,6 +149,7 @@ private slots:
 
 private:
     void _commonInit                (void);
+    void _updatePatrolAvailableDrones(void);
     void _showPlanFromManagerVehicle(void);
 
     MultiVehicleManager*    _multiVehicleMgr =          nullptr;

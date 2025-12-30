@@ -1,5 +1,6 @@
 #include "PatrolController.h"
 #include "PlanMasterController.h"
+
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
@@ -10,6 +11,47 @@ PatrolController::PatrolController(PlanMasterController* master, QObject* parent
 {
 }
 
+// ---------------------------
+// NEW: injected drone list
+// ---------------------------
+void PatrolController::setAvailableDrones(const QStringList& drones)
+{
+    // Normalize input (avoid null vs empty confusion)
+    const QStringList normalizedDrones = drones;
+
+            //No change → no signal spam
+    if (_availableDrones == normalizedDrones) {
+        return;
+    }
+
+    _availableDrones = normalizedDrones;
+
+            //If no drones available, clear selection
+    if (_availableDrones.isEmpty()) {
+        if (!_config.droneUID.isEmpty()) {
+            _config.droneUID.clear();
+            emit droneUIDChanged(_config.droneUID);
+        }
+
+        emit availableDronesChanged();
+        return;
+    }
+
+            //If current selection is no longer valid, reset it
+    if (!_config.droneUID.isEmpty() &&
+        !_availableDrones.contains(_config.droneUID)) {
+
+        _config.droneUID.clear();
+        emit droneUIDChanged(_config.droneUID);
+    }
+
+            //Notify UI
+    emit availableDronesChanged();
+}
+
+// ---------------------------
+// State helpers
+// ---------------------------
 void PatrolController::setDirty(bool d)
 {
     if (_dirty != d) {
@@ -28,12 +70,32 @@ bool PatrolController::containsItems() const
     return _config.enabled;
 }
 
+// ---------------------------
+// Lifecycle
+// ---------------------------
 void PatrolController::start(bool flyView)
 {
     _flyView = flyView;
     loadFromINI();
 }
 
+// ---------------------------
+// Drone UID
+// ---------------------------
+void PatrolController::setDroneUID(const QString& uid)
+{
+    if (_config.droneUID == uid)
+        return;
+
+    _config.droneUID = uid;
+    setDirty(true);
+    emit droneUIDChanged(uid);
+    loadFromINI();
+}
+
+// ---------------------------
+// JSON save/load (unchanged)
+// ---------------------------
 void PatrolController::save(QJsonObject& json)
 {
     json["enabled"]    = _config.enabled;
@@ -42,6 +104,8 @@ void PatrolController::save(QJsonObject& json)
     json["loops"]      = _config.loopCount;
     json["duration"]   = _config.duration_min;
     json["startTime"]  = _config.startTime;
+    json["droneUID"]   = _config.droneUID;
+
     setDirty(false);
 }
 
@@ -53,6 +117,7 @@ bool PatrolController::load(const QJsonObject& json, QString&)
     _config.loopCount    = json["loops"].toInt(3);
     _config.duration_min = json["duration"].toInt(20);
     _config.startTime    = json["startTime"].toString("22:00");
+    _config.droneUID     = json["droneUID"].toString();
 
     emit enabledChanged(_config.enabled);
     emit speedChanged(_config.speed_mps);
@@ -60,6 +125,7 @@ bool PatrolController::load(const QJsonObject& json, QString&)
     emit loopsChanged(_config.loopCount);
     emit durationChanged(_config.duration_min);
     emit startTimeChanged(_config.startTime);
+    emit droneUIDChanged(_config.droneUID);
 
     setDirty(false);
     return true;
@@ -70,42 +136,56 @@ void PatrolController::loadFromVehicle()
     setDirty(false);
 }
 
+// ---------------------------
+// INI persistence (unchanged + DroneUID)
+// ---------------------------
 void PatrolController::saveToINI()
 {
-    // Resolve app data directory
-    const QString appDataPath =
-        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (_config.droneUID.isEmpty()) {
+        return;
+    }
 
-    QDir().mkpath(appDataPath);
-
-    const QString iniPath = appDataPath + "/patrol.ini";
-
-    QSettings settings(iniPath, QSettings::IniFormat);
-
-    settings.beginGroup("Patrol");
-    settings.setValue("Enabled",     _config.enabled);
-    settings.setValue("LoopMode",    static_cast<int>(_config.loopMode));
-    settings.setValue("SpeedMps",    _config.speed_mps);
-    settings.setValue("LoopCount",   _config.loopCount);
-    settings.setValue("DurationMin", _config.duration_min);
-    settings.setValue("StartTime",   _config.startTime);
-    settings.endGroup();
-
-    settings.sync();
-
-    // qCDebug(QGCLoggingCategory("PatrolController"))
-    //     << "Patrol config saved to INI:" << iniPath;
-}
-
-void PatrolController::loadFromINI()
-{
     const QString iniPath =
         QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
         + "/patrol.ini";
 
     QSettings settings(iniPath, QSettings::IniFormat);
 
-    settings.beginGroup("Patrol");
+            //SAFE GROUP NAME
+    const QString groupName = QString("Patrol_%1").arg(_config.droneUID);
+    settings.beginGroup(groupName);
+
+    settings.setValue("Enabled",     _config.enabled);
+    settings.setValue("LoopMode",    static_cast<int>(_config.loopMode));
+    settings.setValue("SpeedMps",    _config.speed_mps);
+    settings.setValue("LoopCount",   _config.loopCount);
+    settings.setValue("DurationMin", _config.duration_min);
+    settings.setValue("StartTime",   _config.startTime);
+    settings.setValue("LastUpdated",
+                      QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+
+    settings.endGroup();
+    settings.sync();
+}
+
+void PatrolController::loadFromINI()
+{
+    if (_config.droneUID.isEmpty()) {
+        return;
+    }
+
+    const QString iniPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + "/patrol.ini";
+
+    QSettings settings(iniPath, QSettings::IniFormat);
+
+    const QString groupName = QString("Patrol_%1").arg(_config.droneUID);
+    if (!settings.childGroups().contains(groupName)) {
+        return;
+    }
+
+    settings.beginGroup(groupName);
 
     setEnabled(settings.value("Enabled", false).toBool());
     setLoopsMode(static_cast<PatrolLoopMode>(
@@ -116,13 +196,11 @@ void PatrolController::loadFromINI()
     setStartTime(settings.value("StartTime", "22:00").toString());
 
     settings.endGroup();
-
-    setDirty(false);
-
-    // qCDebug(QGCLoggingCategory("PatrolController"))
-    //     << "Patrol config loaded from INI";
 }
 
+// ---------------------------
+// Vehicle interaction (unchanged)
+// ---------------------------
 void PatrolController::sendToVehicle()
 {
     qDebug() << "Sending Patrol Config:"
@@ -131,7 +209,8 @@ void PatrolController::sendToVehicle()
              << "loopMode=" << int(_config.loopMode)
              << "loops=" << _config.loopCount
              << "duration=" << _config.duration_min
-             << "startTime=" << _config.startTime;
+             << "startTime=" << _config.startTime
+             << "droneUID=" << _config.droneUID;
 
     emit sendComplete();
 }
@@ -139,12 +218,15 @@ void PatrolController::sendToVehicle()
 void PatrolController::removeAll()
 {
     _config = PatrolConfig{};
+
     emit enabledChanged(false);
     emit speedChanged(_config.speed_mps);
     emit loopsModeChanged(_config.loopMode);
     emit loopsChanged(_config.loopCount);
     emit durationChanged(_config.duration_min);
     emit startTimeChanged(_config.startTime);
+    emit droneUIDChanged(_config.droneUID);
+
     setDirty(true);
 }
 

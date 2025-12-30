@@ -80,6 +80,12 @@ void PlanMasterController::_commonInit(void)
 
     // Offline vehicle can change firmware/vehicle type
     connect(_controllerVehicle,     &Vehicle::vehicleTypeChanged,                   this, &PlanMasterController::_updatePlanCreatorsList);
+
+    MultiVehicleManager* mvm = MultiVehicleManager::instance();
+    if (mvm) {
+        connect(mvm, &MultiVehicleManager::vehicleAdded, this, &PlanMasterController::_updatePatrolAvailableDrones);
+        connect(mvm, &MultiVehicleManager::vehicleRemoved, this, &PlanMasterController::_updatePatrolAvailableDrones);
+    }
 }
 
 
@@ -87,6 +93,28 @@ PlanMasterController::~PlanMasterController()
 {
 
 }
+
+void PlanMasterController::_updatePatrolAvailableDrones()
+{
+    QStringList drones;
+
+    MultiVehicleManager* mvm = MultiVehicleManager::instance();
+    QmlObjectListModel* vehicles = mvm ? mvm->vehicles() : nullptr;
+
+    if (vehicles) {
+        for (int i = 0; i < vehicles->count(); ++i) {
+            Vehicle* v = vehicles->value<Vehicle*>(i);
+            if (!v) {
+                continue;
+            }
+
+            drones << QString("%1").arg(v->id());
+        }
+    }
+
+    _patrolController.setAvailableDrones(drones);
+}
+
 
 void PlanMasterController::start(void)
 {
