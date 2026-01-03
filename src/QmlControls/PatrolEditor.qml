@@ -88,6 +88,7 @@ Rectangle {
                     text: qsTr("Select Drone…")
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    enabled: patrolController && patrolController.availableDrones.length > 0
                     onClicked: selectDroneDialog.open()
                 }
 
@@ -176,18 +177,110 @@ Rectangle {
                 QGCLabel { text: qsTr("Scheduled Start Time") }
 
                 QGCTextField {
+                    id: startTimeField
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    text: patrolController ? patrolController.startTime : "22:00"
                     placeholderText: "HH:MM"
-                    onEditingFinished: if (patrolController) patrolController.startTime = text
+                    text: patrolController ? patrolController.startTime : ""
+
+                    onEditingFinished: {
+                        if (!patrolController)
+                            return
+
+                        var parts = text.split(":")
+                        if (parts.length !== 2) {
+                            startTimeError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
+                        var h = parseInt(parts[0])
+                        var m = parseInt(parts[1])
+
+                        if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+                            startTimeError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
+                        startTimeError.visible = false
+                        applyPatrolSettings.enabled = true
+                        patrolController.startTime = text
+                    }
+                }
+
+                QGCLabel {
+                    id: startTimeError
+                    visible: false
+                    color: qgcPal.warningText
+                    text: qsTr("Invalid time. Use HH:MM (24-hour).")
+                    font.pixelSize: ScreenTools.smallFontPixelSize
+                }
+
+                // ---------- START DATE ----------
+                QGCLabel { text: qsTr("Scheduled Start Date") }
+
+                QGCTextField {
+                    id: startDateField
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    placeholderText: "YYYY-MM-DD"
+
+                    text: patrolController &&
+                          patrolController.startDate &&
+                          !isNaN(patrolController.startDate.getTime())
+                          ? Qt.formatDate(patrolController.startDate, "yyyy-MM-dd")
+                          : ""
+
+                    onEditingFinished: {
+                        if (!patrolController)
+                            return
+
+                        var parts = text.split("-")
+                        if (parts.length !== 3) {
+                            startDateError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
+                        var y = parseInt(parts[0])
+                        var m = parseInt(parts[1]) - 1
+                        var d = parseInt(parts[2])
+
+                        var date = new Date(y, m, d)
+
+                        // Validate exact date match (prevents Feb 30 etc.)
+                        if (isNaN(date.getTime()) ||
+                                date.getFullYear() !== y ||
+                                date.getMonth() !== m ||
+                                date.getDate() !== d) {
+
+                            startDateError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
+                        startDateError.visible = false
+                        applyPatrolSettings.enabled = true
+                        patrolController.startDate = date
+                    }
+                }
+
+                QGCLabel {
+                    id: startDateError
+                    visible: false
+                    color: qgcPal.warningText
+                    text: qsTr("Invalid date. Use YYYY-MM-DD.")
+                    font.pixelSize: ScreenTools.smallFontPixelSize
                 }
 
                 // ---------- ACTIONS ----------
                 QGCButton {
+                    id: applyPatrolSettings
                     text: qsTr("Apply Patrol Settings")
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    enabled: patrolController && patrolController.availableDrones.length > 0
                     onClicked: if (patrolController) patrolController.saveToINI();
                 }
 
@@ -195,6 +288,7 @@ Rectangle {
                     text: qsTr("Reset")
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    enabled: patrolController && patrolController.availableDrones.length > 0
                     onClicked: if (patrolController) patrolController.removeAll()
                 }
             }
@@ -242,7 +336,7 @@ Rectangle {
                             height: ScreenTools.defaultFontPixelHeight * 2
                             radius: 4
 
-                            // ✅ Selection visuals
+                            // Selection visuals
                             color: ListView.isCurrentItem
                                    ? qgcPal.buttonHighlight
                                    : "transparent"
@@ -268,6 +362,14 @@ Rectangle {
                                 }
                                 onDoubleClicked: {
                                     patrolController.droneUID = modelData
+                                    var id = parseInt(modelData)
+                                    if (!isNaN(id)) {
+                                        QGroundControl.multiVehicleManager.deselectAllVehicles()
+                                        QGroundControl.multiVehicleManager.selectVehicle(id)
+                                        // QGroundControl.multiVehicleManager.setActiveVehicle(
+                                        //             QGroundControl.multiVehicleManager.getVehicleById(id)
+                                        //             )
+                                    }
                                     selectDroneDialog.close()
                                 }
                             }
@@ -291,6 +393,14 @@ Rectangle {
                     onClicked: {
                         patrolController.droneUID =
                                 patrolController.availableDrones[droneListView.currentIndex]
+                        var id = parseInt(patrolController.droneUID)
+                        if (!isNaN(id)) {
+                            QGroundControl.multiVehicleManager.deselectAllVehicles()
+                            QGroundControl.multiVehicleManager.selectVehicle(id)
+                            // QGroundControl.multiVehicleManager.setActiveVehicle(
+                            //             QGroundControl.multiVehicleManager.getVehicleById(id)
+                            //             )
+                        }
                         selectDroneDialog.close()
                     }
                 }
