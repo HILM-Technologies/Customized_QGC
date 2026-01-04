@@ -17,12 +17,15 @@
 #include "GeoFenceController.h"
 #include "RallyPointController.h"
 #include "PatrolController.h"
+#include "PatrolScheduler.h"
 
 Q_DECLARE_LOGGING_CATEGORY(PlanMasterControllerLog)
 
 class QmlObjectListModel;
 class MultiVehicleManager;
 class Vehicle;
+class PatrolScheduler;
+
 
 /// Master controller for mission, fence, rally
 class PlanMasterController : public QObject
@@ -155,12 +158,15 @@ private:
     MultiVehicleManager*    _multiVehicleMgr =          nullptr;
     Vehicle*                _controllerVehicle =        nullptr;    ///< Offline controller vehicle
     Vehicle*                _managerVehicle =           nullptr;    ///< Either active vehicle or _controllerVehicle if none
+
+
     bool                    _flyView =                  true;
     bool                    _offline =                  true;
     MissionController       _missionController;
     GeoFenceController      _geoFenceController;
     RallyPointController    _rallyPointController;
     PatrolController        _patrolController;
+    PatrolScheduler         _patrolScheduler;
     bool                    _loadGeoFence =             false;
     bool                    _loadRallyPoints =          false;
     bool                    _sendGeoFence =             false;

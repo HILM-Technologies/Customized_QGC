@@ -5,7 +5,6 @@
 #include <QtQmlIntegration/QtQmlIntegration>
 
 #include "PlanElementController.h"
-#include <QTimer>
 
 class PlanMasterController;
 
@@ -109,15 +108,13 @@ class PatrolController : public PlanElementController
     void dirtyChanged           (bool);
     void droneUIDChanged        (QString);
     void startDateChanged       (QDate);
+    void patrolConfigChanged    (const QString& droneUID);
+
 
     void availableDronesChanged ();
 
    private:
-    void _configurePatrolTimer();
-
-   private:
     PatrolConfig    _config;
-    QStringList     _availableDrones;   // NEW
-    QTimer*         _patrolTimer = nullptr;
+    QStringList     _availableDrones;
     bool            _dirty = false;
 };

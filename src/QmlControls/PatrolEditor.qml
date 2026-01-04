@@ -12,7 +12,7 @@ Rectangle {
     width: parent.width
     height: patrolItems.y + patrolItems.height + (_margin * 2)
 
-    property var patrolController   // injected from PlanView.qml
+    property var patrolController
 
     readonly property real _margin: ScreenTools.defaultFontPixelWidth / 2
     readonly property real _radius: ScreenTools.defaultFontPixelWidth / 2

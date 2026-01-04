@@ -39,7 +39,8 @@ PlanMasterController::PlanMasterController(QObject* parent)
     , _missionController    (this)
     , _geoFenceController   (this)
     , _rallyPointController (this)
-    , _patrolController (this)
+    , _patrolController     (this)
+    , _patrolScheduler      (this)
 {
     _commonInit();
 }
@@ -53,7 +54,8 @@ PlanMasterController::PlanMasterController(MAV_AUTOPILOT firmwareType, MAV_TYPE 
     , _missionController    (this)
     , _geoFenceController   (this)
     , _rallyPointController (this)
-    , _patrolController (this)
+    , _patrolController     (this)
+    , _patrolScheduler      (this)
 {
     _commonInit();
 }
@@ -66,7 +68,6 @@ void PlanMasterController::_commonInit(void)
     connect(&_geoFenceController,   &GeoFenceController::dirtyChanged,              this, &PlanMasterController::_updateOverallDirty);
     connect(&_rallyPointController, &RallyPointController::dirtyChanged,            this, &PlanMasterController::_updateOverallDirty);
     connect(&_patrolController,     &PatrolController::dirtyChanged,                this, &PlanMasterController::_updateOverallDirty);
-
 
     connect(&_missionController,    &MissionController::containsItemsChanged,       this, &PlanMasterController::containsItemsChanged);
     connect(&_geoFenceController,   &GeoFenceController::containsItemsChanged,      this, &PlanMasterController::containsItemsChanged);
@@ -85,7 +86,16 @@ void PlanMasterController::_commonInit(void)
     if (mvm) {
         connect(mvm, &MultiVehicleManager::vehicleAdded, this, &PlanMasterController::_updatePatrolAvailableDrones);
         connect(mvm, &MultiVehicleManager::vehicleRemoved, this, &PlanMasterController::_updatePatrolAvailableDrones);
+        connect(mvm, &MultiVehicleManager::vehicleRemoved, &_patrolScheduler, &PatrolScheduler::vehicleRemoved);
+        // Scheduler restore-on-connect
+        connect(mvm, &MultiVehicleManager::vehicleAdded, this, [this](Vehicle* vehicle) {
+            if (vehicle) {
+                _patrolScheduler.updatePatrol(
+                    QString::number(vehicle->id()));
+            }
+        });
     }
+    connect(&_patrolController, &PatrolController::patrolConfigChanged, &_patrolScheduler, &PatrolScheduler::updatePatrol);
 }
 
 

@@ -9,21 +9,11 @@
 #include <QDateTime>
 #include <QTime>
 
-// File-local helper (not part of class API)
-static QDateTime computeTriggerDateTime(const QDate& date,
-                                        const QString& startTime)
-{
-    QTime time = QTime::fromString(startTime, "HH:mm");
-    if (!time.isValid() || !date.isValid()) {
-        return QDateTime();
-    }
-
-    return QDateTime(date, time);
-}
 
 PatrolController::PatrolController(PlanMasterController* master, QObject* parent)
     : PlanElementController(master, parent)
 {
+    qDebug() << "PatrolController address " << this << "<--";
 }
 
 // ---------------------------
@@ -45,7 +35,7 @@ void PatrolController::setAvailableDrones(const QStringList& drones)
             _config.droneUID.clear();
             emit droneUIDChanged(_config.droneUID);
         }
-        _configurePatrolTimer();
+
         emit availableDronesChanged();
         return;
     }
@@ -56,7 +46,7 @@ void PatrolController::setAvailableDrones(const QStringList& drones)
 
         _config.droneUID.clear();
         emit droneUIDChanged(_config.droneUID);
-        _configurePatrolTimer();   // cancel timer
+           // cancel timer
     }
 
     emit availableDronesChanged();
@@ -105,7 +95,6 @@ void PatrolController::setDroneUID(const QString& uid)
     emit droneUIDChanged(uid);
 
     loadFromINI();          // load config for this drone
-    _configurePatrolTimer(); // nsure correct scheduling
 }
 
 // ---------------------------
@@ -150,7 +139,7 @@ bool PatrolController::load(const QJsonObject& json, QString&)
     emit startDateChanged(_config.startDate);
     emit droneUIDChanged(_config.droneUID);
 
-    _configurePatrolTimer();
+
     setDirty(false);
     return true;
 }
@@ -193,8 +182,7 @@ void PatrolController::saveToINI()
 
     settings.endGroup();
     settings.sync();
-
-    _configurePatrolTimer();
+    emit patrolConfigChanged(_config.droneUID);
 }
 
 void PatrolController::loadFromINI()
@@ -232,66 +220,7 @@ void PatrolController::loadFromINI()
             Qt::ISODate);
 
     settings.endGroup();
-
-    _configurePatrolTimer();
-}
-
-void PatrolController::_configurePatrolTimer()
-{
-    if (_patrolTimer) {
-        _patrolTimer->stop();
-        _patrolTimer->deleteLater();
-        _patrolTimer = nullptr;
-    }
-
-    if (!_config.enabled ||
-        _config.startTime.isEmpty() ||
-        !_config.startDate.isValid()) {
-        return;
-    }
-
-    QDateTime triggerTime =
-        computeTriggerDateTime(_config.startDate, _config.startTime);
-
-    if (!triggerTime.isValid()) {
-        qWarning() << "Invalid patrol date/time for drone:"
-                   << _config.droneUID;
-        return;
-    }
-
-    QDateTime now = QDateTime::currentDateTime();
-
-            // 🔒 EXPIRED → DO NOT SCHEDULE
-    if (triggerTime <= now) {
-        qInfo() << "Patrol already expired for drone:"
-                << _config.droneUID
-                << "trigger was:" << triggerTime;
-        return;
-    }
-
-    qint64 msecsToTrigger = now.msecsTo(triggerTime);
-
-    _patrolTimer = new QTimer(this);
-    _patrolTimer->setSingleShot(true);
-
-    connect(_patrolTimer, &QTimer::timeout, this, [this, triggerTime]() {
-        qInfo() << "Patrol timer triggered for drone:"
-                << _config.droneUID
-                << "at" << triggerTime.toString(Qt::ISODate);
-
-                // emit patrolTriggered(_config.droneUID);
-
-        if (_patrolTimer) {
-            _patrolTimer->deleteLater();
-            _patrolTimer = nullptr;
-        }
-    });
-
-    _patrolTimer->start(static_cast<int>(msecsToTrigger));
-
-    qInfo() << "Patrol scheduled for drone:"
-            << _config.droneUID
-            << "at" << triggerTime.toString(Qt::ISODate);
+    emit patrolConfigChanged(_config.droneUID);
 }
 
 // ---------------------------
@@ -324,7 +253,7 @@ void PatrolController::removeAll()
     emit startDateChanged(_config.startDate);
     emit droneUIDChanged(_config.droneUID);
 
-    _configurePatrolTimer(); // cancel timer
+     // cancel timer
     setDirty(true);
 }
 
@@ -343,7 +272,7 @@ void PatrolController::setEnabled(bool v)
         _config.enabled = v;
         emit enabledChanged(v);
         setDirty(true);
-        _configurePatrolTimer();
+
     }
 }
 
@@ -390,7 +319,7 @@ void PatrolController::setStartTime(const QString& t)
         _config.startTime = t;
         emit startTimeChanged(t);
         setDirty(true);
-        _configurePatrolTimer();
+
     }
 }
 
@@ -400,7 +329,7 @@ void PatrolController::setStartDate(const QDate& d)
         _config.startDate = d;
         emit startDateChanged(d);
         setDirty(true);
-        _configurePatrolTimer();
+
     }
 }
 
