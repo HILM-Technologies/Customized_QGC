@@ -187,25 +187,16 @@ Rectangle {
                         if (!patrolController)
                             return
 
-                        if (!text || text.length === 0) {
+                        // Reject empty or whitespace-only input
+                        if (!text || text.trim().length === 0) {
                             startTimeError.visible = true
                             applyPatrolSettings.enabled = false
                             return
                         }
 
-                        var parts = text.split(":")
-                        if (parts.length !== 2) {
-                            startTimeError.visible = true
-                            applyPatrolSettings.enabled = false
-                            return
-                        }
-
-                        var h = Number(parts[0])
-                        var m = Number(parts[1])
-
-                        if (!Number.isInteger(h) || !Number.isInteger(m) ||
-                            h < 0 || h > 23 || m < 0 || m > 59) {
-
+                        // Strict format: exactly HH:MM (no spaces)
+                        var timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/
+                        if (!timeRe.test(text)) {
                             startTimeError.visible = true
                             applyPatrolSettings.enabled = false
                             return
@@ -214,7 +205,7 @@ Rectangle {
                         // Valid
                         startTimeError.visible = false
                         applyPatrolSettings.enabled = true
-                        patrolController.startTime = text   // safe assignment
+                        patrolController.startTime = text
                     }
                 }
 
@@ -246,32 +237,28 @@ Rectangle {
                         if (!patrolController)
                             return
 
-                        if (!text || text.length === 0) {
+                        if (!text || text.trim().length === 0) {
+                            startDateError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
+                        // Strict format: YYYY-MM-DD (no spaces)
+                        var dateRe = /^\d{4}-\d{2}-\d{2}$/
+                        if (!dateRe.test(text)) {
                             startDateError.visible = true
                             applyPatrolSettings.enabled = false
                             return
                         }
 
                         var parts = text.split("-")
-                        if (parts.length !== 3) {
-                            startDateError.visible = true
-                            applyPatrolSettings.enabled = false
-                            return
-                        }
-
                         var y = Number(parts[0])
                         var m = Number(parts[1]) - 1
                         var d = Number(parts[2])
 
-                        if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) {
-                            startDateError.visible = true
-                            applyPatrolSettings.enabled = false
-                            return
-                        }
-
                         var date = new Date(y, m, d)
 
-                        // Strict validation (prevents Feb 30, etc.)
+                        // Prevent invalid dates (Feb 30, etc.)
                         if (isNaN(date.getTime()) ||
                             date.getFullYear() !== y ||
                             date.getMonth() !== m ||
@@ -285,7 +272,7 @@ Rectangle {
                         // Valid
                         startDateError.visible = false
                         applyPatrolSettings.enabled = true
-                        patrolController.startDate = date   // safe assignment
+                        patrolController.startDate = date
                     }
                 }
 
