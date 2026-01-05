@@ -222,7 +222,7 @@ Item {
                 PatrolEditor {
                     id: patrolEditor
                     width: parent.width
-                    visible: _missionController.visualItems.count > 1 // only enable if mission have take off and waypoints (can be refined more in future)
+                    visible: QGroundControl.multiVehicleManager.activeVehicleAvailable
                     patrolController: root._patrolController
                 }
             }

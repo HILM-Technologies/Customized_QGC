@@ -187,6 +187,12 @@ Rectangle {
                         if (!patrolController)
                             return
 
+                        if (!text || text.length === 0) {
+                            startTimeError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
                         var parts = text.split(":")
                         if (parts.length !== 2) {
                             startTimeError.visible = true
@@ -194,18 +200,21 @@ Rectangle {
                             return
                         }
 
-                        var h = parseInt(parts[0])
-                        var m = parseInt(parts[1])
+                        var h = Number(parts[0])
+                        var m = Number(parts[1])
 
-                        if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+                        if (!Number.isInteger(h) || !Number.isInteger(m) ||
+                            h < 0 || h > 23 || m < 0 || m > 59) {
+
                             startTimeError.visible = true
                             applyPatrolSettings.enabled = false
                             return
                         }
 
+                        // Valid
                         startTimeError.visible = false
                         applyPatrolSettings.enabled = true
-                        patrolController.startTime = text
+                        patrolController.startTime = text   // safe assignment
                     }
                 }
 
@@ -228,6 +237,7 @@ Rectangle {
 
                     text: patrolController &&
                           patrolController.startDate &&
+                          patrolController.startDate instanceof Date &&
                           !isNaN(patrolController.startDate.getTime())
                           ? Qt.formatDate(patrolController.startDate, "yyyy-MM-dd")
                           : ""
@@ -236,6 +246,12 @@ Rectangle {
                         if (!patrolController)
                             return
 
+                        if (!text || text.length === 0) {
+                            startDateError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
+
                         var parts = text.split("-")
                         if (parts.length !== 3) {
                             startDateError.visible = true
@@ -243,26 +259,33 @@ Rectangle {
                             return
                         }
 
-                        var y = parseInt(parts[0])
-                        var m = parseInt(parts[1]) - 1
-                        var d = parseInt(parts[2])
+                        var y = Number(parts[0])
+                        var m = Number(parts[1]) - 1
+                        var d = Number(parts[2])
+
+                        if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) {
+                            startDateError.visible = true
+                            applyPatrolSettings.enabled = false
+                            return
+                        }
 
                         var date = new Date(y, m, d)
 
-                        // Validate exact date match (prevents Feb 30 etc.)
+                        // Strict validation (prevents Feb 30, etc.)
                         if (isNaN(date.getTime()) ||
-                                date.getFullYear() !== y ||
-                                date.getMonth() !== m ||
-                                date.getDate() !== d) {
+                            date.getFullYear() !== y ||
+                            date.getMonth() !== m ||
+                            date.getDate() !== d) {
 
                             startDateError.visible = true
                             applyPatrolSettings.enabled = false
                             return
                         }
 
+                        // Valid
                         startDateError.visible = false
                         applyPatrolSettings.enabled = true
-                        patrolController.startDate = date
+                        patrolController.startDate = date   // safe assignment
                     }
                 }
 
@@ -273,6 +296,7 @@ Rectangle {
                     text: qsTr("Invalid date. Use YYYY-MM-DD.")
                     font.pixelSize: ScreenTools.smallFontPixelSize
                 }
+
 
                 // ---------- ACTIONS ----------
                 QGCButton {
@@ -289,7 +313,7 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     enabled: patrolController && patrolController.availableDrones.length > 0
-                    onClicked: if (patrolController) patrolController.removeAll()
+                    onClicked: if (patrolController) patrolController.reset()
                 }
             }
         }

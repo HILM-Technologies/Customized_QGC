@@ -5,7 +5,6 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
-#include <QDebug>
 #include <QDateTime>
 #include <QTime>
 
@@ -13,7 +12,6 @@
 PatrolController::PatrolController(PlanMasterController* master, QObject* parent)
     : PlanElementController(master, parent)
 {
-    qDebug() << "PatrolController address " << this << "<--";
 }
 
 // ---------------------------
@@ -139,7 +137,6 @@ bool PatrolController::load(const QJsonObject& json, QString&)
     emit startDateChanged(_config.startDate);
     emit droneUIDChanged(_config.droneUID);
 
-
     setDirty(false);
     return true;
 }
@@ -159,6 +156,32 @@ void PatrolController::saveToINI()
         return;
     }
 
+    // ---------------------------
+    // Normalize config based on LoopMode
+    // ---------------------------
+    switch (_config.loopMode) {
+        case Forever:
+            _config.loopCount    = -1;
+            _config.duration_min = -1;
+            break;
+
+        case NTimes:
+            _config.duration_min = -1;
+            if (_config.loopCount <= 0) {
+                qWarning() << "Invalid loopCount for NTimes, forcing to 1";
+                _config.loopCount = 1;
+            }
+            break;
+
+        case Duration:
+            _config.loopCount = -1;
+            if (_config.duration_min <= 0) {
+                qWarning() << "Invalid duration for Duration mode, forcing to 1 minute";
+                _config.duration_min = 1;
+            }
+            break;
+    }
+
     const QString iniPath =
         QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
         + "/patrol.ini";
@@ -168,12 +191,11 @@ void PatrolController::saveToINI()
 
     settings.beginGroup(groupName);
 
-    settings.setValue("Enabled",     _config.enabled);
-    settings.setValue("LoopMode",    static_cast<int>(_config.loopMode));
+    settings.setValue("Enabled",     _config.enabled);    
     settings.setValue("SpeedMps",    _config.speed_mps);
+    settings.setValue("LoopMode",    static_cast<int>(_config.loopMode));
     settings.setValue("LoopCount",   _config.loopCount);
     settings.setValue("DurationMin", _config.duration_min);
-
     settings.setValue("StartTime",   _config.startTime);             // HH:mm
     settings.setValue("StartDate",   _config.startDate.toString(Qt::ISODate)); // YYYY-MM-DD
 
@@ -182,6 +204,7 @@ void PatrolController::saveToINI()
 
     settings.endGroup();
     settings.sync();
+    setDirty(false);
     emit patrolConfigChanged(_config.droneUID);
 }
 
@@ -204,23 +227,23 @@ void PatrolController::loadFromINI()
 
     settings.beginGroup(groupName);
 
-    setEnabled(settings.value("Enabled", false).toBool());
-    setLoopsMode(static_cast<PatrolLoopMode>(
-        settings.value("LoopMode", 0).toInt()));
+    setEnabled(settings.value("Enabled", false).toBool());    
     setSpeed(settings.value("SpeedMps", 5.0f).toFloat());
+    setLoopsMode(static_cast<PatrolLoopMode>( settings.value("LoopMode", 0).toInt()) );
     setLoops(settings.value("LoopCount", 3).toInt());
     setDuration(settings.value("DurationMin", 20).toInt());
 
-    _config.startTime =
-        settings.value("StartTime", "").toString();
-
-    _config.startDate =
-        QDate::fromString(
-            settings.value("StartDate", "").toString(),
-            Qt::ISODate);
+    _config.startTime = settings.value("StartTime", "").toString();
+    _config.startDate = QDate::fromString( settings.value("StartDate", "").toString(), Qt::ISODate);
 
     settings.endGroup();
     emit patrolConfigChanged(_config.droneUID);
+}
+
+void PatrolController::reset()
+{
+    loadFromINI();
+    setDirty(false);
 }
 
 // ---------------------------
@@ -228,15 +251,6 @@ void PatrolController::loadFromINI()
 // ---------------------------
 void PatrolController::sendToVehicle()
 {
-    qDebug() << "Sending Patrol Config:"
-             << "enabled=" << _config.enabled
-             << "speed=" << _config.speed_mps
-             << "loopMode=" << int(_config.loopMode)
-             << "loops=" << _config.loopCount
-             << "duration=" << _config.duration_min
-             << "startTime=" << _config.startTime
-             << "droneUID=" << _config.droneUID;
-
     emit sendComplete();
 }
 
@@ -275,7 +289,6 @@ void PatrolController::setEnabled(bool v)
 
     }
 }
-
 
 void PatrolController::setSpeed(float v)
 {

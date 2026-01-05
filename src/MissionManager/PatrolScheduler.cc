@@ -115,19 +115,19 @@ void PatrolScheduler::updatePatrol(const QString& droneUID)
                 const QString group = QString("Patrol_%1").arg(vehicleId);
                 settings.beginGroup(group);
 
+                const float speedMps  = settings.value("SpeedMps", 5.0).toFloat();
                 const int loopMode    = settings.value("LoopMode", 0).toInt();
                 const int loopCount   = settings.value("LoopCount", 0).toInt();
-                const int durationMin= settings.value("DurationMin", 0).toInt();
-                const float speedMps =
-                    settings.value("SpeedMps", 5.0).toFloat();
+                const int durationMin = settings.value("DurationMin", 0).toInt();
+
 
                 settings.endGroup();
 
                 _sendPatrolCommand(vehicle,
+                                   speedMps,
                                    loopMode,
                                    loopCount,
-                                   durationMin,
-                                   speedMps);
+                                   durationMin);
             });
 
     runtime.timer->start(static_cast<int>(msecsToTrigger));
@@ -137,31 +137,26 @@ void PatrolScheduler::updatePatrol(const QString& droneUID)
             << "at" << trigger.toString(Qt::ISODate);
 }
 
-void PatrolScheduler::_sendPatrolCommand(
-    Vehicle* vehicle,
-    int loopMode,
-    int loopCount,
-    int durationMin,
-    float speedMps)
+void PatrolScheduler::_sendPatrolCommand(Vehicle* vehicle, float speedMps, int loopMode, int loopCount, int durationMin)
 {
     if (!vehicle)
         return;
 
     qInfo() << "Sending EXECUTE PATROL command to vehicle"
             << vehicle->id()
+            << "speedMps=" << speedMps
             << "loopMode=" << loopMode
             << "loopCount=" << loopCount
-            << "durationMin=" << durationMin
-            << "speedMps=" << speedMps;
+            << "durationMin=" << durationMin;
 
     vehicle->sendMavCommand(
         vehicle->defaultComponentId(),
         MAV_CMD_USER_1,   // EXECUTE_PATROL_NOW
         true,
-        float(loopMode),      // param1
-        float(loopCount),     // param2
-        float(durationMin),   // param3
-        speedMps,             // param4
+        speedMps, // param1
+        float(loopMode), // param2
+        float(loopCount), // param3
+        float(durationMin), // param4
         0.0f,
         0.0f,
         0.0f

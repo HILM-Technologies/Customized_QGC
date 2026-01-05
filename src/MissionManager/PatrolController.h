@@ -38,8 +38,8 @@ class PatrolController : public PlanElementController
         bool            enabled       = false;
         PatrolLoopMode  loopMode       = Forever;
         float           speed_mps      = 5.0f;
-        int             loopCount      = 0;
-        int             duration_min   = 0;
+        int             loopCount      = -1; // loopCount used only when loopMode == NTimes, otherwise -1
+        int             duration_min   = -1; // duration_min used only when loopMode == Duration, otherwise -1
         QString         startTime;     // HH:MM
         QDate           startDate;     // YYYY-MM-DD
         QString         droneUID;
@@ -51,6 +51,8 @@ class PatrolController : public PlanElementController
                               QObject* parent = nullptr);
 
     Q_INVOKABLE void saveToINI();
+    Q_INVOKABLE void reset();
+
 
             // ---------------------------
             // Accessors

@@ -24,5 +24,5 @@ class PatrolScheduler : public QObject
 
     QMap<int, Runtime> _runtimes; // key = vehicleId
 
-    void _sendPatrolCommand(Vehicle* vehicle, int loopMode, int loopCount, int durationMin, float speedMps);
+    void _sendPatrolCommand(Vehicle* vehicle, float speedMps, int loopMode, int loopCount, int durationMin);
 };
