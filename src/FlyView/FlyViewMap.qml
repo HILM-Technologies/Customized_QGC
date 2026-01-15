@@ -303,6 +303,35 @@ FlightMap {
         }
     }
 
+    // =========================================================
+    // Emergency target placemark (ADDED)
+    // =========================================================
+    MapQuickItem {
+        id: emergencyTargetItem
+        z: QGroundControl.zOrderMapItems + 10
+
+        property var ev: QGroundControl.multiVehicleManager.activeVehicle
+        property var emergency: ev ? ev.emergencyController : null
+
+        visible: emergency && emergency.targetSelected
+
+        coordinate: emergency ? emergency.emergencyCoordinate
+                              : QtPositioning.coordinate()
+
+        anchorPoint.x: emergencyImage.width / 2
+        anchorPoint.y: emergencyImage.height
+
+        sourceItem: Image {
+            id: emergencyImage
+            source: "/qmlimages/EmergencyTarget.svg"
+            width: ScreenTools.defaultFontPixelHeight * 3
+            height: width
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+        }
+    }
+
+
     // Add the items associated with each vehicles flight plan to the map
     Repeater {
         model: QGroundControl.multiVehicleManager.vehicles
@@ -753,6 +782,31 @@ FlightMap {
     }
 
     onMapClicked: (position) => {
+
+                      // =========================================================
+                      // EMERGENCY DEPLOYMENT MAP SELECTION (ADDED)
+                      // =========================================================
+                      if (_activeVehicle &&
+                          _activeVehicle.emergencyController &&
+                          _activeVehicle.emergencyController.selectingTarget) {
+
+                          position = Qt.point(position.x, position.y)
+
+                          var emergencyCoord = _root.toCoordinate(position, false /* clipToViewPort */)
+                          emergencyCoord.latitude  = emergencyCoord.latitude.toFixed(8)
+                          emergencyCoord.longitude = emergencyCoord.longitude.toFixed(8)
+                          emergencyCoord.altitude  = emergencyCoord.altitude.toFixed(8)
+
+                          _activeVehicle.emergencyController.setEmergencyTarget(emergencyCoord)
+
+                          mainWindow.showMessageDialog(
+                              qsTr("Emergency location set"),
+                              qsTr("Emergency deployment point selected.")
+                              )
+
+                          return   // stop here, do not trigger guided/orbit menu
+                      }
+
         if (!globals.guidedControllerFlyView.guidedUIVisible &&
             (globals.guidedControllerFlyView.showGotoLocation || globals.guidedControllerFlyView.showOrbit ||
              globals.guidedControllerFlyView.showROI || globals.guidedControllerFlyView.showSetHome ||

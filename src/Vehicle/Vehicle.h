@@ -52,6 +52,7 @@ class Actuators;
 class AutoPilotPlugin;
 class Autotune;
 class ComponentInformationManager;
+class EmergencyController;
 class EventHandler;
 class FirmwarePlugin;
 class FTPManager;
@@ -227,6 +228,9 @@ public:
     // The following properties relate to Orbit status
     Q_PROPERTY(bool             orbitActive     READ orbitActive        NOTIFY orbitActiveChanged)
     Q_PROPERTY(QGCMapCircle*    orbitMapCircle  READ orbitMapCircle     CONSTANT)
+
+     // The following properties relate to emergency deployment
+    Q_PROPERTY(EmergencyController* emergencyController READ emergencyController CONSTANT)
 
     // Vehicle state used for guided control
     Q_PROPERTY(bool     flying                  READ flying                                         NOTIFY flyingChanged)       ///< Vehicle is flying
@@ -567,6 +571,8 @@ public:
     bool            autoDisarm                  ();
     bool            orbitActive                 () const { return _orbitActive; }
     QGCMapCircle*   orbitMapCircle              () { return &_orbitMapCircle; }
+    EmergencyController* emergencyController    () const { return _emergencyController; }
+
     bool            readyToFlyAvailable         () const{ return _readyToFlyAvailable; }
     bool            readyToFly                  () const{ return _readyToFly; }
     bool            allSensorsHealthy           () const{ return _allSensorsHealthy; }
@@ -1268,6 +1274,8 @@ private:
     Actuators*                      _actuators                  = nullptr;
     RemoteIDManager*                _remoteIDManager            = nullptr;
     StandardModes*                  _standardModes              = nullptr;
+    EmergencyController*            _emergencyController        = nullptr;
+
 
     // Terrain query members, used to get terrain altitude for doSetHome()
     TerrainAtCoordinateQuery*   _currentDoSetHomeTerrainAtCoordinateQuery = nullptr;

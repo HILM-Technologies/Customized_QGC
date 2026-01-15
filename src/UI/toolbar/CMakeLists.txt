@@ -8,6 +8,8 @@ qt_add_qml_module(ToolbarModule
         ArmedIndicator.qml
         EscIndicator.qml
         EscIndicatorPage.qml
+        EmergencyIndicator.qml
+        EmergencyIndicatorPage.qml
         GCSControlIndicator.qml
         GimbalIndicator.qml
         JoystickIndicator.qml

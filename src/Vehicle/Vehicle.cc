@@ -13,6 +13,7 @@
 #include "AudioOutput.h"
 #include "AutoPilotPlugin.h"
 #include "ComponentInformationManager.h"
+#include "EmergencyController.h"
 #include "EventHandler.h"
 #include "FirmwarePlugin.h"
 #include "FirmwarePluginManager.h"
@@ -310,6 +311,10 @@ void Vehicle::_commonInit(LinkInterface* link)
 
     // Remote ID manager might want to acces parameters so make sure to create it after
     _remoteIDManager = new RemoteIDManager(this);
+
+    _emergencyController = new EmergencyController(this, this);
+
+
 
     // Flight modes can differ based on advanced mode
     connect(QGCCorePlugin::instance(), &QGCCorePlugin::showAdvancedUIChanged, this, &Vehicle::flightModesChanged);

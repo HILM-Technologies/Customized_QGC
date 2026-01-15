@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="64"
+    height="64"
+    viewBox="0 0 64 64"
+    fill="none">
+
+    <!-- Base -->
+    <rect x="12" y="36" width="40" height="8" rx="3" fill="currentColor"/>
+
+    <!-- Siren body -->
+    <path
+        d="M22 36
+           L26 16
+           C26 13, 38 13, 38 16
+           L42 36
+           Z"
+        fill="currentColor"/>
+
+    <!-- Light rays -->
+    <rect x="30" y="6" width="4" height="8" rx="2" fill="currentColor"/>
+    <rect x="16" y="10" width="4" height="8" rx="2" transform="rotate(-30 16 10)" fill="currentColor"/>
+    <rect x="44" y="10" width="4" height="8" rx="2" transform="rotate(30 44 10)" fill="currentColor"/>
+</svg>

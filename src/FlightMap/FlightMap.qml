@@ -192,6 +192,24 @@ Map {
         }
     }
 
+    // =========================================================
+    // Emergency cursor overlay (ONLY for cursor shape)
+    // =========================================================
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton    // does NOT steal clicks
+        propagateComposedEvents: true   // lets events pass through
+        preventStealing: true
+        z: 999999                       // always on top
+
+        cursorShape: (_activeVehicle &&
+                      _activeVehicle.emergencyController &&
+                      _activeVehicle.emergencyController.selectingTarget)
+                     ? Qt.CrossCursor
+                     : Qt.ArrowCursor
+    }
+
     /// Ground Station location
     MapQuickItem {
         anchorPoint.x:  sourceItem.width / 2

@@ -7,6 +7,8 @@ target_sources(${CMAKE_PROJECT_NAME}
     PRIVATE
         Autotune.cpp
         Autotune.h
+        EmergencyController.h
+        EmergencyController.cc
         FTPManager.cc
         FTPManager.h
         InitialConnectStateMachine.cc

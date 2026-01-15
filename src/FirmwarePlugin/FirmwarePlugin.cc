@@ -216,6 +216,8 @@ const QVariantList &FirmwarePlugin::toolIndicators(const Vehicle*)
             // ControlIndicator is only available in debug builds for the moment
             QVariant::fromValue(QUrl::fromUserInput("qrc:/qml/QGroundControl/Toolbar/GCSControlIndicator.qml")),
 #endif
+            QVariant::fromValue(QUrl::fromUserInput("qrc:/qml/QGroundControl/Toolbar/EmergencyIndicator.qml")),
+
         });
     }
 
