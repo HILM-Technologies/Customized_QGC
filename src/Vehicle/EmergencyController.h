@@ -24,6 +24,7 @@ class EmergencyController : public QObject
 
    public:
     explicit EmergencyController(Vehicle* vehicle, QObject* parent = nullptr);
+    virtual ~EmergencyController();
 
     bool emergencyActive() const { return _emergencyActive; }
     bool selectingTarget() const { return _selectingTarget; }

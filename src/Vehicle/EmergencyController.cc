@@ -7,10 +7,11 @@ QGC_LOGGING_CATEGORY(EmergencyControllerLog, "qgc.vehicle.emergency")
 
 EmergencyController::EmergencyController(Vehicle* vehicle, QObject* parent)
     : QObject(parent)
-      , _vehicle(vehicle)
-{
-    qCDebug(EmergencyControllerLog) << "EmergencyController created";
-}
+    , _vehicle(vehicle)
+{}
+
+EmergencyController::~EmergencyController()
+{}
 
 // UI: "Select Emergency Location"
 void EmergencyController::startEmergencySelect()
@@ -20,8 +21,6 @@ void EmergencyController::startEmergencySelect()
 
     _selectingTarget = true;
     emit selectingTargetChanged();
-
-    qCDebug(EmergencyControllerLog) << "Emergency target selection started";
 }
 
 // Map click
@@ -34,9 +33,6 @@ void EmergencyController::setEmergencyTarget(const QGeoCoordinate& coord)
     emit selectingTargetChanged();
     emit targetSelectedChanged();
     emit emergencyCoordinateChanged();
-
-    qDebug() << "Emergency target set:" << coord.altitude()  << ":" << coord.latitude()
-                                    << ":" << coord.longitude();
 }
 
 
@@ -97,7 +93,4 @@ void EmergencyController::cancelEmergency()
     emit selectingTargetChanged();
     emit targetSelectedChanged();
     emit emergencyCoordinateChanged();
-
-            // If drone was flying emergency, also send abort / RTL / LOITER etc
-            // _vehicle->emergencyAbort();  (example)
 }
