@@ -1,3 +1,14 @@
+!define SCRIPT_DIR "${__FILEDIR__}"
+
+!define APPNAME "HILM Ground Control"
+!define EXENAME "HILMGroundControl"
+!define ORGNAME "HILM"
+!define APPVERSION "1.0.0"
+
+!define DESTDIR "C:\QGC_INSTALLER\app"
+!define HEADER_BITMAP "${SCRIPT_DIR}\installheader.bmp"
+!define INSTALLER_ICON "${SCRIPT_DIR}\WindowsQGC.ico"
+
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "Win\COM.nsh"

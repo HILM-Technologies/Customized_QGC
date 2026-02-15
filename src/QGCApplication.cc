@@ -87,7 +87,7 @@ QGCApplication::QGCApplication(int &argc, char *argv[], const QGCCommandLinePars
 #ifdef QGC_DAILY_BUILD
         // This gives daily builds their own separate settings space. Allowing you to use daily and stable builds
         // side by side without daily screwing up your stable settings.
-        applicationName = QStringLiteral("%1 Daily").arg(QGC_APP_NAME);
+        applicationName = QStringLiteral("%1 ").arg(QGC_APP_NAME);
 #else
         applicationName = QGC_APP_NAME;
 #endif
@@ -275,6 +275,12 @@ void QGCApplication::_initForNormalAppBoot()
     QUrl windowIcon = QUrl("qrc:/res/qgroundcontrol.ico");
     windowIcon = _qmlAppEngine->interceptUrl(windowIcon, QQmlAbstractUrlInterceptor::UrlString);
     // The interceptor needs "qrc:/path" but QIcon expects ":/path"
+    setWindowIcon(QIcon(":" + windowIcon.path()));
+#endif
+#ifdef Q_OS_WIN
+    QUrl windowIcon = QUrl("qrc:/res/qgroundcontrol.ico");
+    windowIcon = _qmlAppEngine->interceptUrl(windowIcon, QQmlAbstractUrlInterceptor::UrlString);
+    // Convert qrc:/path → :/path
     setWindowIcon(QIcon(":" + windowIcon.path()));
 #endif
 
