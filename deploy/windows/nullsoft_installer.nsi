@@ -9,7 +9,6 @@
 !define HEADER_BITMAP "${SCRIPT_DIR}\installheader.bmp"
 !define INSTALLER_ICON "${SCRIPT_DIR}\WindowsQGC.ico"
 
-
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "Win\COM.nsh"

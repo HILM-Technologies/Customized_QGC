@@ -37,6 +37,8 @@ Item {
     property var    _missionController: _planMasterController.missionController
     property var    _geoFenceController: _planMasterController.geoFenceController
     property var    _rallyPointController: _planMasterController.rallyPointController
+    property var    _patrolController: _planMasterController.patrolController
+
     property var    _visualItems: _missionController.visualItems
     property bool   _lightWidgetBorders: editorMap.isSatelliteMap
     property bool   _addROIOnClick: false
@@ -55,6 +57,7 @@ Item {
     readonly property int _layerFence: 2
     readonly property int _layerRally: 3
     readonly property int _layerUTMSP: 4
+    readonly property int _layerPatrol: 5
 
     readonly property string _armedVehicleUploadPrompt: qsTr("Vehicle is currently armed. Do you want to upload the mission to the vehicle?")
 
@@ -76,6 +79,7 @@ Item {
     property bool _firstMissionLoadComplete: false
     property bool _firstFenceLoadComplete: false
     property bool _firstRallyLoadComplete: false
+    property bool _firstPatrolLoadComplete: false
     property bool _firstLoadComplete: false
 
     MapFitFunctions {

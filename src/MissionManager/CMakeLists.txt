@@ -42,7 +42,11 @@ target_sources(${CMAKE_PROJECT_NAME}
         MissionManager.cc
         MissionManager.h
         MissionSettingsItem.cc
-        MissionSettingsItem.h
+        MissionSettingsItem.h        
+        PatrolScheduler.cc
+        PatrolScheduler.h
+        PatrolController.cc
+        PatrolController.h
         PlanCreator.cc
         PlanCreator.h
         PlanElementController.cc
