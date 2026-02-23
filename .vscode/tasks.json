@@ -61,7 +61,7 @@
       "args": [
         "--unittest"
       ],
-      "command": "${workspaceFolder}/build/QGroundControl",
+      "command": "${workspaceFolder}/build/Debug/HILMGroundControl.exe",
       "dependsOn": "CMake: Build",
       "group": {
         "isDefault": true,
@@ -75,7 +75,7 @@
       "args": [
         "--unittest:${input:testClass}"
       ],
-      "command": "${workspaceFolder}/build/QGroundControl",
+      "command": "${workspaceFolder}/build/Debug/HILMGroundControl.exe",
       "dependsOn": "CMake: Build",
       "group": "test",
       "label": "Run Specific Test",

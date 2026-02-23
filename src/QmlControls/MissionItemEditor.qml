@@ -12,11 +12,11 @@ import QGroundControl.FactControls
 Rectangle {
     id:             _root
     height:         _currentItem ? (editorLoader.y + editorLoader.height + _innerMargin) : (topRowLayout.y + topRowLayout.height + _margin)
-    color:          _currentItem ? qgcPal.buttonHighlight : qgcPal.windowShade
+    color:          _currentItem ? Qt.rgba(0, 0.784, 0.784, 0.22) : Qt.rgba(1, 1, 1, 0.04)
     radius:         _radius
-    opacity:        _currentItem ? 1.0 : 0.7
-    border.width:   _readyForSave ? 0 : 2
-    border.color:   qgcPal.warningText
+    opacity:        _currentItem ? 1.0 : 0.75
+    border.width:   _readyForSave ? 1 : 2
+    border.color:   _readyForSave ? Qt.rgba(0, 0.784, 0.784, 0.32) : qgcPal.warningText
 
     property var    map                 ///< Map control
     property var    masterController
@@ -30,7 +30,7 @@ Rectangle {
     property var    _masterController:          masterController
     property var    _missionController:         _masterController.missionController
     property bool   _currentItem:               missionItem.isCurrentItem
-    property color  _outerTextColor:            _currentItem ? qgcPal.buttonHighlightText : qgcPal.text
+    property color  _outerTextColor:            Qt.rgba(1, 1, 1, _currentItem ? 1.0 : 0.70)
     property bool   _noMissionItemsAdded:       ListView.view.model.count === 1
     property real   _sectionSpacer:             ScreenTools.defaultFontPixelWidth / 2  // spacing between section headings
     property bool   _singleComplexItem:         _missionController.complexMissionItemNames.length === 1
@@ -110,7 +110,7 @@ Rectangle {
             fillMode:               Image.PreserveAspectFit
             mipmap:                 true
             smooth:                 true
-            color:                  qgcPal.buttonHighlightText
+            color:                  _outerTextColor
             visible:                _currentItem && missionItem.sequenceNumber !== 0
             source:                 "/res/TrashDelete.svg"
 

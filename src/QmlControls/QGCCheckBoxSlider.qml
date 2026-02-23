@@ -19,6 +19,11 @@ AbstractButton   {
     checkable:  true
     padding:    0
 
+    // ── HILM design tokens ───────────────────────────────────────
+    readonly property color _teal:      "#00C8C8"
+    readonly property color _tealDim:   Qt.rgba(0, 0.784, 0.784, 0.22)
+    readonly property color _tealBorder:Qt.rgba(0, 0.784, 0.784, 0.45)
+
     property bool _showBorder:      qgcPal.globalTheme === QGCPalette.Light
     property int  _sliderInset:     2
     property bool _showHighlight:   enabled && (pressed || checked)
@@ -43,16 +48,12 @@ AbstractButton   {
             height:                 ScreenTools.defaultFontPixelHeight
             width:                  height * 2
             radius:                 height / 2
-            color:                  checked ? qgcPal.buttonHighlight : qgcPal.button
-            border.width:           _showBorder ? 1 : 0
-            border.color:           qgcPal.buttonBorder
+            color:                  checked ? _teal : (control.enabled && control.hovered ? _tealDim : qgcPal.button)
+            border.width:           checked ? 0 : 1
+            border.color:           control.enabled && control.hovered ? _tealBorder : Qt.rgba(1,1,1,0.15)
 
-            Rectangle {
-                anchors.fill:   parent
-                color:          qgcPal.buttonHighlight
-                opacity:        _showHighlight ? 1 : control.enabled && control.hovered ? .2 : 0
-                radius:         parent.radius
-            }
+            Behavior on color        { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
 
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
@@ -60,7 +61,10 @@ AbstractButton   {
                 height:                 parent.height - (_sliderInset * 2)
                 width:                  height
                 radius:                 height / 2
-                color:                  qgcPal.buttonText
+                color:                  checked ? "#000000" : "white"
+
+                Behavior on x     { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation  { duration: 150 } }
             }
         }
     }

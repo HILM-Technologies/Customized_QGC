@@ -12,12 +12,18 @@ set_source_files_properties(UI/MainWindow.qml
         QT_RESOURCE_ALIAS MainWindow.qml
 )
 
+set_source_files_properties(UI/HilmLandingPage.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS HilmLandingPage.qml
+)
+
 qt_add_qml_module(QGroundControlModule
     URI QGroundControl
     VERSION 1.0
     RESOURCE_PREFIX /qml
     QML_FILES
         UI/MainWindow.qml
+        UI/HilmLandingPage.qml
     IMPORTS
         QGC
     NO_PLUGIN

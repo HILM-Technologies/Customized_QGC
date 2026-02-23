@@ -19,7 +19,7 @@ Slider {
     leftPadding:    0
     rightPadding:   0
     topPadding:     0
-    bottomPadding:  0
+    bottomPadding:  showBoundaryValues ? minLabel.contentHeight : 0
 
     property bool zeroCentered:         false   ///< Value indicator starts display from zero instead of min value
     property bool displayValue:         false   ///< true: Show value on handle

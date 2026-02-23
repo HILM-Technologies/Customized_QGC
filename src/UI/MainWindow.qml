@@ -112,14 +112,20 @@ ApplicationWindow {
         return globals.validationErrorCount <= previousValidationErrorCount
     }
 
+    function showLandingPage() {
+        landingPage.visible = true
+    }
+
     function showPlanView() {
-        flyView.visible = false
-        planView.visible = true
+        landingPage.visible = false
+        flyView.visible     = false
+        planView.visible    = true
     }
 
     function showFlyView() {
-        flyView.visible = true
-        planView.visible = false
+        landingPage.visible = false
+        flyView.visible     = true
+        planView.visible    = false
     }
 
     function showTool(toolTitle, toolSource, toolIcon) {
@@ -271,6 +277,24 @@ ApplicationWindow {
         visible:        false
     }
 
+    // ── HILM Landing Page — shown on startup, overlays all views ──────────
+    HilmLandingPage {
+        id:           landingPage
+        anchors.fill: parent
+        z:            100          // above FlyView / PlanView / toolDrawer
+        visible:      true         // show by default on startup
+    }
+
+    // Press Escape from any view → return to landing page
+    Shortcut {
+        sequences: [StandardKey.Cancel]   // Escape (all bindings)
+        onActivated: {
+            if (!landingPage.visible && mainWindow.allowViewSwitch()) {
+                mainWindow.showLandingPage()
+            }
+        }
+    }
+
     footer: LogReplayStatusBar {
         visible: QGroundControl.settingsManager.flyViewSettings.showLogReplayStatusBar.rawValue
     }
@@ -373,8 +397,8 @@ ApplicationWindow {
                         height:             toolSelectDialog._toolButtonHeight
                         Layout.fillWidth:   true
                         text:               qsTr("Application Settings")
-                        imageResource:      "/res/QGCLogoFull.svg"
-                        imageColor:         "transparent"
+                        imageResource:      "/res/HilmLogo.svg"
+                        imageColor:         "#00C8C8"
                         visible:            !QGroundControl.corePlugin.options.combineSettingsAndSetup
                         onClicked: {
                             if (mainWindow.allowViewSwitch()) {
@@ -465,7 +489,7 @@ ApplicationWindow {
         id:             toolDrawer
         anchors.fill:   parent
         visible:        false
-        color:          qgcPal.window
+        color:          Qt.rgba(0.035, 0.05, 0.05, 1.0)
 
         property var backIcon
         property string toolTitle
@@ -489,7 +513,18 @@ ApplicationWindow {
             anchors.right:  parent.right
             anchors.top:    parent.top
             height:         ScreenTools.toolbarHeight
-            color:          qgcPal.toolbarBackground
+            color:          Qt.rgba(0.02, 0.03, 0.03, 1.0)
+            border.color:   Qt.rgba(0, 0.784, 0.784, 0.25)
+            border.width:   0
+
+            // Teal bottom border line
+            Rectangle {
+                anchors.left:   parent.left
+                anchors.right:  parent.right
+                anchors.bottom: parent.bottom
+                height:         1
+                color:          Qt.rgba(0, 0.784, 0.784, 0.45)
+            }
 
             RowLayout {
                 id:                 toolDrawerToolbarLayout
@@ -516,6 +551,55 @@ ApplicationWindow {
                 onClicked: {
                     if (mainWindow.allowViewSwitch()) {
                         toolDrawer.visible = false
+                    }
+                }
+            }
+
+            // Home button — far right of tool drawer toolbar
+            Rectangle {
+                anchors.right:          parent.right
+                anchors.rightMargin:    ScreenTools.defaultFontPixelWidth * 1.5
+                anchors.verticalCenter: parent.verticalCenter
+                width:   homeRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 2
+                height:  homeRow.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.4
+                radius:  4
+                color:   homeArea.containsMouse ? Qt.rgba(0, 0.784, 0.784, 0.18) : Qt.rgba(0, 0.784, 0.784, 0.08)
+                border.color: Qt.rgba(0, 0.784, 0.784, homeArea.containsMouse ? 0.55 : 0.28)
+                border.width: 1
+                Behavior on color        { ColorAnimation { duration: 140 } }
+                Behavior on border.color { ColorAnimation { duration: 140 } }
+
+                Row {
+                    id:               homeRow
+                    anchors.centerIn: parent
+                    spacing:          ScreenTools.defaultFontPixelWidth * 0.6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:  "\u2302"     // ⌂ house symbol
+                        color: "#00C8C8"
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:  qsTr("HOME")
+                        color: "#00C8C8"
+                        font.bold:       true
+                        font.letterSpacing: 1.5
+                        font.pixelSize:  ScreenTools.defaultFontPixelHeight * 0.72
+                    }
+                }
+
+                MouseArea {
+                    id:           homeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape:  Qt.PointingHandCursor
+                    onClicked: {
+                        if (mainWindow.allowViewSwitch()) {
+                            toolDrawer.visible = false
+                            mainWindow.showLandingPage()
+                        }
                     }
                 }
             }

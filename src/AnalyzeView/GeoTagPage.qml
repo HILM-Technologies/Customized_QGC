@@ -34,6 +34,7 @@ AnalyzePage {
 
             BusyIndicator {
                 running: (geoController.progress > 0) && (geoController.progress < 100) && !geoController.errorMessage
+                visible: running
                 width: progressBar.height
                 height: progressBar.height
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
@@ -43,7 +44,7 @@ AnalyzePage {
                 id: progressBar
                 to: 100
                 value: geoController.progress
-                opacity: (geoController.progress > 0) ? 1 : 0.25
+                visible: geoController.progress > 0
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -117,6 +118,7 @@ AnalyzePage {
                 Layout.maximumWidth: _maxWidth
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
+                Layout.columnSpan: 2
                 onClicked: selectDestDir.openForLoad()
 
                 QGCFileDialog {
@@ -143,6 +145,7 @@ AnalyzePage {
                 elide: Text.ElideLeft
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
+                Layout.columnSpan: 2
             }
 
             QGCButton {

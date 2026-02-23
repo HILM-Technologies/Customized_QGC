@@ -43,7 +43,7 @@ TabButton {
         //radius:         backRadius
         border.width:   showBorder ? 1 : 0
         border.color:   qgcPal.buttonBorder
-        color:          _showHighlight ? qgcPal.buttonHighlight : qgcPal.button
+        color:          _showHighlight ? "#00C8C8" : qgcPal.button
     }
 
     contentItem: Item {
@@ -57,7 +57,7 @@ TabButton {
             source:                 control.icon.source
             height:                 source === "" ? 0 : ScreenTools.defaultFontPixelHeight
             width:                  height
-            color:                  _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  _showHighlight ? "#000000" : qgcPal.buttonText
             fillMode:               Image.PreserveAspectFit
             sourceSize.height:      height
             visible:                _showIcon
@@ -70,7 +70,7 @@ TabButton {
             text:                   control.text
             font.pointSize:         control.pointSize
             font.family:            ScreenTools.normalFontFamily
-            color:                  _showHighlight ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  _showHighlight ? "#000000" : qgcPal.buttonText
             visible:                !_showIcon
         }
     }

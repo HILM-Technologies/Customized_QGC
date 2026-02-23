@@ -21,6 +21,10 @@ T.ComboBox {
     spacing:        ScreenTools.defaultFontPixelWidth
     font.pointSize: ScreenTools.defaultFontPointSize
     font.family:    ScreenTools.normalFontFamily
+
+    // ── HILM design tokens ───────────────────────────────────────
+    readonly property color _teal:      "#00C8C8"
+    readonly property color _tealBorder:Qt.rgba(0, 0.784, 0.784, 0.40)
     implicitWidth:  Math.max(background ? background.implicitWidth : 0,
                              contentItem.implicitWidth + leftPadding + rightPadding + padding)
     implicitHeight: Math.max(background ? background.implicitHeight : 0,
@@ -89,12 +93,12 @@ T.ComboBox {
         contentItem: Text {
             text:                   _text
             font:                   control.font
-            color:                  control.currentIndex === index ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  control.currentIndex === index ? "#000000" : qgcPal.buttonText
             verticalAlignment:      Text.AlignVCenter
         }
 
         background: Rectangle {
-            color:                  control.currentIndex === index ? qgcPal.buttonHighlight : qgcPal.button
+            color:                  control.currentIndex === index ? control._teal : qgcPal.button
         }
 
         highlighted:                control.highlightedIndex === index
@@ -107,7 +111,7 @@ T.ComboBox {
         height:                 ScreenTools.defaultFontPixelWidth
         width:                  height
         source:                 "/qmlimages/arrow-down.png"
-        color:                  qgcPal.buttonText
+        color:                  control._teal
     }
 
     // The label of the button
@@ -154,7 +158,8 @@ T.ComboBox {
                 width:          parent.width
                 height:         parent.height
                 color:          "transparent"
-                border.color:   qgcPal.text
+                border.color:   control._tealBorder
+                border.width:   1
             }
 
             T.ScrollIndicator.vertical: ScrollIndicator { }

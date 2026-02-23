@@ -35,6 +35,7 @@ FlightMap {
     property var    toolInsets                          // Insets for the center viewport area
 
     property var    _activeVehicle:             QGroundControl.multiVehicleManager.activeVehicle
+    property var    _emergencyCtrl:             _activeVehicle ? _activeVehicle.emergencyController : null
     property var    _planMasterController:      planMasterController
     property var    _geoFenceController:        planMasterController.geoFenceController
     property var    _rallyPointController:      planMasterController.rallyPointController
@@ -319,12 +320,12 @@ FlightMap {
                               : QtPositioning.coordinate()
 
         anchorPoint.x: emergencyImage.width / 2
-        anchorPoint.y: emergencyImage.height
+        anchorPoint.y: emergencyImage.height / 2   // crosshair centers on target coordinate
 
         sourceItem: Image {
             id: emergencyImage
             source: "/qmlimages/EmergencyTarget.svg"
-            width: ScreenTools.defaultFontPixelHeight * 3
+            width: ScreenTools.defaultFontPixelHeight * 3.8
             height: width
             fillMode: Image.PreserveAspectFit
             smooth: true
@@ -793,16 +794,15 @@ FlightMap {
                           position = Qt.point(position.x, position.y)
 
                           var emergencyCoord = _root.toCoordinate(position, false /* clipToViewPort */)
-                          emergencyCoord.latitude  = emergencyCoord.latitude.toFixed(8)
-                          emergencyCoord.longitude = emergencyCoord.longitude.toFixed(8)
-                          emergencyCoord.altitude  = emergencyCoord.altitude.toFixed(8)
+                          // Keep as numbers (parseFloat avoids string-typed coords)
+                          emergencyCoord.latitude  = parseFloat(emergencyCoord.latitude.toFixed(8))
+                          emergencyCoord.longitude = parseFloat(emergencyCoord.longitude.toFixed(8))
+                          emergencyCoord.altitude  = parseFloat(emergencyCoord.altitude.toFixed(3))
 
                           _activeVehicle.emergencyController.setEmergencyTarget(emergencyCoord)
 
-                          mainWindow.showMessageDialog(
-                              qsTr("Emergency location set"),
-                              qsTr("Emergency deployment point selected.")
-                              )
+                          // Non-blocking toast instead of modal dialog
+                          emergencyToast.show()
 
                           return   // stop here, do not trigger guided/orbit menu
                       }
@@ -830,6 +830,113 @@ FlightMap {
         visible:            !ScreenTools.isTinyScreen && QGroundControl.corePlugin.options.flyView.showMapScale && mapControl.pipState.state === mapControl.pipState.windowState
 
         property real centerInset: visible ? parent.height - y : 0
+    }
+
+    // ── Crosshair cursor during emergency target selection ────────────────────
+    HoverHandler {
+        cursorShape: _emergencyCtrl && _emergencyCtrl.selectingTarget
+                         ? Qt.CrossCursor
+                         : Qt.ArrowCursor
+    }
+
+    // ── Emergency selection mode banner ───────────────────────────────────────
+    Rectangle {
+        id:                       emergencySelectionBanner
+        anchors.top:              parent.top
+        anchors.topMargin:        ScreenTools.toolbarHeight + ScreenTools.defaultFontPixelHeight * 0.5
+        anchors.horizontalCenter: parent.horizontalCenter
+        visible:                  _emergencyCtrl !== null && _emergencyCtrl.selectingTarget
+        z:                        QGroundControl.zOrderTopMost
+        width:                    bannerRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 3
+        height:                   bannerRow.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.9
+        radius:                   6
+        color:                    Qt.rgba(0.55, 0, 0, 0.88)
+        border.width:             1.5
+
+        // Pulsing red border to draw attention
+        SequentialAnimation on border.color {
+            running: emergencySelectionBanner.visible
+            loops:   Animation.Infinite
+            ColorAnimation { to: "#FF5555"; duration: 700 }
+            ColorAnimation { to: "#CC0000"; duration: 700 }
+        }
+
+        Row {
+            id:               bannerRow
+            anchors.centerIn: parent
+            spacing:          ScreenTools.defaultFontPixelWidth * 1.2
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text:                   qsTr("\uD83C\uDFAF  EMERGENCY — Click map to set target location")
+                color:                  "white"
+                font.bold:              true
+                font.pixelSize:         ScreenTools.defaultFontPixelHeight * 0.80
+            }
+
+            // Inline Cancel button
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width:                  bannerCancelText.implicitWidth + ScreenTools.defaultFontPixelWidth * 1.5
+                height:                 bannerCancelText.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.4
+                radius:                 4
+                color:                  Qt.rgba(1, 1, 1, 0.15)
+                border.color:           "white"
+                border.width:           1
+
+                Text {
+                    id:             bannerCancelText
+                    anchors.centerIn: parent
+                    text:           qsTr("Cancel")
+                    color:          "white"
+                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.72
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked:    _emergencyCtrl.cancelEmergency()
+                }
+            }
+        }
+    }
+
+    // ── Emergency target-set toast notification (non-blocking) ────────────────
+    Rectangle {
+        id:                       emergencyToast
+        anchors.top:              parent.top
+        anchors.topMargin:        ScreenTools.toolbarHeight + ScreenTools.defaultFontPixelHeight * 0.5
+        anchors.horizontalCenter: parent.horizontalCenter
+        z:                        QGroundControl.zOrderTopMost
+        opacity:                  0
+        width:                    toastRow.implicitWidth + ScreenTools.defaultFontPixelWidth * 3
+        height:                   toastRow.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.9
+        radius:                   6
+        color:                    Qt.rgba(0, 0.25, 0.25, 0.90)
+        border.color:             "#00C8C8"
+        border.width:             1.5
+
+        Row {
+            id:               toastRow
+            anchors.centerIn: parent
+            spacing:          ScreenTools.defaultFontPixelWidth
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text:                   qsTr("\uD83D\uDCCD  Emergency target set — open toolbar to deploy")
+                color:                  "white"
+                font.bold:              true
+                font.pixelSize:         ScreenTools.defaultFontPixelHeight * 0.80
+            }
+        }
+
+        SequentialAnimation {
+            id: toastShowAnim
+            NumberAnimation { target: emergencyToast; property: "opacity"; to: 1.0; duration: 180 }
+            PauseAnimation  { duration: 3500 }
+            NumberAnimation { target: emergencyToast; property: "opacity"; to: 0.0; duration: 600 }
+        }
+
+        function show() { toastShowAnim.restart() }
     }
 
 }

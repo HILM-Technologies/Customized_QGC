@@ -196,19 +196,30 @@ Item {
         Component {
             id: rallyToolComponent
 
-            Column {
+            ColumnLayout {
                 spacing: ScreenTools.defaultFontPixelHeight / 2
 
                 RallyPointEditorHeader {
-                    width:              parent.width
-                    controller:         root._rallyPointController
+                    Layout.fillWidth: true
+                    controller:       root._rallyPointController
                 }
 
-                RallyPointItemEditor {
-                    width:              parent.width
-                    visible:            root._rallyPointController.points.count
-                    rallyPoint:         root._rallyPointController.currentRallyPoint
-                    controller:         root._rallyPointController
+                QGCListView {
+                    id:                 rallyItemEditorListView
+                    Layout.fillWidth:   true
+                    Layout.fillHeight:  true
+                    spacing:            ScreenTools.defaultFontPixelHeight / 4
+                    orientation:        ListView.Vertical
+                    model:              root._rallyPointController.points
+                    cacheBuffer:        Math.max(height * 2, 0)
+                    clip:               true
+
+                    delegate: RallyPointItemEditor {
+                        width:       rallyItemEditorListView.width
+                        rallyPoint:  object
+                        controller:  root._rallyPointController
+                        onClicked:   root._rallyPointController.currentRallyPoint = object
+                    }
                 }
             }
         }
@@ -216,14 +227,20 @@ Item {
         Component {
             id: patrolToolComponent
 
-            Column {
-                spacing: ScreenTools.defaultFontPixelHeight / 2
+            ScrollView {
+                contentWidth: availableWidth
+                clip: true
 
-                PatrolEditor {
-                    id: patrolEditor
+                Column {
                     width: parent.width
-                    visible: QGroundControl.multiVehicleManager.activeVehicleAvailable
-                    patrolController: root._patrolController
+                    spacing: ScreenTools.defaultFontPixelHeight / 2
+
+                    PatrolEditor {
+                        id: patrolEditor
+                        width: parent.width
+                        visible: QGroundControl.multiVehicleManager.activeVehicleAvailable
+                        patrolController: root._patrolController
+                    }
                 }
             }
         }

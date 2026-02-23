@@ -15,9 +15,10 @@ import QGroundControl
 import QGroundControl.Controls
 
 Rectangle {
-    id:     setupView
-    color:  qgcPal.window
-    z:      QGroundControl.zOrderTopMost
+    id:             setupView
+    anchors.fill:   parent
+    color:          qgcPal.window
+    z:              QGroundControl.zOrderTopMost
 
     // This need to block click event leakage to underlying map.
     DeadMouseArea {

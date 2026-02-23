@@ -62,23 +62,25 @@ Rectangle {
         spacing:    0
 
         RowLayout {
-            spacing: ScreenTools.defaultFontPixelWidth
+            Layout.fillWidth: true
+            spacing:          ScreenTools.defaultFontPixelWidth
 
             QGCCheckBox {
-                id:                 enableCheckbox
-                Layout.fillWidth:   visible
-                text:               control.label
-                visible:            control.showEnableCheckbox
+                id:               enableCheckbox
+                Layout.fillWidth: visible
+                text:             control.label
+                clip:             true
+                visible:          control.showEnableCheckbox
 
                 onClicked: control.enableCheckboxClicked()
             }
 
             LabelledFactTextField {
-                id:                 factTextField
-                Layout.fillWidth:   !control.showEnableCheckbox
-                label:              control.showEnableCheckbox ? "" : control.label
-                fact:               control.fact
-                enabled:            !control.showEnableCheckbox || enableCheckbox.checked
+                id:               factTextField
+                Layout.fillWidth: !control.showEnableCheckbox
+                label:            control.showEnableCheckbox ? "" : control.label
+                fact:             control.fact
+                enabled:          !control.showEnableCheckbox || enableCheckbox.checked
             }
         }
 

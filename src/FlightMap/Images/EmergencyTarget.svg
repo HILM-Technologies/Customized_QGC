@@ -1,26 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
-    <defs>
-        <radialGradient id="glow" cx="50%" cy="35%" r="50%">
-            <stop offset="0%" stop-color="#ff5a5a"/>
-            <stop offset="100%" stop-color="#c40000"/>
-        </radialGradient>
-    </defs>
 
-    <!-- Pin body -->
-    <path d="M36 2
-             C22 2 11 13 11 27
-             c0 18 25 43 25 43
-             s25-25 25-43
-             C61 13 50 2 36 2z"
-          fill="url(#glow)" stroke="#7a0000" stroke-width="2"/>
+    <!-- Ambient glow disc -->
+    <circle cx="36" cy="36" r="35" fill="rgba(200,0,0,0.13)"/>
 
-    <!-- Inner circle -->
-    <circle cx="36" cy="28" r="14" fill="#a80000"/>
+    <!-- Outer ring -->
+    <circle cx="36" cy="36" r="30" fill="none" stroke="#CC0000" stroke-width="2"/>
 
-    <!-- White cross -->
-    <rect x="33" y="18" width="6" height="20" fill="white"/>
-    <rect x="26" y="25" width="20" height="6" fill="white"/>
+    <!-- Mid ring with fill -->
+    <circle cx="36" cy="36" r="18" fill="rgba(160,0,0,0.18)" stroke="#FF3333" stroke-width="2.5"/>
 
-    <!-- Exclamation dot -->
-    <circle cx="48" cy="36" r="3" fill="white"/>
+    <!-- Inner bright ring -->
+    <circle cx="36" cy="36" r="10" fill="none" stroke="rgba(255,80,80,0.60)" stroke-width="1.5"/>
+
+    <!-- Center hotpoint -->
+    <circle cx="36" cy="36" r="5.5" fill="#FF2020" stroke="white" stroke-width="1.8"/>
+
+    <!-- Crosshair — Top -->
+    <line x1="36" y1="2"  x2="36" y2="14" stroke="#DD0000" stroke-width="3" stroke-linecap="round"/>
+    <!-- Crosshair — Bottom -->
+    <line x1="36" y1="58" x2="36" y2="70" stroke="#DD0000" stroke-width="3" stroke-linecap="round"/>
+    <!-- Crosshair — Left -->
+    <line x1="2"  y1="36" x2="14" y2="36" stroke="#DD0000" stroke-width="3" stroke-linecap="round"/>
+    <!-- Crosshair — Right -->
+    <line x1="58" y1="36" x2="70" y2="36" stroke="#DD0000" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Corner tick marks (45°) for extra tactical feel -->
+    <line x1="52" y1="52" x2="57" y2="57" stroke="#CC0000" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20" y1="52" x2="15" y2="57" stroke="#CC0000" stroke-width="2" stroke-linecap="round"/>
+    <line x1="52" y1="20" x2="57" y2="15" stroke="#CC0000" stroke-width="2" stroke-linecap="round"/>
+    <line x1="20" y1="20" x2="15" y2="15" stroke="#CC0000" stroke-width="2" stroke-linecap="round"/>
+
 </svg>

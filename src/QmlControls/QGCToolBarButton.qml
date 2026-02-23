@@ -54,6 +54,8 @@ Button {
             visible:                text !== ""
             text:                   button.text
             color:                  button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            font.bold:              true
+            font.letterSpacing:     1.5
             anchors.verticalCenter: parent.verticalCenter
         }
     }

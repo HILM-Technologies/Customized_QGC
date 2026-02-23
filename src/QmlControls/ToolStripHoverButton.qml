@@ -36,8 +36,17 @@ Button {
     property real imageScale:        forceImageScale11 && (text == "") ? 0.8 : 0.6
     property real contentMargins:    innerText.height * 0.1
 
-    property color _currentContentColor:  (checked || pressed) ? qgcPal.buttonHighlightText : qgcPal.windowTransparentText
-    property color _currentContentColorSecondary:  (checked || pressed) ? qgcPal.windowTransparentText : qgcPal.buttonHighlight
+    // HILM teal theme: icon/text color
+    property color _currentContentColor: !enabled
+                                             ? Qt.rgba(1, 1, 1, 0.22)
+                                             : (checked || pressed)
+                                               ? Qt.rgba(0, 0.08, 0.10, 1.0)
+                                               : "#00C8C8"
+    property color _currentContentColorSecondary: !enabled
+                                             ? Qt.rgba(1, 1, 1, 0.10)
+                                             : (checked || pressed)
+                                               ? Qt.rgba(0, 0.15, 0.18, 0.85)
+                                               : Qt.rgba(0, 0.784, 0.784, 0.40)
 
     signal dropped(int index)
 
@@ -129,8 +138,11 @@ Button {
 
     background: Rectangle {
         id:     buttonBkRect
-        color:  (control.checked || control.pressed) ?
-                    qgcPal.buttonHighlight :
-                    ((control.enabled && control.hovered) ? qgcPal.toolStripHoverColor : "transparent")
+        // HILM: teal-fill when active, dim teal glow on hover, transparent otherwise
+        color:  (control.checked || control.pressed)
+                    ? "#00C8C8"
+                    : ((control.enabled && control.hovered)
+                       ? Qt.rgba(0, 0.784, 0.784, 0.16)
+                       : "transparent")
     }
 }

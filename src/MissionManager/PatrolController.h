@@ -26,6 +26,7 @@ class PatrolController : public PlanElementController
     Q_PROPERTY(QString        startTime       READ startTime       WRITE setStartTime       NOTIFY startTimeChanged)
     Q_PROPERTY(QDate          startDate       READ startDate       WRITE setStartDate       NOTIFY startDateChanged)
     Q_PROPERTY(QStringList    availableDrones READ availableDrones                          NOTIFY availableDronesChanged)
+    Q_PROPERTY(bool           dirty           READ dirty           WRITE setDirty           NOTIFY dirtyChanged)
 
    public:
     enum PatrolLoopMode : uint8_t {

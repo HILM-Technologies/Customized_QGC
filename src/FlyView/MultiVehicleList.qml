@@ -20,195 +20,241 @@ Item {
     property real   _margin:              ScreenTools.defaultFontPixelWidth / 2
     property real   _widgetHeight:        ScreenTools.defaultFontPixelHeight * 2.5
     property var    _guidedController:    globals.guidedControllerFlyView
-    property var    _activeVehicleColor:  "green"
     property var    _activeVehicle:       QGroundControl.multiVehicleManager.activeVehicle
     property var    selectedVehicles:     QGroundControl.multiVehicleManager.selectedVehicles
+
+    // ── HILM design tokens ────────────────────────────────────────────────────
+    readonly property color _teal:       "#00C8C8"
+    readonly property color _tealDim:    Qt.rgba(0, 0.784, 0.784, 0.14)
+    readonly property color _tealBorder: Qt.rgba(0, 0.784, 0.784, 0.32)
+    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
+    readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.50)
+    readonly property color _okColor:    "#4CAF50"
+    readonly property color _warnColor:  "#FF9800"
+    readonly property real  _r:          ScreenTools.defaultFontPixelWidth * 0.7
+    readonly property real  _pad:        ScreenTools.defaultFontPixelWidth * 0.75
 
     implicitHeight: vehicleList.contentHeight
 
     function armAvailable() {
         for (var i = 0; i < selectedVehicles.count; i++) {
-            var vehicle = selectedVehicles.get(i)
-            if (vehicle.armed === false) {
-                return true
-            }
+            if (selectedVehicles.get(i).armed === false) return true
         }
         return false
     }
-
-
     function disarmAvailable() {
         for (var i = 0; i < selectedVehicles.count; i++) {
-            var vehicle = selectedVehicles.get(i)
-            if (vehicle.armed === true) {
-                return true
-            }
+            if (selectedVehicles.get(i).armed === true) return true
         }
         return false
     }
-
     function startAvailable() {
         for (var i = 0; i < selectedVehicles.count; i++) {
-            var vehicle = selectedVehicles.get(i)
-            if (vehicle.armed === true && vehicle.flightMode !== vehicle.missionFlightMode){
-                return true
-            }
+            var v = selectedVehicles.get(i)
+            if (v.armed === true && v.flightMode !== v.missionFlightMode) return true
         }
         return false
     }
-
     function pauseAvailable() {
         for (var i = 0; i < selectedVehicles.count; i++) {
-            var vehicle = selectedVehicles.get(i)
-            if (vehicle.armed === true && vehicle.pauseVehicleSupported) {
-                return true
-            }
+            var v = selectedVehicles.get(i)
+            if (v.armed === true && v.pauseVehicleSupported) return true
         }
         return false
     }
-
-    function selectVehicle(vehicleId) {
-        QGroundControl.multiVehicleManager.selectVehicle(vehicleId)
-    }
-
-    function deselectVehicle(vehicleId) {
-        QGroundControl.multiVehicleManager.deselectVehicle(vehicleId)
-    }
-
+    function selectVehicle(vehicleId)   { QGroundControl.multiVehicleManager.selectVehicle(vehicleId) }
+    function deselectVehicle(vehicleId) { QGroundControl.multiVehicleManager.deselectVehicle(vehicleId) }
     function toggleSelect(vehicleId) {
-        if (!vehicleSelected(vehicleId)) {
-            selectVehicle(vehicleId)
-        } else {
-            deselectVehicle(vehicleId)
-        }
+        if (!vehicleSelected(vehicleId)) selectVehicle(vehicleId)
+        else deselectVehicle(vehicleId)
     }
-
     function selectAll() {
         var vehicles = QGroundControl.multiVehicleManager.vehicles
         for (var i = 0; i < vehicles.count; i++) {
-            var vehicle = vehicles.get(i)
-            var vehicleId = vehicle.id
-            if (!vehicleSelected(vehicleId)) {
-                selectVehicle(vehicleId)
-            }
+            var id = vehicles.get(i).id
+            if (!vehicleSelected(id)) selectVehicle(id)
         }
     }
-
-    function deselectAll() {
-        QGroundControl.multiVehicleManager.deselectAllVehicles()
-    }
-
+    function deselectAll() { QGroundControl.multiVehicleManager.deselectAllVehicles() }
     function vehicleSelected(vehicleId) {
-        for (var i = 0; i < selectedVehicles.count; i++ ) {
-            var currentId = selectedVehicles.get(i).id
-            if (vehicleId === currentId) {
-                return true
-            }
+        for (var i = 0; i < selectedVehicles.count; i++) {
+            if (vehicleId === selectedVehicles.get(i).id) return true
         }
         return false
     }
 
-    QGCListView {
-        id:                 vehicleList
-        anchors.left:       parent.left
-        anchors.right:      parent.right
-        anchors.top:        parent.top
-        anchors.bottom:     parent.bottom
-        spacing:            ScreenTools.defaultFontPixelHeight / 2
-        orientation:        ListView.Vertical
-        model:              QGroundControl.multiVehicleManager.vehicles
-        cacheBuffer:        _cacheBuffer < 0 ? 0 : _cacheBuffer
-        clip:               true
+    QGCPalette { id: qgcPal }
 
-        property real _cacheBuffer:     height * 2
+    // ═════════════════════════════════════════════════════════════════════════
+    //  VEHICLE CARD LIST
+    // ═════════════════════════════════════════════════════════════════════════
+    QGCListView {
+        id:           vehicleList
+        anchors.fill: parent
+        spacing:      _pad
+        orientation:  ListView.Vertical
+        model:        QGroundControl.multiVehicleManager.vehicles
+        cacheBuffer:  Math.max(height * 2, 0)
+        clip:         true
 
         delegate: Rectangle {
-            width:          vehicleList.width
-            height:         innerColumn.height + _margin * 2
-            color:          QGroundControl.multiVehicleManager.activeVehicle == _vehicle ? _activeVehicleColor : qgcPal.button
-            radius:         _margin
-            border.width:   _vehicle && vehicleSelected(_vehicle.id) ? 2 : 0
-            border.color:   qgcPal.text
+            width:        vehicleList.width
+            height:       cardColumn.implicitHeight + _pad * 2
+            radius:       _r
+            color:        QGroundControl.multiVehicleManager.activeVehicle === _vehicle
+                              ? _tealDim : _cardBg
+            border.color: vehicleSelected(_vehicle ? _vehicle.id : -1) ? _teal : _tealBorder
+            border.width: vehicleSelected(_vehicle ? _vehicle.id : -1) ? 2 : 1
 
-            property var    _vehicle:   object
+            property var _vehicle: object
 
             QGCMouseArea {
-                anchors.fill:       parent
-                onClicked:          toggleSelect(_vehicle.id)
+                anchors.fill: parent
+                onClicked:    toggleSelect(_vehicle.id)
             }
 
             Column {
-                id:                         innerColumn
-                anchors.centerIn:           parent
-                spacing:                    _margin
+                id:              cardColumn
+                anchors.left:    parent.left
+                anchors.right:   parent.right
+                anchors.top:     parent.top
+                anchors.margins: _pad
+                spacing:         _pad * 0.6
 
-                RowLayout {
-                    anchors.horizontalCenter:   parent.horizontalCenter
-                    anchors.margins:    _margin
-                    spacing:            _margin
+                // ── Header: checkbox · ID · LIVE badge ────────────────────────
+                Row {
+                    width:   parent.width
+                    height:  ScreenTools.defaultFontPixelHeight * 1.6
+                    spacing: _pad * 0.5
 
-                    IntegratedCompassAttitude {
-                        id: compassWidget
-                        compassRadius:              _widgetHeight / 2 - attitudeSize / 2
-                        compassBorder:              0
-                        attitudeSize:               ScreenTools.defaultFontPixelWidth / 2
-                        attitudeSpacing:            attitudeSize / 2
-                        usedByMultipleVehicleList:   true
-                        vehicle:                     _vehicle
-                    }
-
-                    QGCLabel {
-                        text: " | "
-                        font.pointSize:       ScreenTools.largeFontPointSize
-                        color:                qgcPal.text
-                        Layout.alignment:     Qt.AlignHCenter
-                    }
-
-                    QGCLabel {
-                        text:                 _vehicle ? _vehicle.id : ""
-                        font.pointSize:       ScreenTools.largeFontPointSize
-                        color:                qgcPal.text
-                        Layout.alignment:     Qt.AlignHCenter
-                    }
-
-                    QGCLabel {
-                        text: " | "
-                        font.pointSize:       ScreenTools.largeFontPointSize
-                        color:                qgcPal.text
-                        Layout.alignment:     Qt.AlignHCenter
-                    }
-
-                    ColumnLayout {
-                        spacing:              _margin
-                        Layout.rightMargin:   compassWidget.width / 4
-                        Layout.alignment:     Qt.AlignCenter
-
-                        FlightModeMenu {
-                            Layout.alignment:     Qt.AlignHCenter
-                            font.pointSize:       ScreenTools.largeFontPointSize
-                            color:                qgcPal.text
-                            currentVehicle:       _vehicle
+                    // Checkbox
+                    Rectangle {
+                        width:                  12
+                        height:                 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius:                 3
+                        border.width:           1.5
+                        border.color:           _teal
+                        color:                  vehicleSelected(_vehicle ? _vehicle.id : -1) ? _teal : "transparent"
+                        Text {
+                            anchors.centerIn: parent
+                            text:             "✓"
+                            font.pixelSize:   8
+                            font.bold:        true
+                            color:            "#000"
+                            visible:          vehicleSelected(_vehicle ? _vehicle.id : -1)
                         }
+                    }
 
-                        QGCLabel {
-                            Layout.alignment:     Qt.AlignHCenter
-                            text:                 _vehicle && _vehicle.armed ? qsTr("Armed") : qsTr("Disarmed")
-                            color:                qgcPal.text
+                    // Vehicle ID
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:                   qsTr("✈  VEHICLE ") + (_vehicle ? _vehicle.id : "")
+                        color:                  _teal
+                        font.bold:              true
+                        font.letterSpacing:     1.2
+                        font.pointSize:         ScreenTools.defaultFontPointSize * 0.85
+                    }
+
+                    // Spacer
+                    Item { width: parent.width - 12 - _pad * 0.5 - (ScreenTools.defaultFontPixelWidth * 10) - liveBadge.width - _pad * 0.5; height: 1 }
+
+                    // LIVE badge
+                    Rectangle {
+                        id:                     liveBadge
+                        anchors.verticalCenter: parent.verticalCenter
+                        width:                  liveRow.implicitWidth + _pad
+                        height:                 ScreenTools.defaultFontPixelHeight * 1.1
+                        radius:                 height / 2
+                        border.width:           1
+                        border.color:           _okColor
+                        color:                  Qt.rgba(76/255, 175/255, 80/255, 0.12)
+
+                        Row {
+                            id:              liveRow
+                            anchors.centerIn: parent
+                            spacing:         3
+                            Rectangle {
+                                width: 5; height: 5; radius: 3
+                                color: _okColor
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text:                   qsTr("LIVE")
+                                color:                  _okColor
+                                font.bold:              true
+                                font.pointSize:         ScreenTools.smallFontPointSize * 0.8
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
                     }
                 }
 
-                QGCFlickable {
-                    anchors.horizontalCenter:   parent.horizontalCenter
-                    width:          Math.min(contentWidth, vehicleList.width)
-                    height:         control.height
-                    contentWidth:   control.width
-                    contentHeight:  control.height
+                // ── Divider ───────────────────────────────────────────────────
+                Rectangle { width: parent.width; height: 1; color: Qt.rgba(0, 0.784, 0.784, 0.18) }
 
-                    TelemetryValuesBar {
-                        id:                     control
-                        settingsGroup:          factValueGrid.vehicleCardSettingsGroup
-                        specificVehicleForCard: _vehicle
+                // ── Mode + Arm state badges ───────────────────────────────────
+                Row {
+                    width:   parent.width
+                    spacing: _pad * 0.5
+
+                    Rectangle {
+                        radius: 3
+                        color:  Qt.rgba(1, 1, 1, 0.08)
+                        width:  modeText.implicitWidth + _pad
+                        height: modeText.implicitHeight + 4
+                        Text {
+                            id:               modeText
+                            anchors.centerIn: parent
+                            text:             _vehicle ? _vehicle.flightMode : "—"
+                            color:            Qt.rgba(1, 1, 1, 0.85)
+                            font.pointSize:   ScreenTools.smallFontPointSize
+                        }
+                    }
+
+                    Rectangle {
+                        radius:       3
+                        color:        _vehicle && _vehicle.armed ? Qt.rgba(1, 0.596, 0, 0.15) : Qt.rgba(1, 1, 1, 0.05)
+                        border.width: 1
+                        border.color: _vehicle && _vehicle.armed ? Qt.rgba(1, 0.596, 0, 0.45) : Qt.rgba(1, 1, 1, 0.15)
+                        width:        armText.implicitWidth + _pad
+                        height:       armText.implicitHeight + 4
+                        Text {
+                            id:               armText
+                            anchors.centerIn: parent
+                            text:             _vehicle && _vehicle.armed ? qsTr("ARMED") : qsTr("DISARMED")
+                            color:            _vehicle && _vehicle.armed ? _warnColor : _dimText
+                            font.bold:        true
+                            font.pointSize:   ScreenTools.smallFontPointSize * 0.85
+                        }
+                    }
+                }
+
+                // ── Compass + telemetry ───────────────────────────────────────
+                Row {
+                    width:   parent.width
+                    spacing: _pad
+
+                    IntegratedCompassAttitude {
+                        compassRadius:             _widgetHeight / 2 - attitudeSize / 2
+                        compassBorder:             0
+                        attitudeSize:              ScreenTools.defaultFontPixelWidth / 2
+                        attitudeSpacing:           attitudeSize / 2
+                        usedByMultipleVehicleList: true
+                        vehicle:                   _vehicle
+                    }
+
+                    QGCFlickable {
+                        width:         parent.width - _widgetHeight - _pad
+                        height:        telemetryBar.height
+                        contentWidth:  telemetryBar.width
+                        contentHeight: telemetryBar.height
+
+                        TelemetryValuesBar {
+                            id:                     telemetryBar
+                            settingsGroup:          factValueGrid.vehicleCardSettingsGroup
+                            specificVehicleForCard: _vehicle
+                        }
                     }
                 }
             }

@@ -32,6 +32,11 @@ Button {
     font.family: ScreenTools.normalFontFamily
     text: ""
 
+    // ── HILM design tokens ───────────────────────────────────────
+    readonly property color _teal:      "#00C8C8"
+    readonly property color _tealDim:   Qt.rgba(0, 0.784, 0.784, 0.18)
+    readonly property color _tealBorder:Qt.rgba(0, 0.784, 0.784, 0.45)
+
     property bool _showHighlight: enabled && (pressed | checked)
     property int _horizontalPadding: ScreenTools.defaultFontPixelWidth * 2
     property int _verticalPadding: Math.round(ScreenTools.defaultFontPixelHeight * heightFactor) - (iconSource === "" ? 0 : (_iconHeight - ScreenTools.defaultFontPixelHeight)  / 2)
@@ -44,16 +49,24 @@ Button {
         radius: backRadius
         implicitWidth: ScreenTools.implicitButtonWidth
         implicitHeight: ScreenTools.implicitButtonHeight
-        border.width: showBorder ? 1 : 0
-        border.color: qgcPal.buttonBorder
-        color: primary ? qgcPal.primaryButton : qgcPal.button
+        // Primary and pressed/checked → solid teal; hover → dim teal; normal → palette button
+        color: (control._showHighlight || control.primary)
+                   ? (control.pressed ? Qt.darker(control._teal, 1.20) : control._teal)
+                   : qgcPal.button
+        border.width: (!control._showHighlight && !control.primary && control.enabled && control.hovered) ? 1 : (showBorder ? 1 : 0)
+        border.color: (!control._showHighlight && !control.primary && control.enabled && control.hovered)
+                          ? control._tealBorder : qgcPal.buttonBorder
 
+        // Hover glow on normal (non-primary, non-pressed) buttons
         Rectangle {
             anchors.fill: parent
-            color: qgcPal.buttonHighlight
-            opacity: _showHighlight ? 1 : control.enabled && control.hovered ? .2 : 0
-            radius: parent.radius
+            color:        control._tealDim
+            opacity:      (!control._showHighlight && !control.primary && control.enabled && control.hovered) ? 1 : 0
+            radius:       parent.radius
         }
+
+        Behavior on color        { ColorAnimation { duration: 120 } }
+        Behavior on border.color { ColorAnimation { duration: 120 } }
     }
 
     contentItem: RowLayout {
@@ -78,8 +91,11 @@ Button {
             font.pointSize: control.pointSize
             font.family: control.font.family
             font.weight: fontWeight
-            color: _showHighlight ? qgcPal.buttonHighlightText : (primary ? qgcPal.primaryButtonText : qgcPal.buttonText)
+            // Dark text on teal (pressed/primary), normal text otherwise
+            color: (control._showHighlight || control.primary) ? "#001a1a" : qgcPal.buttonText
             visible: control.text !== ""
+
+            Behavior on color { ColorAnimation { duration: 120 } }
         }
     }
 }

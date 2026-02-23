@@ -233,8 +233,8 @@ void PatrolController::loadFromINI()
     setLoops(settings.value("LoopCount", 3).toInt());
     setDuration(settings.value("DurationMin", 20).toInt());
 
-    _config.startTime = settings.value("StartTime", "").toString();
-    _config.startDate = QDate::fromString( settings.value("StartDate", "").toString(), Qt::ISODate);
+    setStartTime(settings.value("StartTime", "").toString());
+    setStartDate(QDate::fromString(settings.value("StartDate", "").toString(), Qt::ISODate));
 
     settings.endGroup();
     emit patrolConfigChanged(_config.droneUID);
