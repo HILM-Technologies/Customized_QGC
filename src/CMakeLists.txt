@@ -11,6 +11,22 @@ set_source_files_properties(UI/MainWindow.qml
     PROPERTIES
         QT_RESOURCE_ALIAS MainWindow.qml
 )
+set_source_files_properties(UI/PatrolView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS PatrolView.qml
+)
+set_source_files_properties(UI/FleetView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS FleetView.qml
+)
+set_source_files_properties(UI/VideoWallView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS VideoWallView.qml
+)
+set_source_files_properties(UI/CameraRollView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS CameraRollView.qml
+)
 
 qt_add_qml_module(QGroundControlModule
     URI QGroundControl
@@ -18,6 +34,10 @@ qt_add_qml_module(QGroundControlModule
     RESOURCE_PREFIX /qml
     QML_FILES
         UI/MainWindow.qml
+        UI/PatrolView.qml
+        UI/FleetView.qml
+        UI/VideoWallView.qml
+        UI/CameraRollView.qml
     IMPORTS
         QGC
     NO_PLUGIN

@@ -112,14 +112,39 @@ ApplicationWindow {
         return globals.validationErrorCount <= previousValidationErrorCount
     }
 
+    // Active tab index managed by HilmNavigationBar
+    property int activeTabIndex: 0
+
     function showPlanView() {
-        flyView.visible = false
-        planView.visible = true
+        hilmNavBar.activeTab = 1
+        _switchToTab(1)
     }
 
     function showFlyView() {
-        flyView.visible = true
-        planView.visible = false
+        hilmNavBar.activeTab = 0
+        _switchToTab(0)
+    }
+
+    function _switchToTab(tabIndex) {
+        activeTabIndex = tabIndex
+
+        // Close the tool drawer when switching away from SETUP/SETTINGS
+        if (tabIndex < 5 && toolDrawer.visible) {
+            toolDrawer.visible = false
+        }
+
+        // Hide all views
+        flyView.visible         = (tabIndex === 0)
+        planView.visible        = (tabIndex === 1)
+        fleetView.visible       = (tabIndex === 2)
+        videoWallView.visible   = (tabIndex === 3)
+        cameraRollView.visible  = (tabIndex === 4)
+        // SETUP (5) and SETTINGS (6) use the tool drawer
+        if (tabIndex === 5) {
+            showVehicleConfig()
+        } else if (tabIndex === 6) {
+            showSettingsTool()
+        }
     }
 
     function showTool(toolTitle, toolSource, toolIcon) {
@@ -257,17 +282,64 @@ ApplicationWindow {
 
     background: Rectangle {
         anchors.fill:   parent
-        color:          QGroundControl.globalPalette.window
+        color:          "#0D1117"
     }
 
+    // ── HILM Navigation Bar (top)
+    HilmNavigationBar {
+        id:             hilmNavBar
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    parent.top
+        z:              QGroundControl.zOrderTopMost + 1
+
+        onTabClicked: function(index) {
+            mainWindow._switchToTab(index)
+        }
+    }
+
+    // ── Tab Content Views (below nav bar)
     FlyView {
         id:                     flyView
-        anchors.fill:           parent
+        anchors.left:           parent.left
+        anchors.right:          parent.right
+        anchors.top:            hilmNavBar.bottom
+        anchors.bottom:         parent.bottom
     }
 
     PlanView {
         id:             planView
-        anchors.fill:   parent
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
+    FleetView {
+        id:             fleetView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
+    VideoWallView {
+        id:             videoWallView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
+    CameraRollView {
+        id:             cameraRollView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
         visible:        false
     }
 

@@ -61,15 +61,29 @@ Item {
         bottomEdgeRightInset:   virtualJoystickMultiTouch.visible ? virtualJoystickMultiTouch.bottomEdgeRightInset : bottomRightRowLayout.bottomEdgeRightInset
     }
 
+    // ── HILM Fleet Panel (LEFT side) — replaces top-right multi-vehicle panel
+    HilmFleetPanel {
+        id:                     hilmFleetPanel
+        anchors.top:            parent.top
+        anchors.left:           toolStrip.right
+        anchors.leftMargin:     _layoutMargin
+        maximumHeight:          parent.height - _margins * 4
+        z:                      QGroundControl.zOrderWidgets
+
+        property real leftEdgeTopInset:     visible ? anchors.leftMargin + width + _layoutMargin : 0
+    }
+
+    // Keep topRightPanel for backward compat but hide it (replaced by fleet panel + right panel)
     FlyViewTopRightPanel {
         id:                     topRightPanel
         anchors.top:            parent.top
         anchors.right:          parent.right
         maximumHeight:          parent.height - (bottomRightRowLayout.height + _margins * 4)
+        visible:                false // Hidden — fleet panel is now on the left
 
-        property real topEdgeRightInset:    height + _layoutMargin
-        property real rightEdgeTopInset:    width + _layoutMargin
-        property real rightEdgeCenterInset: rightEdgeTopInset
+        property real topEdgeRightInset:    0
+        property real rightEdgeTopInset:    0
+        property real rightEdgeCenterInset: 0
     }
 
     FlyViewTopRightColumnLayout {
@@ -77,22 +91,24 @@ Item {
         anchors.top:        parent.top
         anchors.right:      parent.right
         spacing:            _layoutSpacing
-        visible:           !topRightPanel.visible
+        visible:            false // Hidden — replaced by HILM right panel (Phase 3)
 
-        property real topEdgeRightInset:    childrenRect.height + _layoutMargin
-        property real rightEdgeTopInset:    width + _layoutMargin
-        property real rightEdgeCenterInset: rightEdgeTopInset
+        property real topEdgeRightInset:    0
+        property real rightEdgeTopInset:    0
+        property real rightEdgeCenterInset: 0
     }
 
     FlyViewBottomRightRowLayout {
         id:                 bottomRightRowLayout
         anchors.bottom:     parent.bottom
         anchors.right:      parent.right
+        anchors.rightMargin: _layoutMargin
         spacing:            _layoutSpacing
+        visible:            false // Hidden — replaced by HILM right panel
 
-        property real bottomEdgeRightInset:     height + _layoutMargin
-        property real bottomEdgeCenterInset:    bottomEdgeRightInset
-        property real rightEdgeBottomInset:     width + _layoutMargin
+        property real bottomEdgeRightInset:     0
+        property real bottomEdgeCenterInset:    0
+        property real rightEdgeBottomInset:     0
     }
 
     FlyViewMissionCompleteDialog {
@@ -165,6 +181,16 @@ Item {
         property real topEdgeLeftInset:     visible ? y + height : 0
         property real leftEdgeTopInset:     visible ? x + width : 0
         property real leftEdgeCenterInset:  leftEdgeTopInset
+    }
+
+    // ── HILM Map Legend (bottom-left, above PIP)
+    HilmMapLegend {
+        id:                     hilmMapLegend
+        anchors.left:           toolStrip.right
+        anchors.leftMargin:     _layoutMargin
+        anchors.bottom:         parent.bottom
+        anchors.bottomMargin:   _layoutMargin
+        z:                      QGroundControl.zOrderWidgets
     }
 
     VehicleWarnings {

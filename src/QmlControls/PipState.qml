@@ -49,15 +49,15 @@ Item {
 
             AnchorChanges {
                 target:         _viewControl
-                anchors.top:    pipView.parent.top
-                anchors.bottom: pipView.parent.bottom
-                anchors.left:   pipView.parent.left
-                anchors.right:  pipView.parent.right
+                anchors.top:    pipView.fullParent.top
+                anchors.bottom: pipView.fullParent.bottom
+                anchors.left:   pipView.fullParent.left
+                anchors.right:  pipView.fullParent.right
             }
 
             ParentChange {
                 target: _viewControl
-                parent: pipView.parent
+                parent: pipView.fullParent
             }
         },
         State {

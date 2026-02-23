@@ -65,21 +65,24 @@ Item {
     }
 
     function dropMainStatusIndicatorTool() {
-        toolbar.dropMainStatusIndicatorTool();
+        // No-op — toolbar is now HilmNavigationBar at MainWindow level
     }
 
     QGCToolInsets {
         id:                     _toolInsets
-        topEdgeLeftInset:       toolbar.height
-        topEdgeCenterInset:     topEdgeLeftInset
-        topEdgeRightInset:      topEdgeLeftInset
+        topEdgeLeftInset:       0
+        topEdgeCenterInset:     0
+        topEdgeRightInset:      0
         leftEdgeBottomInset:    _pipView.leftEdgeBottomInset
         bottomEdgeLeftInset:    _pipView.bottomEdgeLeftInset
     }
 
     Item {
         id:                 mapHolder
-        anchors.fill:       parent
+        anchors.top:        parent.top
+        anchors.left:       parent.left
+        anchors.right:      parent.right
+        anchors.bottom:     hilmStatusBar.top
 
         FlyViewMap {
             id:                     mapControl
@@ -99,9 +102,9 @@ Item {
 
         PipView {
             id:                     _pipView
-            anchors.left:           parent.left
-            anchors.bottom:         parent.bottom
-            anchors.margins:        _toolsMargin
+            parent:                 hilmRightPanel.videoContainer
+            fullParent:             mapHolder
+            anchors.fill:           parent
             item1IsFullSettingsKey: "MainFlyWindowIsMap"
             item1:                  mapControl
             item2:                  QGroundControl.videoManager.hasVideo ? videoControl : null
@@ -109,8 +112,20 @@ Item {
                                         (videoControl.pipState.state === videoControl.pipState.pipState || mapControl.pipState.state === mapControl.pipState.pipState)
             z:                      QGroundControl.zOrderWidgets
 
-            property real leftEdgeBottomInset: visible ? width + anchors.margins : 0
-            property real bottomEdgeLeftInset: visible ? height + anchors.margins : 0
+            property real leftEdgeBottomInset:  0
+            property real bottomEdgeLeftInset:  0
+        }
+
+        // ── HILM Right Panel (Quick Actions + Live Video)
+        HilmRightPanel {
+            id:                     hilmRightPanel
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            anchors.right:          parent.right
+            anchors.topMargin:      _widgetMargin
+            anchors.bottomMargin:   _widgetMargin
+            anchors.rightMargin:    _widgetMargin
+            z:                      QGroundControl.zOrderWidgets
         }
 
         FlyViewWidgetLayer {
@@ -118,9 +133,9 @@ Item {
             anchors.top:            parent.top
             anchors.bottom:         parent.bottom
             anchors.left:           parent.left
-            anchors.right:          guidedValueSlider.visible ? guidedValueSlider.left : parent.right
+            anchors.right:          guidedValueSlider.visible ? guidedValueSlider.left : hilmRightPanel.left
             anchors.margins:        _widgetMargin
-            anchors.topMargin:      toolbar.height + _widgetMargin
+            anchors.topMargin:      _widgetMargin
             z:                      _fullItemZorder + 2 // we need to add one extra layer for map 3d viewer (normally was 1)
             parentToolInsets:       _toolInsets
             mapControl:             _mapControl
@@ -161,7 +176,7 @@ Item {
             anchors.right:      parent.right
             anchors.top:        parent.top
             anchors.bottom:     parent.bottom
-            anchors.topMargin:  toolbar.height
+            anchors.topMargin:  0
             z:                  QGroundControl.zOrderTopMost
             visible:            false
         }
@@ -183,10 +198,50 @@ Item {
         }
     }
 
-    FlyViewToolBar {
-        id:                 toolbar
-        guidedValueSlider:  _guidedValueSlider
-        utmspSliderTrigger: utmspSendActTrigger
-        visible:            !QGroundControl.videoManager.fullScreen
+    // ── Bottom Status Bar
+    HilmStatusBar {
+        id:                 hilmStatusBar
+        anchors.left:       parent.left
+        anchors.right:      parent.right
+        anchors.bottom:     parent.bottom
+        z:                  QGroundControl.zOrderWidgets
+    }
+
+    // FlyViewToolBar replaced by HilmNavigationBar at MainWindow level
+
+    // Floating GuidedActionConfirm (was previously in FlyViewToolBar center panel)
+    GuidedActionConfirm {
+        id:                         guidedActionConfirm
+        anchors.top:                parent.top
+        anchors.topMargin:          ScreenTools.defaultFontPixelHeight * 0.5
+        anchors.horizontalCenter:   parent.horizontalCenter
+        z:                          QGroundControl.zOrderTopMost
+        height:                     ScreenTools.toolbarHeight
+        guidedController:           _guidedController
+        guidedValueSlider:          _guidedValueSlider
+        utmspSliderTrigger:         utmspSendActTrigger
+        messageDisplay:             guidedActionMessageDisplay
+    }
+
+    Rectangle {
+        id:                         guidedActionMessageDisplay
+        anchors.top:                guidedActionConfirm.bottom
+        anchors.topMargin:          _margins
+        anchors.horizontalCenter:   parent.horizontalCenter
+        width:                      guidedMessageLabel.contentWidth + (_margins * 4)
+        height:                     guidedMessageLabel.contentHeight + (_margins * 4)
+        color:                      Qt.rgba(0, 0, 0, 0.75)
+        radius:                     ScreenTools.defaultFontPixelHeight * 0.25
+        visible:                    guidedActionConfirm.visible
+        z:                          QGroundControl.zOrderTopMost
+
+        QGCLabel {
+            id:         guidedMessageLabel
+            x:          _margins * 2
+            y:          _margins * 2
+            width:      ScreenTools.defaultFontPixelWidth * 30
+            wrapMode:   Text.WordWrap
+            text:       guidedActionConfirm.message
+        }
     }
 }

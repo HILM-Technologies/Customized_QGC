@@ -39,6 +39,12 @@ qt_add_qml_module(FlyViewModule
         FlyViewVideo.qml
         FlyViewWidgetLayer.qml
         GuidedActionConfirm.qml
+        HilmDroneCard.qml
+        HilmEmergencyCard.qml
+        HilmFleetPanel.qml
+        HilmMapLegend.qml
+        HilmRightPanel.qml
+        HilmStatusBar.qml
         GuidedActionLand.qml
         GuidedActionPause.qml
         GuidedActionRTL.qml

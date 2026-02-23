@@ -233,6 +233,7 @@ qt_add_qml_module(QGroundControlControlsModule
         FlightModeMenuIndicator.qml
         FlyViewToolBar.qml
         FlyViewToolBarIndicators.qml
+        HilmNavigationBar.qml
         GPSIndicator.qml
         GPSIndicatorPage.qml
         MainStatusIndicator.qml

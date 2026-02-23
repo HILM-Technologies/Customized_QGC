@@ -799,10 +799,7 @@ FlightMap {
 
                           _activeVehicle.emergencyController.setEmergencyTarget(emergencyCoord)
 
-                          mainWindow.showMessageDialog(
-                              qsTr("Emergency location set"),
-                              qsTr("Emergency deployment point selected.")
-                              )
+                          // Right panel updates via property bindings — no dialog needed
 
                           return   // stop here, do not trigger guided/orbit menu
                       }

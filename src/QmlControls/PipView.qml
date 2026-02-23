@@ -23,6 +23,7 @@ Item {
     property var    item2:                  null    // Optional, may come and go
     property string item1IsFullSettingsKey          // Settings key to save whether item1 was saved in full mode
     property bool   show:                   true
+    property var    fullParent:             parent  // Where items go when in fullState (defaults to parent for backward compat)
 
     readonly property string _pipExpandedSettingsKey: "IsPIPVisible"
 
