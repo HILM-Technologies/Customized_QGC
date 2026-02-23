@@ -311,7 +311,7 @@ Item {
                         spacing: ScreenTools.defaultFontPixelWidth * 0.4
 
                         QGCLabel {
-                            text:           _activeVehicle ? _activeVehicle.vehicleName : "No Vehicle"
+                            text:           _activeVehicle ? qsTr("Vehicle") + " " + _activeVehicle.id : "No Vehicle"
                             color:          "white"
                             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.8
                             font.bold:      true
@@ -326,7 +326,7 @@ Item {
                         }
                     }
                     QGCLabel {
-                        text:           _activeVehicle ? _activeVehicle.vehicleTypeName : ""
+                        text:           _activeVehicle ? _activeVehicle.vehicleTypeString : ""
                         color:          _dimText
                         font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
                     }

@@ -116,6 +116,18 @@ Item {
             property real bottomEdgeLeftInset:  0
         }
 
+        // ── HILM Fleet Panel (Left Side — full height)
+        HilmFleetPanel {
+            id:                     hilmFleetPanel
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            anchors.left:           parent.left
+            anchors.topMargin:      _widgetMargin
+            anchors.bottomMargin:   _widgetMargin
+            anchors.leftMargin:     _widgetMargin
+            z:                      QGroundControl.zOrderWidgets
+        }
+
         // ── HILM Right Panel (Quick Actions + Live Video)
         HilmRightPanel {
             id:                     hilmRightPanel
@@ -132,7 +144,7 @@ Item {
             id:                     widgetLayer
             anchors.top:            parent.top
             anchors.bottom:         parent.bottom
-            anchors.left:           parent.left
+            anchors.left:           hilmFleetPanel.right
             anchors.right:          guidedValueSlider.visible ? guidedValueSlider.left : hilmRightPanel.left
             anchors.margins:        _widgetMargin
             anchors.topMargin:      _widgetMargin

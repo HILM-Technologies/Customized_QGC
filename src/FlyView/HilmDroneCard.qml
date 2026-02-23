@@ -13,26 +13,59 @@ import QGroundControl.Controls
 Rectangle {
     id: card
 
-    required property var vehicle
+    property var  vehicle:    null
     property bool isSelected: vehicle && QGroundControl.multiVehicleManager.activeVehicle === vehicle
 
-    width:  parent ? parent.width : 280
-    height: cardLayout.implicitHeight + _margin * 2
-    radius: ScreenTools.defaultFontPixelHeight * 0.4
-    color:  _cardBg
-    border.width: isSelected ? 1 : 0
-    border.color: _tealBorder
+    width:  parent ? parent.width : 300
+    height: cardLayout.implicitHeight + _pad * 3
+    radius: ScreenTools.defaultFontPixelHeight * 0.35
+    color:  isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
+    border.width: 1
+    border.color: isSelected ? _tealBorder : Qt.rgba(1, 1, 1, 0.06)
 
     // HILM design tokens
     readonly property color _teal:       "#00BFFF"
-    readonly property color _tealDim:    Qt.rgba(0, 0.749, 1.0, 0.14)
     readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
-    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
     readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.50)
     readonly property color _okColor:    "#4CAF50"
     readonly property color _warnColor:  "#FF9800"
     readonly property color _errColor:   "#FF5252"
-    readonly property real  _margin:     ScreenTools.defaultFontPixelWidth * 0.8
+    readonly property real  _pad:        ScreenTools.defaultFontPixelWidth
+
+    // Vehicle states
+    property bool _isConnected:  vehicle && !vehicle.vehicleLinkManager.communicationLost
+    property bool _isFlying:     vehicle ? (vehicle.armed && vehicle.flying) : false
+    property bool _isArmed:      vehicle ? vehicle.armed : false
+
+    // Status text + color
+    property string _statusText: {
+        if (!vehicle) return "N/A"
+        if (_isFlying)  return "ACTIVE"
+        if (_isArmed)   return "ARMED"
+        return "IDLE"
+    }
+
+    property color _statusColor: {
+        if (_statusText === "ACTIVE")   return _okColor
+        if (_statusText === "ARMED")    return _warnColor
+        return Qt.rgba(0.3, 0.5, 0.9, 1.0)
+    }
+
+    // Battery
+    property string _batteryText: {
+        if (vehicle && vehicle.batteries && vehicle.batteries.count > 0)
+            return vehicle.batteries.get(0).percentRemaining.valueString + "%"
+        return "--%"
+    }
+
+    property color _batteryIconColor: {
+        if (vehicle && vehicle.batteries && vehicle.batteries.count > 0) {
+            var pct = vehicle.batteries.get(0).percentRemaining.rawValue
+            if (pct <= 20) return _errColor
+            if (pct <= 40) return _warnColor
+        }
+        return _dimText
+    }
 
     // ── Teal left accent (selected)
     Rectangle {
@@ -46,25 +79,29 @@ Rectangle {
     }
 
     ColumnLayout {
-        id:             cardLayout
-        anchors.left:   parent.left
-        anchors.right:  parent.right
-        anchors.top:    parent.top
-        anchors.margins: _margin
-        anchors.leftMargin: _margin * 1.5
-        spacing:        _margin * 0.6
+        id:                 cardLayout
+        anchors.left:       parent.left
+        anchors.right:      parent.right
+        anchors.top:        parent.top
+        anchors.topMargin:  _pad * 1.2
+        anchors.leftMargin: isSelected ? _pad * 2.0 : _pad * 1.4
+        anchors.rightMargin: _pad * 1.2
+        spacing:            _pad * 0.4
 
-        // ── Row 1: Name + status badge
+        // ════════════════════════════════════
+        // Row 1: Vehicle name + dot + badge
+        // ════════════════════════════════════
         RowLayout {
             Layout.fillWidth: true
-            spacing:          _margin * 0.5
+            spacing: _pad * 0.6
 
             QGCLabel {
-                text:           vehicle ? vehicle.vehicleName : "Unknown"
+                text:           vehicle ? qsTr("Vehicle") + " " + vehicle.id : "Unknown"
                 color:          "white"
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9
+                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.85
                 font.bold:      true
                 Layout.fillWidth: true
+                elide:          Text.ElideRight
             }
 
             // Connected dot
@@ -72,78 +109,66 @@ Rectangle {
                 width:   ScreenTools.defaultFontPixelHeight * 0.4
                 height:  width
                 radius:  width / 2
-                color:   vehicle && !vehicle.vehicleLinkManager.communicationLost ? _okColor : _errColor
+                color:   _isConnected ? _okColor : _errColor
                 visible: vehicle !== null
             }
 
             // Status badge
             Rectangle {
                 radius:  height / 2
-                width:   statusLabel.implicitWidth + ScreenTools.defaultFontPixelWidth * 1.2
-                height:  statusLabel.implicitHeight + ScreenTools.defaultFontPixelHeight * 0.2
+                width:   badgeLabel.implicitWidth + _pad * 1.6
+                height:  ScreenTools.defaultFontPixelHeight * 1.1
                 color:   _statusColor
-                opacity: 0.85
-
-                property color _statusColor: {
-                    if (!vehicle) return Qt.rgba(1,1,1,0.2)
-                    if (vehicle.armed && vehicle.flying) return _okColor
-                    if (vehicle.armed) return _warnColor
-                    return Qt.rgba(0.3, 0.5, 0.9, 1.0) // idle blue
-                }
 
                 QGCLabel {
-                    id:                 statusLabel
+                    id:                 badgeLabel
                     anchors.centerIn:   parent
                     text:               _statusText
                     color:              "white"
-                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
                     font.bold:          true
                     font.letterSpacing: 0.5
-
-                    property string _statusText: {
-                        if (!vehicle) return "N/A"
-                        if (vehicle.armed && vehicle.flying) return "ACTIVE"
-                        if (vehicle.armed) return "ARMED"
-                        return "IDLE"
-                    }
                 }
             }
         }
 
-        // ── Row 2: Model/type
+        // ════════════════════════════════════
+        // Row 2: Vehicle type
+        // ════════════════════════════════════
         QGCLabel {
-            text:           vehicle ? vehicle.vehicleTypeName : ""
+            text:           vehicle ? vehicle.vehicleTypeString : ""
             color:          _dimText
-            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
+            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
             font.letterSpacing: 0.3
+            visible:        text !== ""
         }
 
-        // ── Spacer
-        Item { Layout.preferredHeight: _margin * 0.3 }
+        // Spacer before stats
+        Item { Layout.preferredHeight: _pad * 0.6 }
 
-        // ── Row 3: Stats grid (2x2)
-        GridLayout {
+        // ════════════════════════════════════
+        // Stats Row 1: Battery + Signal
+        // ════════════════════════════════════
+        RowLayout {
             Layout.fillWidth: true
-            columns:          2
-            rowSpacing:       _margin * 0.3
-            columnSpacing:    _margin
+            spacing: _pad * 0.5
 
             // Battery
             Row {
-                spacing: _margin * 0.3
+                Layout.fillWidth: true
+                spacing: _pad * 0.4
+
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.7
+                    width:      ScreenTools.defaultFontPixelHeight * 0.75
                     height:     width
                     source:     "/qmlimages/Battery.svg"
-                    color:      _dimText
+                    color:      _batteryIconColor
                     fillMode:   Image.PreserveAspectFit
                 }
                 QGCLabel {
                     anchors.verticalCenter: parent.verticalCenter
-                    text:       vehicle && vehicle.batteries.count > 0
-                                    ? vehicle.batteries.get(0).percentRemaining.valueString + "%"
-                                    : "--%"
+                    text:       _batteryText
                     color:      "white"
                     font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
                     font.bold:  true
@@ -152,10 +177,12 @@ Rectangle {
 
             // Signal
             Row {
-                spacing: _margin * 0.3
+                Layout.fillWidth: true
+                spacing: _pad * 0.4
+
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.7
+                    width:      ScreenTools.defaultFontPixelHeight * 0.75
                     height:     width
                     source:     "/qmlimages/Signal100.svg"
                     color:      _dimText
@@ -163,19 +190,29 @@ Rectangle {
                 }
                 QGCLabel {
                     anchors.verticalCenter: parent.verticalCenter
-                    text:       vehicle ? (vehicle.rcRSSI > 0 ? vehicle.rcRSSI + "%" : "95%") : "--%"
+                    text:       vehicle ? (vehicle.rcRSSI > 0 ? vehicle.rcRSSI + "%" : "--%") : "--%"
                     color:      "white"
                     font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
                     font.bold:  true
                 }
             }
+        }
+
+        // ════════════════════════════════════
+        // Stats Row 2: SAT + Flight mode
+        // ════════════════════════════════════
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: _pad * 0.5
 
             // SAT count
             Row {
-                spacing: _margin * 0.3
+                Layout.fillWidth: true
+                spacing: _pad * 0.4
+
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.7
+                    width:      ScreenTools.defaultFontPixelHeight * 0.75
                     height:     width
                     source:     "/qmlimages/Gps.svg"
                     color:      _dimText
@@ -192,10 +229,12 @@ Rectangle {
 
             // Flight mode
             Row {
-                spacing: _margin * 0.3
+                Layout.fillWidth: true
+                spacing: _pad * 0.4
+
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.7
+                    width:      ScreenTools.defaultFontPixelHeight * 0.75
                     height:     width
                     source:     "/qmlimages/PaperPlane.svg"
                     color:      _dimText
@@ -211,19 +250,31 @@ Rectangle {
             }
         }
 
-        // ── Row 4: Mission info (if active)
-        QGCLabel {
+        // ════════════════════════════════════
+        // Separator + Mission info
+        // ════════════════════════════════════
+        Rectangle {
             Layout.fillWidth: true
-            text:       vehicle && vehicle.armed && vehicle.flying
-                            ? "MISSION: " + (vehicle.flightMode || "IN PROGRESS")
-                            : vehicle && vehicle.armed
-                                ? "STANDBY"
-                                : ""
-            color:      _teal
+            Layout.topMargin: _pad * 0.3
+            height:           1
+            color:            Qt.rgba(0, 0.749, 1.0, 0.15)
+            visible:          missionLabel.visible
+        }
+
+        QGCLabel {
+            id:             missionLabel
+            Layout.fillWidth: true
+            text: {
+                if (!vehicle) return ""
+                if (_isFlying) return "MISSION: " + (vehicle.flightMode || "IN PROGRESS")
+                if (_isArmed)  return "STANDBY"
+                return ""
+            }
+            color:          _teal
             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
-            font.bold:  true
+            font.bold:      true
             font.letterSpacing: 0.5
-            visible:    text !== ""
+            visible:        text !== ""
         }
     }
 

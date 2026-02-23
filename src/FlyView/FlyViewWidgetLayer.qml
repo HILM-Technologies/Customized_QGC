@@ -61,17 +61,7 @@ Item {
         bottomEdgeRightInset:   virtualJoystickMultiTouch.visible ? virtualJoystickMultiTouch.bottomEdgeRightInset : bottomRightRowLayout.bottomEdgeRightInset
     }
 
-    // ── HILM Fleet Panel (LEFT side) — replaces top-right multi-vehicle panel
-    HilmFleetPanel {
-        id:                     hilmFleetPanel
-        anchors.top:            parent.top
-        anchors.left:           toolStrip.right
-        anchors.leftMargin:     _layoutMargin
-        maximumHeight:          parent.height - _margins * 4
-        z:                      QGroundControl.zOrderWidgets
-
-        property real leftEdgeTopInset:     visible ? anchors.leftMargin + width + _layoutMargin : 0
-    }
+    // Fleet panel moved to FlyView.qml as a direct sibling of mapHolder
 
     // Keep topRightPanel for backward compat but hide it (replaced by fleet panel + right panel)
     FlyViewTopRightPanel {
