@@ -65,6 +65,7 @@ Item {
         if(visible) {
             editorMap.zoomLevel = QGroundControl.flightMapZoom
             editorMap.center    = QGroundControl.flightMapPosition
+            _editingLayer       = _layerMission  // HILM: always in mission-edit mode
         }
     }
 
@@ -254,16 +255,19 @@ Item {
         }
     }
 
+    // PlanViewToolBar hidden — functionality moved to HilmMissionPanel
     PlanViewToolBar {
         id: planToolBar
         planMasterController: _planMasterController
+        visible: false
+        height:  0
     }
 
     Item {
         id: panel
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: planToolBar.bottom
+        anchors.top: parent.top
         anchors.bottom: parent.bottom
 
         FlightMap {
@@ -560,12 +564,12 @@ Item {
             autoHide: true
         }
 
-        PlanViewRightPanel {
+        HilmMissionPanel {
             id: rightPanel
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.right: parent.right
-            width: _utmspEnabled ? _rightPanelWidth + ScreenTools.defaultFontPixelWidth * 21.667 : _rightPanelWidth
+            width: Math.min(parent.width * 0.38, ScreenTools.defaultFontPixelWidth * 38)
             planMasterController: _planMasterController
             editorMap: editorMap
         }

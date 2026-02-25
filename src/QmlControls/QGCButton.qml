@@ -10,8 +10,8 @@ import QGroundControl.Controls
 ///     If icon only, icon will be centered
 Button {
     property bool primary: false
-    property bool showBorder: qgcPal.globalTheme === QGCPalette.Light
-    property real backRadius: ScreenTools.defaultBorderRadius
+    property bool showBorder: true
+    property real backRadius: ScreenTools.defaultFontPixelHeight * 0.35
     property real heightFactor: 0.5
     property string iconSource: ""
     property real fontWeight: Font.Normal // default for qml Text

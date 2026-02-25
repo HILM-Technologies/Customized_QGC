@@ -83,7 +83,7 @@ TextField {
     }
 
     background: Rectangle {
-        border.width:   control.validationError ? 2 : (qgcPal.globalTheme === QGCPalette.Light ? 1 : 0)
+        border.width:   control.validationError ? 2 : 1
         border.color:   control.validationError ? qgcPal.colorRed : qgcPal.buttonBorder
         radius:         ScreenTools.defaultBorderRadius
         color:          qgcPal.textField

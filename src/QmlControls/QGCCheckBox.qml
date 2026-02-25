@@ -48,7 +48,7 @@ CheckBox {
         implicitHeight: implicitWidth
         x:              control.leftPadding
         y:              parent.height / 2 - height / 2
-        color:          control.enabled ? "white" : "transparent"
+        color:          control.enabled ? qgcPal.textField : "transparent"
         border.color:   qgcPal.buttonBorder
         border.width:   1
         radius:         ScreenTools.defaultBorderRadius

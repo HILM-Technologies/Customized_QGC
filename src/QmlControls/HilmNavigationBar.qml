@@ -16,7 +16,7 @@ Item {
     width:  parent.width
     height: ScreenTools.toolbarHeight
 
-    // Active tab index: 0=FLY, 1=PATROLS, 2=FLEET, 3=VIDEO WALL, 4=CAMERA ROLL, 5=SETUP, 6=SETTINGS
+    // Active tab index: 0=OPS, 1=MISSIONS, 2=FLEET, 3=VIDEO WALL, 4=CAMERA ROLL, 5=SETUP, 6=SETTINGS
     property int    activeTab:  0
     signal tabClicked(int index)
 
@@ -36,8 +36,8 @@ Item {
     // Tab model
     ListModel {
         id: tabModel
-        ListElement { label: "FLY";         iconSource: "/qmlimages/PaperPlane.svg" }
-        ListElement { label: "PATROLS";     iconSource: "/qmlimages/Plan.svg" }
+        ListElement { label: "OPS";          iconSource: "/qmlimages/PaperPlane.svg" }
+        ListElement { label: "MISSIONS";    iconSource: "/qmlimages/Plan.svg" }
         ListElement { label: "FLEET";       iconSource: "/qmlimages/Quad.svg" }
         ListElement { label: "VIDEO WALL";  iconSource: "/qmlimages/CameraIcon.svg" }
         ListElement { label: "CAMERA ROLL"; iconSource: "/qmlimages/CameraIcon.svg" }
@@ -76,14 +76,15 @@ Item {
                 anchors.centerIn:   parent
                 spacing:            ScreenTools.defaultFontPixelWidth * 0.5
 
-                // Drone icon
-                QGCColoredImage {
+                // HILM logo (replace hilm_logo.png with your actual logo)
+                Image {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:                  ScreenTools.defaultFontPixelHeight * 1.6
+                    width:                  ScreenTools.defaultFontPixelHeight * 1.8
                     height:                 width
-                    source:                 "/qmlimages/Quad.svg"
-                    color:                  _teal
+                    source:                 "qrc:/res/hilm_logo.png"
                     fillMode:               Image.PreserveAspectFit
+                    smooth:                 true
+                    mipmap:                 true
                 }
 
                 Column {

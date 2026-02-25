@@ -35,7 +35,7 @@ T.ComboBox {
 
     property real   _popupWidth:    width
     property bool   _onCompleted:   false
-    property bool   _showBorder:    qgcPal.globalTheme === QGCPalette.Light
+    property bool   _showBorder:    true
     property bool   _showHighlight: enabled && pressed
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }

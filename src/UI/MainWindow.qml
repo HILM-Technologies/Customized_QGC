@@ -128,8 +128,8 @@ ApplicationWindow {
     function _switchToTab(tabIndex) {
         activeTabIndex = tabIndex
 
-        // Close the tool drawer when switching away from SETUP/SETTINGS
-        if (tabIndex < 5 && toolDrawer.visible) {
+        // Close the tool drawer when switching away from SETTINGS
+        if (tabIndex !== 6 && toolDrawer.visible) {
             toolDrawer.visible = false
         }
 
@@ -139,10 +139,9 @@ ApplicationWindow {
         fleetView.visible       = (tabIndex === 2)
         videoWallView.visible   = (tabIndex === 3)
         cameraRollView.visible  = (tabIndex === 4)
-        // SETUP (5) and SETTINGS (6) use the tool drawer
-        if (tabIndex === 5) {
-            showVehicleConfig()
-        } else if (tabIndex === 6) {
+        hilmSetupView.visible   = (tabIndex === 5)
+        // SETTINGS (6) still uses the tool drawer
+        if (tabIndex === 6) {
             showSettingsTool()
         }
     }
@@ -160,19 +159,20 @@ ApplicationWindow {
     }
 
     function showVehicleConfig() {
-        showTool(qsTr("Vehicle Configuration"), "qrc:/qml/QGroundControl/VehicleSetup/SetupView.qml", "/qmlimages/Gears.svg")
+        hilmNavBar.activeTab = 5
+        _switchToTab(5)
     }
 
     function showVehicleConfigParametersPage() {
         showVehicleConfig()
-        toolDrawerLoader.item.showParametersPanel()
+        hilmSetupView.showParametersPanel()
     }
 
     function showKnownVehicleComponentConfigPage(knownVehicleComponent) {
         showVehicleConfig()
         let vehicleComponent = globals.activeVehicle.autopilotPlugin.findKnownVehicleComponent(knownVehicleComponent)
         if (vehicleComponent) {
-            toolDrawerLoader.item.showVehicleComponentPanel(vehicleComponent)
+            hilmSetupView.showVehicleComponentPanel(vehicleComponent)
         }
     }
 
@@ -336,6 +336,15 @@ ApplicationWindow {
 
     CameraRollView {
         id:             cameraRollView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
+    HilmSetupView {
+        id:             hilmSetupView
         anchors.left:   parent.left
         anchors.right:  parent.right
         anchors.top:    hilmNavBar.bottom
