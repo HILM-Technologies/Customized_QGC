@@ -123,13 +123,15 @@ Item {
             color:                 Qt.rgba(1, 1, 1, 0.12)
         }
 
-        // ── Center: Navigation Tabs
+        // ── Navigation Tabs (left-aligned after logo, per Figma)
         Item {
             Layout.fillWidth:  true
             Layout.fillHeight: true
 
             Row {
-                anchors.centerIn:   parent
+                anchors.left:       parent.left
+                anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 1.5
+                anchors.verticalCenter: parent.verticalCenter
                 height:             parent.height
                 spacing:            ScreenTools.defaultFontPixelWidth * 0.5
 

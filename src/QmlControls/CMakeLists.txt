@@ -205,6 +205,8 @@ qt_add_qml_module(QGroundControlControlsModule
         PlanToolBarIndicators.qml
         PlanView.qml
         HilmMissionPanel.qml
+        HilmRoutePlanningOverlay.qml
+        HilmMissionMapLegend.qml
         PlanViewRightPanel.qml
         RallyPointEditorHeader.qml
         RallyPointItemEditor.qml

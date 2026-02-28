@@ -134,7 +134,7 @@ set(QGC_APPIMAGE_APPDATA_DEVELOPER "qgroundcontrol" CACHE STRING "AppImage devel
 # Windows Platform
 # ----------------------------------------------------------------------------
 set(QGC_WINDOWS_INSTALL_HEADER_PATH "${CMAKE_SOURCE_DIR}/deploy/windows/installheader.bmp" CACHE FILEPATH "Windows installer header image")
-set(QGC_WINDOWS_ICON_PATH "${CMAKE_SOURCE_DIR}/deploy/windows/WindowsQGC.ico" CACHE FILEPATH "Windows application icon")
+set(QGC_WINDOWS_ICON_PATH "${CMAKE_SOURCE_DIR}/resources/icons/Hilm_logo.ico" CACHE FILEPATH "Windows application icon")
 set(QGC_WINDOWS_RESOURCE_FILE_PATH "${CMAKE_SOURCE_DIR}/deploy/windows/QGroundControl.rc" CACHE FILEPATH "Windows resource file")
 
 # ============================================================================

@@ -66,6 +66,8 @@ Item {
             editorMap.zoomLevel = QGroundControl.flightMapZoom
             editorMap.center    = QGroundControl.flightMapPosition
             _editingLayer       = _layerMission  // HILM: always in mission-edit mode
+            // HILM: Auto-enable waypoint adding so clicking always adds waypoints
+            addWaypointRallyPointAction.checked = true
         }
     }
 
@@ -316,7 +318,16 @@ Item {
 
                 switch (_editingLayer) {
                 case _layerMission: if (addWaypointRallyPointAction.checked) {
-                        insertSimpleItemAfterCurrent(coordinate)
+                        // HILM: First waypoint is always a takeoff item
+                        if (_missionController.visualItems.count <= 1) {
+                            _missionController.insertTakeoffItem(coordinate, 1, true /* makeCurrentItem */)
+                            // HILM: Auto-add RTL at end so return-to-launch line is always visible
+                            if (_missionController.isInsertLandValid) {
+                                _missionController.insertLandItem(coordinate, _missionController.visualItems.count, false /* not current */)
+                            }
+                        } else {
+                            insertSimpleItemAfterCurrent(coordinate)
+                        }
                     } else if (_addROIOnClick) {
                         insertROIAfterCurrent(coordinate)
                         _addROIOnClick = false
@@ -346,6 +357,27 @@ Item {
                 showSpecialVisual: _missionController.isROIBeginCurrentItem
                 model: _missionController.simpleFlightPathSegments
                 opacity: _editingLayer == _layerMission ? 1 : editorMap._nonInteractiveOpacity
+            }
+
+            // HILM: RTL return-to-home line overlay (red, over the teal route line)
+            MapItemView {
+                model: _editingLayer == _layerMission ? _missionController.simpleFlightPathSegments : undefined
+                delegate: MapPolyline {
+                    line.width: 3
+                    line.color: "#FF5252"
+                    z:          QGroundControl.zOrderWaypointLines + 0.5
+                    visible:    _isReturnToHome
+                    path:       _isReturnToHome && object && object.coordinate1.isValid && object.coordinate2.isValid
+                                ? [object.coordinate1, object.coordinate2] : []
+
+                    property bool _isReturnToHome: {
+                        if (!object || !object.coordinate1.isValid || !object.coordinate2.isValid) return false
+                        var homePos = _missionController.plannedHomePosition
+                        if (!homePos || !homePos.isValid) return false
+                        return Math.abs(object.coordinate2.latitude - homePos.latitude) < 0.0001 &&
+                               Math.abs(object.coordinate2.longitude - homePos.longitude) < 0.0001
+                    }
+                }
             }
 
             // Direction arrows in waypoint lines
@@ -449,10 +481,32 @@ Item {
                 opacity: _editingLayer != _layerUTMSP ? editorMap._nonInteractiveOpacity : 1
                 resetCheck: _resetGeofencePolygon
             }
+
+            // HILM: Right-click handler for setting launch zone (home position)
+            MouseArea {
+                anchors.fill:   parent
+                acceptedButtons: Qt.RightButton
+                z:              QGroundControl.zOrderMapItems - 2   // below map items, above map
+
+                onClicked: (mouse) => {
+                    var coordinate = editorMap.toCoordinate(Qt.point(mouse.x, mouse.y), false /* clipToViewPort */)
+                    coordinate.latitude  = coordinate.latitude.toFixed(_decimalPlaces)
+                    coordinate.longitude = coordinate.longitude.toFixed(_decimalPlaces)
+                    coordinate.altitude  = coordinate.altitude.toFixed(_decimalPlaces)
+
+                    if (_missionController.visualItems.count > 0) {
+                        var homeItem = _missionController.visualItems.get(0)
+                        if (homeItem) {
+                            homeItem.setInitialHomePositionFromUser(coordinate)
+                            homeItem.setCoordinate(coordinate)
+                        }
+                    }
+                }
+            }
         }
 
         //-----------------------------------------------------------
-        // Left tool strip
+        // Left tool strip (HILM: hidden — functionality in Route Planning overlay + right panel)
         ToolStrip {
             id: toolStrip
             anchors.margins: _toolsMargin
@@ -460,6 +514,7 @@ Item {
             anchors.top: parent.top
             z: QGroundControl.zOrderWidgets
             maxHeight: parent.height - toolStrip.y
+            visible: false
 
             readonly property int fileButtonIndex: 0
             readonly property int takeoffButtonIndex: 1
@@ -558,10 +613,40 @@ Item {
 
         MapScale {
             anchors.margins: _toolsMargin
-            anchors.left: toolStrip.right
+            anchors.left: parent.left
             anchors.top: parent.top
             mapControl: editorMap
             autoHide: true
+            visible: false   // HILM: hidden — Route Planning overlay occupies this space
+        }
+
+        // HILM: Dark mode map overlay (darkens map tiles when DRK selected)
+        Rectangle {
+            anchors.fill:   parent
+            color:          "#0D1117"
+            opacity:        0.6
+            visible:        routePlanningOverlay.darkModeEnabled
+            z:              QGroundControl.zOrderWidgets - 1
+        }
+
+        // HILM: Route Planning overlay (top-left)
+        HilmRoutePlanningOverlay {
+            id:                   routePlanningOverlay
+            anchors.left:         parent.left
+            anchors.top:          parent.top
+            anchors.margins:      _toolsMargin
+            planMasterController: _planMasterController
+            missionController:    _missionController
+            editorMap:            editorMap
+            z:                    QGroundControl.zOrderWidgets
+        }
+
+        // HILM: Mission Map Legend (bottom-left)
+        HilmMissionMapLegend {
+            anchors.left:    parent.left
+            anchors.bottom:  parent.bottom
+            anchors.margins: _toolsMargin
+            z:               QGroundControl.zOrderWidgets
         }
 
         HilmMissionPanel {
@@ -577,11 +662,11 @@ Item {
         RowLayout {
             id: missionStatus
             anchors.margins: _toolsMargin
-            anchors.left: toolStrip.right
+            anchors.left: parent.left
             anchors.right: rightPanel.left
             anchors.bottom: parent.bottom
             spacing: 0
-            visible: !hidden && _editingLayer == _layerMission && QGroundControl.corePlugin.options.showMissionStatus
+            visible: false  // HILM: hidden — mission status bar not needed
 
             readonly property bool hidden: _planViewSettings.showMissionItemStatus.rawValue ? false : true
 

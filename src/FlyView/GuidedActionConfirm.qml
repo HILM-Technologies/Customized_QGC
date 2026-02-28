@@ -84,6 +84,22 @@ Item {
         onTriggered:    _reallyShow()
     }
 
+    Timer {
+        id:             messageFadeTimer
+        interval:       5000
+        repeat:         false
+        onTriggered:    messageOpacityAnimation.start()
+    }
+
+    NumberAnimation {
+        id:         messageOpacityAnimation
+        target:     messageDisplay
+        property:   "opacity"
+        from:       1.0
+        to:         0.0
+        duration:   2000
+    }
+
     QGCPalette { id: qgcPal }
 
     RowLayout {

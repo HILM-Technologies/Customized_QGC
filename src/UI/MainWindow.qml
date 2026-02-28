@@ -125,6 +125,11 @@ ApplicationWindow {
         _switchToTab(0)
     }
 
+    function showVideoWallView() {
+        hilmNavBar.activeTab = 3
+        _switchToTab(3)
+    }
+
     function _switchToTab(tabIndex) {
         activeTabIndex = tabIndex
 
@@ -354,6 +359,56 @@ ApplicationWindow {
 
     footer: LogReplayStatusBar {
         visible: QGroundControl.settingsManager.flyViewSettings.showLogReplayStatusBar.rawValue
+    }
+
+    // ── HILM Splash Screen ──
+    Rectangle {
+        id:             splashScreen
+        anchors.fill:   parent
+        z:              QGroundControl.zOrderTopMost + 10
+        color:          "#0D1117"
+        visible:        opacity > 0
+        opacity:        1.0
+
+        Image {
+            id:                     splashLogo
+            anchors.centerIn:       parent
+            anchors.verticalCenterOffset: -ScreenTools.defaultFontPixelHeight * 2
+            source:                 "/res/hilm_logo.png"
+            width:                  Math.min(parent.width * 0.25, 240)
+            fillMode:               Image.PreserveAspectFit
+            mipmap:                 true
+        }
+
+        QGCLabel {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top:              splashLogo.bottom
+            anchors.topMargin:        ScreenTools.defaultFontPixelHeight * 1.5
+            text:                     "HILM GROUND CONTROL"
+            color:                    "#00BFFF"
+            font.pixelSize:           ScreenTools.defaultFontPixelHeight * 1.2
+            font.bold:                true
+            font.letterSpacing:       2.0
+        }
+
+        QGCLabel {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom:           parent.bottom
+            anchors.bottomMargin:     ScreenTools.defaultFontPixelHeight * 3
+            text:                     "Initializing..."
+            color:                    Qt.rgba(1, 1, 1, 0.40)
+            font.pixelSize:           ScreenTools.defaultFontPixelHeight * 0.7
+        }
+
+        Behavior on opacity {
+            NumberAnimation { duration: 800 }
+        }
+
+        Timer {
+            running: true
+            interval: 2500
+            onTriggered: splashScreen.opacity = 0
+        }
     }
 
     MessageDialog {

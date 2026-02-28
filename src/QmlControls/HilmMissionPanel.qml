@@ -49,9 +49,52 @@ Item {
     property bool   _scheduleEnabled: false
     property string _startTime:       ""
     property string _endTime:         ""
+    property bool   _deployPending:   false
+    property bool   _scheduleSaved:   false
+
+    // Feedback timer for schedule save
+    Timer {
+        id: scheduleSavedTimer
+        interval: 2000
+        onTriggered: root._scheduleSaved = false
+    }
+
+    // Switch to FlyView when upload completes after Deploy
+    Connections {
+        target: _planMaster
+        function onSyncInProgressChanged() {
+            if (!_planMaster.syncInProgress && root._deployPending) {
+                root._deployPending = false
+                mainWindow.showFlyView()
+            }
+        }
+    }
+
+    // Fallback timer — if offline or upload is instant, switch after 800ms
+    Timer {
+        id: deployFallbackTimer
+        interval: 800
+        running: root._deployPending
+        onTriggered: {
+            if (root._deployPending) {
+                root._deployPending = false
+                mainWindow.showFlyView()
+            }
+        }
+    }
 
     // Waypoint count (subtract home position item)
     readonly property int _waypointCount: _missionCtrl ? Math.max(0, _missionCtrl.visualItems.count - 1) : 0
+
+    // Find the takeoff item (first non-home item) for altitude binding
+    property var _takeoffItem: {
+        if (!_missionCtrl || !_missionCtrl.visualItems) return null
+        for (var i = 1; i < _missionCtrl.visualItems.count; i++) {
+            var item = _missionCtrl.visualItems.get(i)
+            if (item && item.altitude) return item
+        }
+        return null
+    }
 
     function toggleDrone(vehicleId) {
         var ids = _selectedDroneIds.slice()
@@ -461,6 +504,7 @@ Item {
                 border.color:           Qt.rgba(1, 1, 1, 0.10)
 
                 QGCComboBox {
+                    id: loopModeComboBox
                     anchors.fill:       parent
                     anchors.margins:    1
                     model:              ["FOREVER (CONTINUOUS)", "LOOP N TIMES", "RUN FOR DURATION"]
@@ -469,6 +513,137 @@ Item {
                         if (_patrolCtrl) _patrolCtrl.loopsMode = index
                     }
                 }
+            }
+
+            // Loop count input (visible when LOOP N TIMES selected)
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                color:                  _cardBg
+                border.width:           1
+                border.color:           Qt.rgba(1, 1, 1, 0.10)
+                visible:                _patrolCtrl && loopModeComboBox.currentIndex === 1
+
+                RowLayout {
+                    anchors.fill:    parent
+                    anchors.margins: _pad * 0.8
+
+                    QGCLabel {
+                        text:             "Number of Loops"
+                        color:            "white"
+                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.65
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        width:        ScreenTools.defaultFontPixelWidth * 8
+                        height:       ScreenTools.defaultFontPixelHeight * 1.8
+                        radius:       ScreenTools.defaultFontPixelHeight * 0.2
+                        color:        Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+                        border.color: _tealBorder
+
+                        TextInput {
+                            anchors.fill:        parent
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            verticalAlignment:   Text.AlignVCenter
+                            horizontalAlignment: Text.AlignRight
+                            color:               "white"
+                            font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.7
+                            font.bold:           true
+                            font.family:         ScreenTools.normalFontFamily
+                            inputMethodHints:    Qt.ImhDigitsOnly
+                            text:                _patrolCtrl ? _patrolCtrl.loops.toString() : "3"
+                            validator:           IntValidator { bottom: 1; top: 999 }
+                            onEditingFinished:   if (_patrolCtrl) _patrolCtrl.loops = parseInt(text)
+                        }
+                    }
+                }
+            }
+
+            // Duration input (visible when RUN FOR DURATION selected)
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                color:                  _cardBg
+                border.width:           1
+                border.color:           Qt.rgba(1, 1, 1, 0.10)
+                visible:                _patrolCtrl && loopModeComboBox.currentIndex === 2
+
+                RowLayout {
+                    anchors.fill:    parent
+                    anchors.margins: _pad * 0.8
+
+                    QGCLabel {
+                        text:             "Duration (minutes)"
+                        color:            "white"
+                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.65
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        width:        ScreenTools.defaultFontPixelWidth * 8
+                        height:       ScreenTools.defaultFontPixelHeight * 1.8
+                        radius:       ScreenTools.defaultFontPixelHeight * 0.2
+                        color:        Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+                        border.color: _tealBorder
+
+                        TextInput {
+                            anchors.fill:        parent
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            verticalAlignment:   Text.AlignVCenter
+                            horizontalAlignment: Text.AlignRight
+                            color:               "white"
+                            font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.7
+                            font.bold:           true
+                            font.family:         ScreenTools.normalFontFamily
+                            inputMethodHints:    Qt.ImhDigitsOnly
+                            text:                _patrolCtrl ? _patrolCtrl.duration.toString() : "20"
+                            validator:           IntValidator { bottom: 1; top: 300 }
+                            onEditingFinished:   if (_patrolCtrl) _patrolCtrl.duration = parseInt(text)
+                        }
+                    }
+                }
+            }
+
+            // ── PATROL SPEED ──
+            Item { Layout.preferredHeight: _sectionGap * 0.3 }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: _pad * 0.5
+
+                QGCColoredImage {
+                    width: ScreenTools.defaultFontPixelHeight * 0.7; height: width
+                    source: "/qmlimages/Gears.svg"; color: _teal; fillMode: Image.PreserveAspectFit
+                }
+                QGCLabel {
+                    text:               "PATROL SPEED"
+                    color:              _teal
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.65
+                    font.bold:          true
+                    font.letterSpacing: 0.8
+                    Layout.fillWidth:   true
+                }
+                QGCLabel {
+                    text:           (_patrolCtrl ? _patrolCtrl.speed.toFixed(1) : "5.0") + " m/s"
+                    color:          _dimText
+                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                }
+            }
+
+            QGCSlider {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.0
+                from:                   1
+                to:                     15
+                value:                  _patrolCtrl ? _patrolCtrl.speed : 5
+                onPressedChanged:       if (!pressed && _patrolCtrl) _patrolCtrl.speed = value
             }
 
             // ── MISSION OPTIONS ──
@@ -499,6 +674,63 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     checked:                _autoTakeoff
                     onClicked:              _autoTakeoff = checked
+                }
+            }
+
+            // Takeoff Altitude
+            Item {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.5
+                visible:                _autoTakeoff
+
+                QGCLabel {
+                    anchors.left:           parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:                   "Takeoff Altitude"
+                    color:                  "white"
+                    font.pixelSize:         ScreenTools.defaultFontPixelHeight * 0.7
+                }
+
+                Row {
+                    anchors.right:          parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing:                _pad * 0.5
+
+                    Rectangle {
+                        width:          ScreenTools.defaultFontPixelWidth * 8
+                        height:         ScreenTools.defaultFontPixelHeight * 1.8
+                        radius:         ScreenTools.defaultFontPixelHeight * 0.2
+                        color:          Qt.rgba(1, 1, 1, 0.06)
+                        border.width:   1
+                        border.color:   _tealBorder
+
+                        TextInput {
+                            id:                     takeoffAltInput
+                            anchors.fill:           parent
+                            anchors.leftMargin:     _pad
+                            anchors.rightMargin:    _pad
+                            verticalAlignment:      Text.AlignVCenter
+                            horizontalAlignment:    Text.AlignRight
+                            color:                  "white"
+                            font.pixelSize:         ScreenTools.defaultFontPixelHeight * 0.7
+                            font.bold:              true
+                            font.family:            ScreenTools.normalFontFamily
+                            inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                            text:                   _takeoffItem ? _takeoffItem.altitude.value.toFixed(1) : "10.0"
+                            onEditingFinished: {
+                                if (_takeoffItem) {
+                                    _takeoffItem.altitude.value = parseFloat(text)
+                                }
+                            }
+                        }
+                    }
+
+                    QGCLabel {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "m"
+                        color:          _dimText
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
+                    }
                 }
             }
 
@@ -547,6 +779,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: _pad * 0.5
                 QGCLabel {
                     text:               "WAYPOINTS"
                     color:              _teal
@@ -559,6 +792,46 @@ Item {
                     text:           _waypointCount + " points"
                     color:          _dimText
                     font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                }
+
+                // Clear all waypoints button
+                Rectangle {
+                    width:          clearAllRow.implicitWidth + _pad * 1.5
+                    height:         ScreenTools.defaultFontPixelHeight * 1.2
+                    radius:         ScreenTools.defaultFontPixelHeight * 0.2
+                    color:          clearAllMouse.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.15) : "transparent"
+                    border.width:   1
+                    border.color:   clearAllMouse.containsMouse ? _errColor : Qt.rgba(1, 1, 1, 0.12)
+                    visible:        _waypointCount > 0
+
+                    Row {
+                        id: clearAllRow
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.3
+
+                        QGCLabel {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text:               "\u2715"
+                            color:              clearAllMouse.containsMouse ? _errColor : _dimText
+                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.45
+                            font.bold:          true
+                        }
+                        QGCLabel {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text:               "CLEAR ALL"
+                            color:              clearAllMouse.containsMouse ? _errColor : _dimText
+                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
+                            font.bold:          true
+                            font.letterSpacing: 0.5
+                        }
+                    }
+
+                    MouseArea {
+                        id: clearAllMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: _planMaster.removeAll()
+                    }
                 }
             }
 
@@ -610,13 +883,14 @@ Item {
 
                             Item {
                                 width:   parent ? parent.width : 100
-                                height:  ScreenTools.defaultFontPixelHeight * 1.6
+                                height:  ScreenTools.defaultFontPixelHeight * 1.8
                                 visible: index > 0  // skip home position
 
                                 RowLayout {
                                     anchors.fill: parent
                                     spacing: _pad * 0.5
 
+                                    // Waypoint number badge
                                     Rectangle {
                                         width:  ScreenTools.defaultFontPixelHeight * 1.2
                                         height: width
@@ -634,6 +908,7 @@ Item {
                                         }
                                     }
 
+                                    // Coordinates
                                     QGCLabel {
                                         Layout.fillWidth: true
                                         text: {
@@ -647,10 +922,58 @@ Item {
                                         font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
                                         elide:          Text.ElideRight
                                     }
+
+                                    // Altitude badge
+                                    Rectangle {
+                                        Layout.alignment:   Qt.AlignVCenter
+                                        width:              altLabel.implicitWidth + _pad * 1.5
+                                        height:             ScreenTools.defaultFontPixelHeight * 1.2
+                                        radius:             ScreenTools.defaultFontPixelHeight * 0.2
+                                        color:              Qt.rgba(1, 1, 1, 0.06)
+                                        border.width:       1
+                                        border.color:       Qt.rgba(1, 1, 1, 0.10)
+                                        visible:            object && object.altitude !== undefined
+
+                                        QGCLabel {
+                                            id:                 altLabel
+                                            anchors.centerIn:   parent
+                                            text:               object && object.altitude ? object.altitude.value.toFixed(1) + "m" : ""
+                                            color:              _teal
+                                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
+                                            font.bold:          true
+                                        }
+                                    }
+
+                                    // Delete waypoint button
+                                    Rectangle {
+                                        Layout.alignment:       Qt.AlignVCenter
+                                        width:                  ScreenTools.defaultFontPixelHeight * 1.2
+                                        height:                 width
+                                        radius:                 width / 2
+                                        color:                  wpDeleteMouse.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.18) : Qt.rgba(1, 1, 1, 0.06)
+                                        border.width:           1
+                                        border.color:           wpDeleteMouse.containsMouse ? _errColor : Qt.rgba(1, 1, 1, 0.10)
+
+                                        QGCLabel {
+                                            anchors.centerIn:   parent
+                                            text:               "\u2715"
+                                            color:              wpDeleteMouse.containsMouse ? _errColor : _dimText
+                                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
+                                            font.bold:          true
+                                        }
+
+                                        MouseArea {
+                                            id:             wpDeleteMouse
+                                            anchors.fill:   parent
+                                            hoverEnabled:   true
+                                            onClicked:      _missionCtrl.removeVisualItem(index)
+                                        }
+                                    }
                                 }
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    z: -1   // below delete button
                                     onClicked: _missionCtrl.setCurrentPlanViewSeqNum(object.sequenceNumber, false)
                                 }
                             }
@@ -720,10 +1043,18 @@ Item {
                     onClicked: {
                         if (_patrolCtrl) {
                             _patrolCtrl.enabled = true
+                            // Assign selected drone to patrol controller
+                            if (_selectedDroneIds.length > 0) {
+                                _patrolCtrl.droneUID = _selectedDroneIds[0].toString()
+                            } else {
+                                // Fallback: use active vehicle ID
+                                var av = QGroundControl.multiVehicleManager.activeVehicle
+                                if (av) _patrolCtrl.droneUID = av.id.toString()
+                            }
                             _patrolCtrl.saveToINI()
                         }
-                        _planMaster.upload()
-                        mainWindow.showFlyView()
+                        _planMaster.sendToVehicle()
+                        root._deployPending = true
                     }
                 }
             }
@@ -752,7 +1083,7 @@ Item {
                 }
                 MouseArea {
                     id: uploadArea; anchors.fill: parent; hoverEnabled: true
-                    onClicked: _planMaster.upload()
+                    onClicked: _planMaster.sendToVehicle()
                 }
             }
 
@@ -808,7 +1139,10 @@ Item {
                             anchors.right:          parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             checked:                _scheduleEnabled
-                            onClicked:              _scheduleEnabled = checked
+                            onClicked: {
+                                _scheduleEnabled = checked
+                                if (_patrolCtrl) _patrolCtrl.enabled = checked
+                            }
                         }
                     }
 
@@ -839,12 +1173,23 @@ Item {
                                     TextInput {
                                         Layout.fillWidth: true
                                         verticalAlignment: Text.AlignVCenter
-                                        color: "white"
+                                        color: scheduleTimeError.visible ? _errColor : "white"
                                         font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
                                         text: _startTime
-                                        onTextChanged: {
+                                        onEditingFinished: {
                                             _startTime = text
-                                            if (_patrolCtrl) _patrolCtrl.startTime = text
+                                            if (!_patrolCtrl) return
+                                            if (!text || text.trim().length === 0) {
+                                                scheduleTimeError.visible = true
+                                                return
+                                            }
+                                            var timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/
+                                            if (!timeRe.test(text)) {
+                                                scheduleTimeError.visible = true
+                                                return
+                                            }
+                                            scheduleTimeError.visible = false
+                                            _patrolCtrl.startTime = text
                                         }
                                         clip: true
 
@@ -906,6 +1251,226 @@ Item {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Time validation error
+            QGCLabel {
+                id:                scheduleTimeError
+                visible:           false
+                text:              "Invalid time. Use HH:MM (24-hour format)."
+                color:             _errColor
+                font.pixelSize:    ScreenTools.defaultFontPixelHeight * 0.5
+                Layout.leftMargin: _pad
+            }
+
+            // ── START DATE (patrol scheduling) ──
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: scheduleDateCol.implicitHeight + _pad * 2
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.3
+                color:                  _cardBg
+                border.width:           1
+                border.color:           Qt.rgba(1, 1, 1, 0.06)
+                visible:                _scheduleEnabled
+
+                ColumnLayout {
+                    id:              scheduleDateCol
+                    anchors.left:    parent.left
+                    anchors.right:   parent.right
+                    anchors.top:     parent.top
+                    anchors.margins: _pad
+                    spacing:         _pad * 0.6
+
+                    QGCLabel {
+                        text:           "Start Date"
+                        color:          _dimText
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height:           ScreenTools.defaultFontPixelHeight * 2.2
+                        radius:           ScreenTools.defaultFontPixelHeight * 0.2
+                        color:            Qt.rgba(1, 1, 1, 0.04)
+                        border.width:     1
+                        border.color:     Qt.rgba(1, 1, 1, 0.10)
+
+                        TextInput {
+                            anchors.fill:        parent
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            verticalAlignment:   Text.AlignVCenter
+                            color:               scheduleDateError.visible ? _errColor : "white"
+                            font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.65
+                            font.family:         ScreenTools.normalFontFamily
+                            clip:                true
+                            text:                _patrolCtrl && _patrolCtrl.startDate
+                                                 && _patrolCtrl.startDate instanceof Date
+                                                 && !isNaN(_patrolCtrl.startDate.getTime())
+                                                 ? Qt.formatDate(_patrolCtrl.startDate, "yyyy-MM-dd") : ""
+
+                            onEditingFinished: {
+                                if (!_patrolCtrl) return
+                                if (!text || text.trim().length === 0) {
+                                    scheduleDateError.visible = true
+                                    return
+                                }
+                                var dateRe = /^\d{4}-\d{2}-\d{2}$/
+                                if (!dateRe.test(text)) {
+                                    scheduleDateError.visible = true
+                                    return
+                                }
+                                var parts = text.split("-")
+                                var y = Number(parts[0])
+                                var m = Number(parts[1]) - 1
+                                var d = Number(parts[2])
+                                var date = new Date(y, m, d)
+                                if (isNaN(date.getTime()) ||
+                                    date.getFullYear() !== y ||
+                                    date.getMonth() !== m ||
+                                    date.getDate() !== d) {
+                                    scheduleDateError.visible = true
+                                    return
+                                }
+                                scheduleDateError.visible = false
+                                _patrolCtrl.startDate = date
+                            }
+
+                            Text {
+                                anchors.fill:      parent
+                                verticalAlignment: Text.AlignVCenter
+                                text:              "YYYY-MM-DD"
+                                color:             Qt.rgba(1, 1, 1, 0.2)
+                                font:              parent.font
+                                visible:           !parent.text && !parent.activeFocus
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Date validation error
+            QGCLabel {
+                id:                scheduleDateError
+                visible:           false
+                text:              "Invalid date. Use YYYY-MM-DD format."
+                color:             _errColor
+                font.pixelSize:    ScreenTools.defaultFontPixelHeight * 0.5
+                Layout.leftMargin: _pad
+            }
+
+            // SAVE SCHEDULE button (saves patrol config to INI and triggers timer)
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                color:                  saveScheduleArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.08) : "transparent"
+                border.width:           1
+                border.color:           _tealBorder
+                visible:                _scheduleEnabled
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: _pad * 0.5
+                    QGCColoredImage {
+                        width: ScreenTools.defaultFontPixelHeight * 0.6; height: width
+                        source: "/qmlimages/Gears.svg"; color: _teal; fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        text:               _scheduleSaved ? "SCHEDULE SAVED" : "SAVE SCHEDULE"
+                        color:              _scheduleSaved ? _okColor : _teal
+                        font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.6
+                        font.bold:          true
+                        font.letterSpacing: 0.5
+                    }
+                }
+                MouseArea {
+                    id: saveScheduleArea; anchors.fill: parent; hoverEnabled: true
+                    onClicked: {
+                        if (!_patrolCtrl) return
+                        // Ensure droneUID is set
+                        if (_patrolCtrl.droneUID === "" || _patrolCtrl.droneUID.length === 0) {
+                            if (_selectedDroneIds.length > 0) {
+                                _patrolCtrl.droneUID = _selectedDroneIds[0].toString()
+                            } else {
+                                var av = QGroundControl.multiVehicleManager.activeVehicle
+                                if (av) _patrolCtrl.droneUID = av.id.toString()
+                            }
+                        }
+                        // Set schedule values
+                        _patrolCtrl.enabled = true
+                        if (_startTime.length > 0) _patrolCtrl.startTime = _startTime
+                        _patrolCtrl.saveToINI()
+                        root._scheduleSaved = true
+                        scheduleSavedTimer.restart()
+                    }
+                }
+            }
+
+            // Schedule status display
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: scheduleStatusCol.implicitHeight + _pad * 1.5
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                color:                  _patrolCtrl && _patrolCtrl.enabled
+                                        ? Qt.rgba(0.298, 0.686, 0.314, 0.08)
+                                        : Qt.rgba(1, 1, 1, 0.03)
+                border.width:           1
+                border.color:           _patrolCtrl && _patrolCtrl.enabled
+                                        ? Qt.rgba(0.298, 0.686, 0.314, 0.25)
+                                        : Qt.rgba(1, 1, 1, 0.06)
+                visible:                _patrolCtrl && _patrolCtrl.enabled
+
+                ColumnLayout {
+                    id: scheduleStatusCol
+                    anchors.left:    parent.left
+                    anchors.right:   parent.right
+                    anchors.top:     parent.top
+                    anchors.margins: _pad * 0.8
+                    spacing:         _pad * 0.3
+
+                    RowLayout {
+                        spacing: _pad * 0.4
+                        QGCLabel {
+                            text:           "PATROL SCHEDULED"
+                            color:          _okColor
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                            font.bold:      true
+                            font.letterSpacing: 0.5
+                        }
+                    }
+
+                    QGCLabel {
+                        text: {
+                            if (!_patrolCtrl) return ""
+                            var parts = []
+                            if (_patrolCtrl.startTime && _patrolCtrl.startTime.length > 0)
+                                parts.push("Time: " + _patrolCtrl.startTime)
+                            if (_patrolCtrl.startDate && _patrolCtrl.startDate instanceof Date
+                                && !isNaN(_patrolCtrl.startDate.getTime()))
+                                parts.push("Date: " + Qt.formatDate(_patrolCtrl.startDate, "yyyy-MM-dd"))
+                            if (_patrolCtrl.speed > 0)
+                                parts.push("Speed: " + _patrolCtrl.speed.toFixed(1) + " m/s")
+                            var modeText = ["Forever", "Loop " + _patrolCtrl.loops + "x",
+                                            _patrolCtrl.duration + " min"][_patrolCtrl.loopsMode] || ""
+                            if (modeText.length > 0)
+                                parts.push("Mode: " + modeText)
+                            return parts.join("  |  ")
+                        }
+                        color:          _dimText
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    QGCLabel {
+                        text:           "Timer will trigger at scheduled time and send MAVLink commands"
+                        color:          Qt.rgba(0, 0.749, 1.0, 0.45)
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.45
+                        wrapMode:       Text.WordWrap
+                        Layout.fillWidth: true
                     }
                 }
             }

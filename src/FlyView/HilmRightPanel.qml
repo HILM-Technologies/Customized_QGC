@@ -167,7 +167,7 @@ Item {
                         hoverEnabled: true
                         onClicked: {
                             if (_activeVehicle)
-                                _guidedController.confirmAction(_guidedController.actionArm)
+                                _activeVehicle.setArmed(true)
                         }
                     }
                 }
@@ -210,7 +210,7 @@ Item {
                         hoverEnabled: true
                         onClicked: {
                             if (_activeVehicle)
-                                _guidedController.confirmAction(_guidedController.actionDisarm)
+                                _activeVehicle.setArmed(false)
                         }
                     }
                 }
@@ -253,7 +253,7 @@ Item {
                         hoverEnabled: true
                         onClicked: {
                             if (_activeVehicle)
-                                _guidedController.confirmAction(_guidedController.actionRTL)
+                                _activeVehicle.guidedModeRTL(false)
                         }
                     }
                 }
@@ -502,29 +502,69 @@ Item {
                     width:   gridRow.implicitWidth + _pad * 1.4
                     height:  gridRow.implicitHeight + _pad * 0.5
                     radius:  height / 2
-                    color:   _cardBg
+                    color:   gridArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : _cardBg
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.12)
+                    border.color: gridArea.containsMouse ? _tealBorder : Qt.rgba(1, 1, 1, 0.12)
 
                     RowLayout {
                         id: gridRow
                         anchors.centerIn: parent
                         spacing: _pad * 0.3
-                        QGCColoredImage {
-                            width: ScreenTools.defaultFontPixelHeight * 0.6; height: width
-                            source: "/qmlimages/Gears.svg"; color: "white"; fillMode: Image.PreserveAspectFit
+                        // Grid icon (4-square grid)
+                        Grid {
+                            columns: 2
+                            spacing: ScreenTools.defaultFontPixelHeight * 0.08
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Repeater {
+                                model: 4
+                                Rectangle {
+                                    width:  ScreenTools.defaultFontPixelHeight * 0.22
+                                    height: width
+                                    radius: ScreenTools.defaultFontPixelHeight * 0.03
+                                    color:  _teal
+                                }
+                            }
                         }
                         QGCLabel {
-                            text: "GRID"; color: "white"
+                            text: "GRID"; color: _teal
                             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55; font.bold: true
+                        }
+                    }
+
+                    MouseArea {
+                        id: gridArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            mainWindow.showVideoWallView()
                         }
                     }
                 }
 
-                // Expand icon
-                QGCColoredImage {
-                    width: ScreenTools.defaultFontPixelHeight * 0.7; height: width
-                    source: "/qmlimages/MaximizeStatic.svg"; color: "white"; fillMode: Image.PreserveAspectFit
+                // Expand to Video Wall arrow
+                Rectangle {
+                    width:   ScreenTools.defaultFontPixelHeight * 1.3
+                    height:  width
+                    radius:  ScreenTools.defaultFontPixelHeight * 0.2
+                    color:   expandVideoArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+
+                    // Diagonal expand arrow (↗)
+                    QGCLabel {
+                        anchors.centerIn: parent
+                        text:             "\u2197"
+                        color:            expandVideoArea.containsMouse ? _teal : "white"
+                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.85
+                    }
+
+                    MouseArea {
+                        id: expandVideoArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            mainWindow.showVideoWallView()
+                        }
+                    }
                 }
             }
 
@@ -656,7 +696,7 @@ Item {
                             }
                         }
                         QGCLabel {
-                            text:           recordBtn._isRecording ? "STOP" : "REC"
+                            text:           recordBtn._isRecording ? "STOP" : "RECORD"
                             color:          recordBtn._isRecording ? _errColor : "white"
                             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
                             font.bold:      true
@@ -700,7 +740,7 @@ Item {
                             fillMode: Image.PreserveAspectFit
                         }
                         QGCLabel {
-                            text:           "SNAP"
+                            text:           "SNAPSHOT"
                             color:          "white"
                             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
                             font.bold:      true

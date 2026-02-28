@@ -38,6 +38,8 @@ MapQuickItem {
             highlightSelected:  true
             onClicked:          _item.clicked()
             opacity:            _item.opacity
+            // HILM: Takeoff marker always green (Launch Zone in legend)
+            color:              missionItem.isTakeoffItem ? "#4CAF50" : (_isCurrentItem ? "green" : (child ? qgcPal.mapIndicatorChild : qgcPal.mapIndicator))
 
             property bool _isCurrentItem:   missionItem ? missionItem.isCurrentItem || missionItem.hasCurrentChildItem : false
         }

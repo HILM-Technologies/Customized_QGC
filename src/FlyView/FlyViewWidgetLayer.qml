@@ -159,7 +159,7 @@ Item {
         anchors.top:            parent.top
         z:                      QGroundControl.zOrderWidgets
         maxHeight:              parent.height - y - parentToolInsets.bottomEdgeLeftInset - _toolsMargin
-        visible:                !QGroundControl.videoManager.fullScreen
+        visible:                false   // Hidden — Takeoff/Return actions are in HILM Quick Actions panel
 
         onDisplayPreFlightChecklist: {
             if (!preFlightChecklistLoader.active) {
@@ -173,13 +173,13 @@ Item {
         property real leftEdgeCenterInset:  leftEdgeTopInset
     }
 
-    // ── HILM Map Legend (bottom-left, above PIP)
+    // ── HILM Map Legend (top-left, beside toolstrip)
     HilmMapLegend {
         id:                     hilmMapLegend
         anchors.left:           toolStrip.right
         anchors.leftMargin:     _layoutMargin
-        anchors.bottom:         parent.bottom
-        anchors.bottomMargin:   _layoutMargin
+        anchors.top:            parent.top
+        anchors.topMargin:      _layoutMargin
         z:                      QGroundControl.zOrderWidgets
     }
 
