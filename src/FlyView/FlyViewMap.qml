@@ -319,12 +319,12 @@ FlightMap {
                               : QtPositioning.coordinate()
 
         anchorPoint.x: emergencyImage.width / 2
-        anchorPoint.y: emergencyImage.height
+        anchorPoint.y: emergencyImage.height / 2
 
         sourceItem: Image {
             id: emergencyImage
             source: "/qmlimages/EmergencyTarget.svg"
-            width: ScreenTools.defaultFontPixelHeight * 3
+            width: ScreenTools.defaultFontPixelHeight * 4
             height: width
             fillMode: Image.PreserveAspectFit
             smooth: true

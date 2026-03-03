@@ -41,7 +41,9 @@ TakeoffMissionItem::TakeoffMissionItem(const MissionItem& missionItem, PlanMaste
 
 TakeoffMissionItem::~TakeoffMissionItem()
 {
-
+    // Destructor intentionally empty.
+    // Qt handles connection cleanup in ~QObject().
+    // Warning floods from disconnect are handled by QGCLogging batching.
 }
 
 void TakeoffMissionItem::_init(bool forLoad)

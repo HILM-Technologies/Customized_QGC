@@ -145,10 +145,7 @@ ApplicationWindow {
         videoWallView.visible   = (tabIndex === 3)
         cameraRollView.visible  = (tabIndex === 4)
         hilmSetupView.visible   = (tabIndex === 5)
-        // SETTINGS (6) still uses the tool drawer
-        if (tabIndex === 6) {
-            showSettingsTool()
-        }
+        hilmSettingsView.visible = (tabIndex === 6)
     }
 
     function showTool(toolTitle, toolSource, toolIcon) {
@@ -350,6 +347,15 @@ ApplicationWindow {
 
     HilmSetupView {
         id:             hilmSetupView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
+    HilmSettingsView {
+        id:             hilmSettingsView
         anchors.left:   parent.left
         anchors.right:  parent.right
         anchors.top:    hilmNavBar.bottom

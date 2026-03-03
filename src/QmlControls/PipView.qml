@@ -148,17 +148,26 @@ Item {
     }
 
     // Resize icon
-    Image {
+    Rectangle {
         id:             pipResizeIcon
-        source:         "/qmlimages/pipResize.svg"
-        fillMode:       Image.PreserveAspectFit
-        mipmap:         true
         anchors.right:  parent.right
         anchors.top:    parent.top
-        visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
-        height:         ScreenTools.defaultFontPixelHeight * 2.5
-        width:          ScreenTools.defaultFontPixelHeight * 2.5
-        sourceSize.height:  height
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
+        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        width:          height
+        radius:         ScreenTools.defaultFontPixelHeight * 0.2
+        color:          Qt.rgba(0, 0, 0, 0.50)
+        visible:        false
+
+        QGCColoredImage {
+            anchors.centerIn: parent
+            width:          parent.width * 0.55
+            height:         width
+            source:         "/qmlimages/pipResize.svg"
+            color:          "#00BFFF"
+            fillMode:       Image.PreserveAspectFit
+            sourceSize.height: height
+        }
     }
 
     // Check min/max constraints on pip size when when parent is resized
@@ -180,17 +189,26 @@ Item {
     }
 
     // Pip to Window
-    Image {
+    Rectangle {
         id:             popupPIP
-        source:         "/qmlimages/PiP.svg"
-        mipmap:         true
-        fillMode:       Image.PreserveAspectFit
         anchors.left:   parent.left
         anchors.top:    parent.top
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
+        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        width:          height
+        radius:         ScreenTools.defaultFontPixelHeight * 0.2
+        color:          Qt.rgba(0, 0, 0, 0.50)
         visible:        _isExpanded && !ScreenTools.isMobile && pipMouseArea.containsMouse
-        height:         ScreenTools.defaultFontPixelHeight * 2.5
-        width:          ScreenTools.defaultFontPixelHeight * 2.5
-        sourceSize.height:  height
+
+        QGCColoredImage {
+            anchors.centerIn: parent
+            width:          parent.width * 0.55
+            height:         width
+            source:         "/qmlimages/PiP.svg"
+            color:          "#00BFFF"
+            fillMode:       Image.PreserveAspectFit
+            sourceSize.height: height
+        }
 
         MouseArea {
             anchors.fill:   parent
@@ -198,17 +216,26 @@ Item {
         }
     }
 
-    Image {
+    Rectangle {
         id:             hidePIP
-        source:         "/qmlimages/pipHide.svg"
-        mipmap:         true
-        fillMode:       Image.PreserveAspectFit
         anchors.left:   parent.left
         anchors.bottom: parent.bottom
-        visible:        _isExpanded && (ScreenTools.isMobile || pipMouseArea.containsMouse)
-        height:         ScreenTools.defaultFontPixelHeight * 2.5
-        width:          ScreenTools.defaultFontPixelHeight * 2.5
-        sourceSize.height:  height
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
+        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        width:          height
+        radius:         ScreenTools.defaultFontPixelHeight * 0.2
+        color:          Qt.rgba(0, 0, 0, 0.50)
+        visible:        false
+
+        QGCColoredImage {
+            anchors.centerIn: parent
+            width:          parent.width * 0.55
+            height:         width
+            source:         "/qmlimages/pipHide.svg"
+            color:          "#00BFFF"
+            fillMode:       Image.PreserveAspectFit
+            sourceSize.height: height
+        }
         MouseArea {
             anchors.fill:   parent
             onClicked:      _root._setPipIsExpanded(false)
@@ -219,20 +246,21 @@ Item {
         id:                     showPip
         anchors.left :          parent.left
         anchors.bottom:         parent.bottom
-        height:                 ScreenTools.defaultFontPixelHeight * 2
-        width:                  ScreenTools.defaultFontPixelHeight * 2
-        radius:                 ScreenTools.defaultFontPixelHeight / 3
+        anchors.margins:        ScreenTools.defaultFontPixelHeight * 0.15
+        height:                 ScreenTools.defaultFontPixelHeight * 1.6
+        width:                  height
+        radius:                 ScreenTools.defaultFontPixelHeight * 0.2
         visible:                !_isExpanded
-        color:                  _fullItem.pipState.isDark ? Qt.rgba(0,0,0,0.75) : Qt.rgba(0,0,0,0.5)
-        Image {
-            width:              parent.width  * 0.75
-            height:             parent.height * 0.75
-            sourceSize.height:  height
+        color:                  Qt.rgba(0, 0, 0, 0.50)
+
+        QGCColoredImage {
+            anchors.centerIn:   parent
+            width:              parent.width * 0.55
+            height:             width
             source:             "/res/buttonRight.svg"
-            mipmap:             true
+            color:              "#00BFFF"
             fillMode:           Image.PreserveAspectFit
-            anchors.verticalCenter:     parent.verticalCenter
-            anchors.horizontalCenter:   parent.horizontalCenter
+            sourceSize.height:  height
         }
         MouseArea {
             anchors.fill:   parent

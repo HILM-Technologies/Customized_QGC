@@ -19,7 +19,7 @@ Item {
     // Expanded = full panel, Collapsed = just the arrow tab
     property bool expanded: true
 
-    readonly property real _expandedWidth:  ScreenTools.defaultFontPixelWidth * 48
+    readonly property real _expandedWidth:  ScreenTools.defaultFontPixelWidth * 54
     readonly property real _collapsedWidth: ScreenTools.defaultFontPixelWidth * 2.5
     readonly property real _tabWidth:       ScreenTools.defaultFontPixelWidth * 2.5
 
@@ -74,7 +74,7 @@ Item {
             anchors.centerIn: parent
             text:               expanded ? "\u203A" : "\u2039"
             color:              _teal
-            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 1.4
+            font.pointSize:     ScreenTools.defaultFontPointSize * 1.4
             font.bold:          true
         }
 
@@ -115,7 +115,7 @@ Item {
             QGCLabel {
                 text:               "QUICK ACTIONS"
                 color:              _teal
-                font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.7
+                font.pointSize:     ScreenTools.defaultFontPointSize * 0.8
                 font.bold:          true
                 font.letterSpacing: 1.2
                 Layout.topMargin:   _pad * 0.5
@@ -135,18 +135,18 @@ Item {
                     Layout.fillWidth:       true
                     Layout.preferredHeight: _actionBtnHeight
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.35
-                    color:                  armArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.18) : Qt.rgba(0, 0.749, 1.0, 0.08)
-                    border.width:           1
-                    border.color:           armArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.40) : Qt.rgba(0, 0.749, 1.0, 0.20)
+                    color:                  armArea.containsMouse ? "#1E4D1E" : "#142D14"
+                    border.width:           1.5
+                    border.color:           armArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.55) : Qt.rgba(0, 0.749, 1.0, 0.28)
                     opacity:                _activeVehicle ? 1.0 : 0.45
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing:          _pad * 0.2
+                        spacing:          _pad * 0.3
 
                         QGCColoredImage {
                             Layout.alignment:   Qt.AlignHCenter
-                            width:              ScreenTools.defaultFontPixelHeight * 1.2
+                            width:              ScreenTools.defaultFontPixelHeight * 1.4
                             height:             width
                             source:             "/qmlimages/Armed.svg"
                             color:              _teal
@@ -156,8 +156,9 @@ Item {
                             Layout.alignment:   Qt.AlignHCenter
                             text:               "ARM"
                             color:              _teal
-                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.6
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.75
                             font.bold:          true
+                            font.letterSpacing: 0.5
                         }
                     }
 
@@ -165,9 +166,10 @@ Item {
                         id: armArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             if (_activeVehicle)
-                                _activeVehicle.setArmed(true)
+                                _activeVehicle.armed = true
                         }
                     }
                 }
@@ -178,29 +180,30 @@ Item {
                     Layout.fillWidth:       true
                     Layout.preferredHeight: _actionBtnHeight
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.35
-                    color:                  disarmArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : _cardBg
+                    color:                  disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
                     border.width:           1
-                    border.color:           disarmArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.32) : Qt.rgba(1, 1, 1, 0.08)
+                    border.color:           disarmArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.35) : Qt.rgba(1, 1, 1, 0.10)
                     opacity:                _activeVehicle ? 1.0 : 0.45
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing:          _pad * 0.2
+                        spacing:          _pad * 0.3
 
                         QGCColoredImage {
                             Layout.alignment:   Qt.AlignHCenter
-                            width:              ScreenTools.defaultFontPixelHeight * 1.2
+                            width:              ScreenTools.defaultFontPixelHeight * 1.4
                             height:             width
                             source:             "/qmlimages/Disarmed.svg"
-                            color:              "white"
+                            color:              Qt.rgba(1, 1, 1, 0.85)
                             fillMode:           Image.PreserveAspectFit
                         }
                         QGCLabel {
                             Layout.alignment:   Qt.AlignHCenter
                             text:               "DISARM"
-                            color:              "white"
-                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.6
+                            color:              Qt.rgba(1, 1, 1, 0.85)
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.75
                             font.bold:          true
+                            font.letterSpacing: 0.5
                         }
                     }
 
@@ -208,9 +211,10 @@ Item {
                         id: disarmArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             if (_activeVehicle)
-                                _activeVehicle.setArmed(false)
+                                _activeVehicle.armed = false
                         }
                     }
                 }
@@ -221,29 +225,30 @@ Item {
                     Layout.fillWidth:       true
                     Layout.preferredHeight: _actionBtnHeight
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.35
-                    color:                  rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : _cardBg
+                    color:                  rtlArea.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
                     border.width:           1
-                    border.color:           rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.32) : Qt.rgba(1, 1, 1, 0.08)
+                    border.color:           rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.35) : Qt.rgba(1, 1, 1, 0.10)
                     opacity:                _activeVehicle ? 1.0 : 0.45
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing:          _pad * 0.2
+                        spacing:          _pad * 0.3
 
                         QGCColoredImage {
                             Layout.alignment:   Qt.AlignHCenter
-                            width:              ScreenTools.defaultFontPixelHeight * 1.2
+                            width:              ScreenTools.defaultFontPixelHeight * 1.4
                             height:             width
                             source:             "/qmlimages/Plan.svg"
-                            color:              "white"
+                            color:              Qt.rgba(1, 1, 1, 0.85)
                             fillMode:           Image.PreserveAspectFit
                         }
                         QGCLabel {
                             Layout.alignment:   Qt.AlignHCenter
                             text:               "RTL"
-                            color:              "white"
-                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.6
+                            color:              Qt.rgba(1, 1, 1, 0.85)
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.75
                             font.bold:          true
+                            font.letterSpacing: 0.5
                         }
                     }
 
@@ -251,6 +256,7 @@ Item {
                         id: rtlArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             if (_activeVehicle)
                                 _activeVehicle.guidedModeRTL(false)
@@ -265,23 +271,23 @@ Item {
                     Layout.preferredHeight: _actionBtnHeight
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.35
                     border.width:           1.5
-                    border.color:           _errColor
+                    border.color:           emergencyArea.containsMouse ? Qt.lighter(_errColor, 1.2) : _errColor
                     opacity:                _activeVehicle ? 1.0 : 0.45
 
                     color: {
                         if (_emergencyActive)    return Qt.rgba(1, 0, 0, 0.25)
                         if (_emergencySelecting) return Qt.rgba(1, 0.6, 0, 0.15)
                         if (_emergencyTargetSet) return Qt.rgba(1, 0, 0, 0.15)
-                        return emergencyArea.containsMouse ? Qt.rgba(1, 0, 0, 0.14) : Qt.rgba(1, 0, 0, 0.06)
+                        return emergencyArea.containsMouse ? Qt.rgba(1, 0, 0, 0.16) : "#2D1414"
                     }
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing:          _pad * 0.1
+                        spacing:          _pad * 0.2
 
                         QGCColoredImage {
                             Layout.alignment:   Qt.AlignHCenter
-                            width:              ScreenTools.defaultFontPixelHeight * 1.2
+                            width:              ScreenTools.defaultFontPixelHeight * 1.4
                             height:             width
                             source:             "/qmlimages/Yield.svg"
                             color:              _emergencySelecting ? "#FF9800" : _errColor
@@ -303,8 +309,9 @@ Item {
                                 return "EMERGENCY"
                             }
                             color:              _emergencySelecting ? "#FF9800" : _errColor
-                            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
                             font.bold:          true
+                            font.letterSpacing: 0.3
                         }
                     }
 
@@ -312,6 +319,7 @@ Item {
                         id: emergencyArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             if (!_activeVehicle || !_emergency) return
                             if (_emergencyActive || _emergencySelecting || _emergencyTargetSet) return
@@ -345,7 +353,7 @@ Item {
                     QGCLabel {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.7
                         font.bold: true
                         color: {
                             if (_emergencyActive)    return _errColor
@@ -380,7 +388,7 @@ Item {
                             }
                             QGCLabel {
                                 text: "DEPLOY NOW"; color: "white"
-                                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.8
                                 font.bold: true; font.letterSpacing: 0.8
                             }
                         }
@@ -407,7 +415,7 @@ Item {
                             }
                             QGCLabel {
                                 text: "RETURN HOME"; color: _teal
-                                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.75
                                 font.bold: true; font.letterSpacing: 0.5
                             }
                         }
@@ -427,7 +435,7 @@ Item {
                         QGCLabel {
                             anchors.centerIn: parent
                             text: "CANCEL"; color: _dimText
-                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.7
                             font.bold: true; font.letterSpacing: 0.5
                         }
                         MouseArea { id: cancelArea; anchors.fill: parent; hoverEnabled: true
@@ -457,12 +465,13 @@ Item {
                     }
                     QGCLabel {
                         text: "START PATROL"; color: "#000000"
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.8
                         font.bold: true; font.letterSpacing: 0.8
                     }
                 }
                 MouseArea {
                     id: patrolArea; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (_activeVehicle)
                             _guidedController.confirmAction(_guidedController.actionStartMission)
@@ -491,7 +500,7 @@ Item {
                 QGCLabel {
                     text:               "LIVE VIDEO"
                     color:              _teal
-                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.7
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.8
                     font.bold:          true
                     font.letterSpacing: 1.2
                     Layout.fillWidth:   true
@@ -528,7 +537,7 @@ Item {
                         }
                         QGCLabel {
                             text: "GRID"; color: _teal
-                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55; font.bold: true
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
                         }
                     }
 
@@ -547,20 +556,21 @@ Item {
                     width:   ScreenTools.defaultFontPixelHeight * 1.3
                     height:  width
                     radius:  ScreenTools.defaultFontPixelHeight * 0.2
-                    color:   expandVideoArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                    color:   expandVideoArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : "transparent"
 
                     // Diagonal expand arrow (↗)
                     QGCLabel {
                         anchors.centerIn: parent
                         text:             "\u2197"
-                        color:            expandVideoArea.containsMouse ? _teal : "white"
-                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.85
+                        color:            _teal
+                        font.pointSize:   ScreenTools.defaultFontPointSize * 0.85
                     }
 
                     MouseArea {
                         id: expandVideoArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             mainWindow.showVideoWallView()
                         }
@@ -578,9 +588,9 @@ Item {
                 Layout.fillHeight:  true
                 Layout.minimumHeight: ScreenTools.defaultFontPixelHeight * 6
                 radius:             ScreenTools.defaultFontPixelHeight * 0.35
-                color:              Qt.rgba(1, 1, 1, 0.02)
+                color:              Qt.rgba(0, 0.05, 0.08, 0.60)
                 border.width:       1
-                border.color:       Qt.rgba(1, 1, 1, 0.06)
+                border.color:       Qt.rgba(0, 0.749, 1.0, 0.12)
                 clip:               true
 
                 Item {
@@ -596,18 +606,19 @@ Item {
 
                     QGCColoredImage {
                         Layout.alignment: Qt.AlignHCenter
-                        width: ScreenTools.defaultFontPixelHeight * 2.5; height: width
-                        source: "/qmlimages/CameraIcon.svg"; color: _dimText; fillMode: Image.PreserveAspectFit
+                        width: ScreenTools.defaultFontPixelHeight * 2.8; height: width
+                        source: "/qmlimages/CameraIcon.svg"; color: _teal; fillMode: Image.PreserveAspectFit
+                        opacity: 0.6
                     }
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "No active video stream"; color: _dimText
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
+                        text: "No active video stream"; color: Qt.rgba(1, 1, 1, 0.55)
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.75
                     }
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "Select armed drone"; color: Qt.rgba(1, 1, 1, 0.3)
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                        text: "Select armed drone"; color: Qt.rgba(1, 1, 1, 0.35)
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.65
                     }
                 }
             }
@@ -628,25 +639,25 @@ Item {
                     Layout.fillWidth:       true
                     Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-                    color:                  trackArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : _cardBg
+                    color:                  trackArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : Qt.rgba(0, 0.05, 0.08, 0.40)
                     border.width:           1
-                    border.color:           Qt.rgba(1, 1, 1, 0.10)
+                    border.color:           trackArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.40) : Qt.rgba(0, 0.749, 1.0, 0.18)
 
                     RowLayout {
                         anchors.centerIn: parent
                         spacing:          _pad * 0.4
 
                         QGCColoredImage {
-                            width:    ScreenTools.defaultFontPixelHeight * 0.65
+                            width:    ScreenTools.defaultFontPixelHeight * 0.7
                             height:   width
                             source:   "/qmlimages/TrackingIcon.svg"
-                            color:    "white"
+                            color:    _teal
                             fillMode: Image.PreserveAspectFit
                         }
                         QGCLabel {
                             text:           "TRACK"
-                            color:          "white"
-                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                            color:          _teal
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65
                             font.bold:      true
                             font.letterSpacing: 0.3
                         }
@@ -656,6 +667,7 @@ Item {
                         id: trackArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             // TODO: implement target tracking
                         }
@@ -670,10 +682,11 @@ Item {
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.3
                     color: {
                         if (_isRecording) return recordArea.containsMouse ? Qt.rgba(1, 0.2, 0.2, 0.30) : Qt.rgba(1, 0.2, 0.2, 0.18)
-                        return recordArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : _cardBg
+                        return recordArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : Qt.rgba(0, 0.05, 0.08, 0.40)
                     }
                     border.width: 1
-                    border.color: _isRecording ? Qt.rgba(1, 0.2, 0.2, 0.50) : Qt.rgba(1, 1, 1, 0.10)
+                    border.color: _isRecording ? Qt.rgba(1, 0.2, 0.2, 0.50)
+                                               : (recordArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.40) : Qt.rgba(0, 0.749, 1.0, 0.18))
 
                     property bool _isRecording: QGroundControl.videoManager.recording
 
@@ -681,12 +694,12 @@ Item {
                         anchors.centerIn: parent
                         spacing:          _pad * 0.4
 
-                        // Red dot indicator
+                        // Dot indicator
                         Rectangle {
                             width:   ScreenTools.defaultFontPixelHeight * 0.45
                             height:  width
                             radius:  width / 2
-                            color:   recordBtn._isRecording ? _errColor : _dimText
+                            color:   recordBtn._isRecording ? _errColor : _teal
 
                             SequentialAnimation on opacity {
                                 running: recordBtn._isRecording
@@ -697,8 +710,8 @@ Item {
                         }
                         QGCLabel {
                             text:           recordBtn._isRecording ? "STOP" : "RECORD"
-                            color:          recordBtn._isRecording ? _errColor : "white"
-                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                            color:          recordBtn._isRecording ? _errColor : _teal
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65
                             font.bold:      true
                             font.letterSpacing: 0.3
                         }
@@ -708,6 +721,7 @@ Item {
                         id: recordArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             if (recordBtn._isRecording) {
                                 QGroundControl.videoManager.stopRecording()
@@ -724,25 +738,25 @@ Item {
                     Layout.fillWidth:       true
                     Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-                    color:                  snapshotArea.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : _cardBg
+                    color:                  snapshotArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : Qt.rgba(0, 0.05, 0.08, 0.40)
                     border.width:           1
-                    border.color:           Qt.rgba(1, 1, 1, 0.10)
+                    border.color:           snapshotArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.40) : Qt.rgba(0, 0.749, 1.0, 0.18)
 
                     RowLayout {
                         anchors.centerIn: parent
                         spacing:          _pad * 0.4
 
                         QGCColoredImage {
-                            width:    ScreenTools.defaultFontPixelHeight * 0.65
+                            width:    ScreenTools.defaultFontPixelHeight * 0.7
                             height:   width
                             source:   "/qmlimages/CameraIcon.svg"
-                            color:    "white"
+                            color:    _teal
                             fillMode: Image.PreserveAspectFit
                         }
                         QGCLabel {
                             text:           "SNAPSHOT"
-                            color:          "white"
-                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                            color:          _teal
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65
                             font.bold:      true
                             font.letterSpacing: 0.3
                         }
@@ -752,6 +766,7 @@ Item {
                         id: snapshotArea
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: {
                             QGroundControl.videoManager.grabImage()
                         }

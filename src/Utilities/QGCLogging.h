@@ -47,21 +47,27 @@ signals:
     void writeFinished(bool success);
 
 private slots:
-    /// Internal slot to append message on the GUI/main thread
+    /// Internal slot to enqueue message on the GUI/main thread
     void _threadsafeLog(const QString &message);
 
     /// Periodic flush of pending log lines to disk
     void _flushToDisk();
+
+    /// Periodic flush of buffered messages to the QStringListModel
+    void _flushToModel();
 
 private:
     void _rotateLogs();
 
     QFile _logFile;
     QTimer _flushTimer;
+    QTimer _modelFlushTimer;
     QStringList _pendingDiskWrites;
+    QStringList _pendingModelWrites;
     bool _ioError = false;
 
     static constexpr int kMaxLogFileSize = 10LL * 1024 * 1024;
     static constexpr int kMaxBackupFiles = 5;
     static constexpr int kFlushIntervalMSecs = 1000;
+    static constexpr int kModelFlushIntervalMSecs = 150;
 };

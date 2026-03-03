@@ -67,7 +67,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text:           "Mission Map View"
                 color:          "white"
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.75
                 font.bold:      true
             }
         }
@@ -84,7 +84,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Active (" + _activeCount + ")"
                 color: _dimText
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.7
             }
         }
 
@@ -100,7 +100,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Idle (" + _idleCount + ")"
                 color: _dimText
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.7
             }
         }
 
@@ -116,7 +116,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Charging (" + _chargingCount + ")"
                 color: _dimText
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.7
             }
         }
     }

@@ -17,7 +17,7 @@ Rectangle {
     property bool isSelected: vehicle && QGroundControl.multiVehicleManager.activeVehicle === vehicle
 
     width:  parent ? parent.width : 300
-    height: cardLayout.implicitHeight + _pad * 3
+    height: cardLayout.implicitHeight + _pad * 3.5
     radius: ScreenTools.defaultFontPixelHeight * 0.35
     color:  isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
     border.width: 1
@@ -83,10 +83,10 @@ Rectangle {
         anchors.left:       parent.left
         anchors.right:      parent.right
         anchors.top:        parent.top
-        anchors.topMargin:  _pad * 1.2
-        anchors.leftMargin: isSelected ? _pad * 2.0 : _pad * 1.4
-        anchors.rightMargin: _pad * 1.2
-        spacing:            _pad * 0.4
+        anchors.topMargin:  _pad * 1.5
+        anchors.leftMargin: isSelected ? _pad * 2.0 : _pad * 1.5
+        anchors.rightMargin: _pad * 1.5
+        spacing:            _pad * 0.6
 
         // ════════════════════════════════════
         // Row 1: Vehicle name + dot + badge
@@ -98,7 +98,7 @@ Rectangle {
             QGCLabel {
                 text:           vehicle ? qsTr("Vehicle") + " " + vehicle.id : "Unknown"
                 color:          "white"
-                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.85
+                font.pointSize: ScreenTools.defaultFontPointSize * 1.15
                 font.bold:      true
                 Layout.fillWidth: true
                 elide:          Text.ElideRight
@@ -116,8 +116,8 @@ Rectangle {
             // Status badge
             Rectangle {
                 radius:  height / 2
-                width:   badgeLabel.implicitWidth + _pad * 1.6
-                height:  ScreenTools.defaultFontPixelHeight * 1.1
+                width:   badgeLabel.implicitWidth + _pad * 1.8
+                height:  ScreenTools.defaultFontPixelHeight * 1.3
                 color:   _statusColor
 
                 QGCLabel {
@@ -125,7 +125,7 @@ Rectangle {
                     anchors.centerIn:   parent
                     text:               _statusText
                     color:              "white"
-                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.5
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.65
                     font.bold:          true
                     font.letterSpacing: 0.5
                 }
@@ -138,7 +138,7 @@ Rectangle {
         QGCLabel {
             text:           vehicle ? vehicle.vehicleTypeString : ""
             color:          _dimText
-            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+            font.pointSize: ScreenTools.defaultFontPointSize * 0.8
             font.letterSpacing: 0.3
             visible:        text !== ""
         }
@@ -160,7 +160,7 @@ Rectangle {
 
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.75
+                    width:      ScreenTools.defaultFontPixelHeight * 0.9
                     height:     width
                     source:     "/qmlimages/Battery.svg"
                     color:      _batteryIconColor
@@ -170,7 +170,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text:       _batteryText
                     color:      "white"
-                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                     font.bold:  true
                 }
             }
@@ -182,7 +182,7 @@ Rectangle {
 
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.75
+                    width:      ScreenTools.defaultFontPixelHeight * 0.9
                     height:     width
                     source:     "/qmlimages/Signal100.svg"
                     color:      _dimText
@@ -192,7 +192,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text:       vehicle ? (vehicle.rcRSSI > 0 ? vehicle.rcRSSI + "%" : "--%") : "--%"
                     color:      "white"
-                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                     font.bold:  true
                 }
             }
@@ -212,7 +212,7 @@ Rectangle {
 
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.75
+                    width:      ScreenTools.defaultFontPixelHeight * 0.9
                     height:     width
                     source:     "/qmlimages/Gps.svg"
                     color:      _dimText
@@ -222,7 +222,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text:       vehicle && vehicle.gps ? vehicle.gps.count.rawValue + " SAT" : "-- SAT"
                     color:      "white"
-                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                     font.bold:  true
                 }
             }
@@ -234,7 +234,7 @@ Rectangle {
 
                 QGCColoredImage {
                     anchors.verticalCenter: parent.verticalCenter
-                    width:      ScreenTools.defaultFontPixelHeight * 0.75
+                    width:      ScreenTools.defaultFontPixelHeight * 0.9
                     height:     width
                     source:     "/qmlimages/PaperPlane.svg"
                     color:      _dimText
@@ -244,7 +244,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text:       vehicle ? vehicle.flightMode : "--"
                     color:      "white"
-                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                    font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                     font.bold:  true
                 }
             }
@@ -271,10 +271,59 @@ Rectangle {
                 return ""
             }
             color:          _teal
-            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
             font.bold:      true
             font.letterSpacing: 0.5
             visible:        text !== ""
+        }
+
+        // ════════════════════════════════════
+        // Separator + RECORD MANUAL CONTROL
+        // ════════════════════════════════════
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: _pad * 0.3
+            height:           1
+            color:            Qt.rgba(1, 1, 1, 0.08)
+        }
+
+        Rectangle {
+            Layout.fillWidth:       true
+            Layout.topMargin:       _pad * 0.3
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.2
+            radius:                 ScreenTools.defaultFontPixelHeight * 0.3
+            color:                  recordManualArea.containsMouse ? Qt.rgba(1, 0.3, 0, 0.12) : "transparent"
+            border.width:           1
+            border.color:           Qt.rgba(1, 0.3, 0, 0.45)
+
+            RowLayout {
+                anchors.centerIn: parent
+                spacing:          _pad * 0.5
+
+                // Red recording dot
+                Rectangle {
+                    width:   ScreenTools.defaultFontPixelHeight * 0.45
+                    height:  width
+                    radius:  width / 2
+                    color:   _errColor
+                }
+                QGCLabel {
+                    text:               "RECORD MANUAL CONTROL"
+                    color:              "white"
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
+                    font.bold:          true
+                    font.letterSpacing: 0.5
+                }
+            }
+
+            MouseArea {
+                id:             recordManualArea
+                anchors.fill:   parent
+                hoverEnabled:   true
+                onClicked: {
+                    // TODO: implement manual control recording
+                }
+            }
         }
     }
 

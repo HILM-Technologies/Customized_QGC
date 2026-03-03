@@ -55,6 +55,11 @@ QGCLogging::QGCLogging(QObject *parent)
     (void) connect(&_flushTimer, &QTimer::timeout, this, &QGCLogging::_flushToDisk);
     _flushTimer.start();
 
+    _modelFlushTimer.setInterval(kModelFlushIntervalMSecs);
+    _modelFlushTimer.setSingleShot(false);
+    (void) connect(&_modelFlushTimer, &QTimer::timeout, this, &QGCLogging::_flushToModel);
+    _modelFlushTimer.start();
+
     // Connect the emitLog signal to threadsafeLog slot
 #if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
     const Qt::ConnectionType conntype = Qt::QueuedConnection;
@@ -88,10 +93,27 @@ void QGCLogging::log(const QString &message)
 
 void QGCLogging::_threadsafeLog(const QString &message)
 {
-    // Notify view of new row
-    const int line = rowCount();
-    (void) QStringListModel::insertRows(line, 1);
-    (void) setData(index(line, 0), message, Qt::DisplayRole);
+    // Buffer for batched model update (prevents UI freeze from warning floods)
+    _pendingModelWrites.append(message);
+
+    // Queue for disk flush
+    _pendingDiskWrites.append(message);
+}
+
+void QGCLogging::_flushToModel()
+{
+    if (_pendingModelWrites.isEmpty()) {
+        return;
+    }
+
+    // Batch insert all pending messages at once
+    const int startRow = rowCount();
+    const int count = _pendingModelWrites.size();
+    (void) QStringListModel::insertRows(startRow, count);
+    for (int i = 0; i < count; ++i) {
+        (void) setData(index(startRow + i, 0), _pendingModelWrites.at(i), Qt::DisplayRole);
+    }
+    _pendingModelWrites.clear();
 
     // Trim old entries to cap memory usage
     static constexpr const int kMaxLogRows = kMaxLogFileSize / 100;
@@ -101,9 +123,6 @@ void QGCLogging::_threadsafeLog(const QString &message)
         (void) removeRows(0, removeCount);
         endRemoveRows();
     }
-
-    // Queue for disk flush
-    _pendingDiskWrites.append(message);
 }
 
 void QGCLogging::_rotateLogs()

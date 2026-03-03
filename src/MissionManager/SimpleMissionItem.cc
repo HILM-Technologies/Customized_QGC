@@ -248,6 +248,9 @@ void SimpleMissionItem::_setupMetaData(void)
 
 SimpleMissionItem::~SimpleMissionItem()
 {
+    // Destructor intentionally empty.
+    // Qt handles connection cleanup in ~QObject().
+    // Warning floods from disconnect are handled by QGCLogging batching.
 }
 
 void SimpleMissionItem::save(QJsonArray&  missionItems)

@@ -15,7 +15,7 @@ Item {
     id: fleetPanel
 
     property bool _expanded: true
-    readonly property real _expandedWidth: ScreenTools.defaultFontPixelWidth * 38
+    readonly property real _expandedWidth: ScreenTools.defaultFontPixelWidth * 44
     readonly property real _collapsedWidth: ScreenTools.defaultFontPixelWidth * 2.5
 
     width: _expanded ? _expandedWidth : _collapsedWidth
@@ -32,10 +32,13 @@ Item {
 
     property var _vehicleModel: QGroundControl.multiVehicleManager.vehicles
 
-    // ── Main panel body (full width of the Item)
+    // ── Main panel body (stops before collapse handle)
     Rectangle {
         id: panelBody
-        anchors.fill:   parent
+        anchors.left:   parent.left
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        anchors.right:  collapseHandle.left
         radius:         ScreenTools.defaultFontPixelHeight * 0.4
         color:          Qt.rgba(0, 0, 0, 0.80)
         border.width:   1
@@ -60,7 +63,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text:               "MULTI-DRONE FLEET"
                     color:              _teal
-                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.75
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
                     font.bold:          true
                     font.letterSpacing: 0.8
                 }
@@ -85,7 +88,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text:           _vehicleModel ? _vehicleModel.count : "0"
                         color:          _teal
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.75
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.85
                         font.bold:      true
                     }
                 }
@@ -134,13 +137,13 @@ Item {
                                 Layout.alignment: Qt.AlignHCenter
                                 text:             "No drones connected"
                                 color:            _dimText
-                                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.65
+                                font.pointSize:   ScreenTools.defaultFontPointSize * 0.65
                             }
                             QGCLabel {
                                 Layout.alignment: Qt.AlignHCenter
                                 text:             "Connect a vehicle to see fleet"
                                 color:            Qt.rgba(1, 1, 1, 0.3)
-                                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                                font.pointSize:   ScreenTools.defaultFontPointSize * 0.55
                             }
                         }
                     }
@@ -166,7 +169,7 @@ Item {
             anchors.centerIn: parent
             text:             _expanded ? "\u25C0" : "\u25B6"
             color:            _teal
-            font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
+            font.pointSize:   ScreenTools.defaultFontPointSize * 0.7
         }
 
         MouseArea {

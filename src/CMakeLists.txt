@@ -31,6 +31,10 @@ set_source_files_properties(UI/HilmSetupView.qml
     PROPERTIES
         QT_RESOURCE_ALIAS HilmSetupView.qml
 )
+set_source_files_properties(UI/HilmSettingsView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS HilmSettingsView.qml
+)
 
 qt_add_qml_module(QGroundControlModule
     URI QGroundControl
@@ -43,6 +47,7 @@ qt_add_qml_module(QGroundControlModule
         UI/VideoWallView.qml
         UI/CameraRollView.qml
         UI/HilmSetupView.qml
+        UI/HilmSettingsView.qml
     IMPORTS
         QGC
     NO_PLUGIN

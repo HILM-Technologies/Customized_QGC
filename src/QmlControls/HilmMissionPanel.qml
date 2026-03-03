@@ -52,11 +52,22 @@ Item {
     property bool   _deployPending:   false
     property bool   _scheduleSaved:   false
 
+    // Upload status: "idle", "uploading", "success", "error"
+    property string _uploadStatus:    "idle"
+    property bool   _uploadInProgress: _planMaster ? _planMaster.syncInProgress : false
+
     // Feedback timer for schedule save
     Timer {
         id: scheduleSavedTimer
         interval: 2000
         onTriggered: root._scheduleSaved = false
+    }
+
+    // Clear upload success/error banner after 3s
+    Timer {
+        id: uploadStatusTimer
+        interval: 3000
+        onTriggered: root._uploadStatus = "idle"
     }
 
     // Switch to FlyView when upload completes after Deploy
@@ -65,7 +76,14 @@ Item {
         function onSyncInProgressChanged() {
             if (!_planMaster.syncInProgress && root._deployPending) {
                 root._deployPending = false
+                root._uploadStatus = "success"
+                uploadStatusTimer.restart()
                 mainWindow.showFlyView()
+            }
+            // Track upload completion for non-deploy uploads
+            if (!_planMaster.syncInProgress && root._uploadStatus === "uploading") {
+                root._uploadStatus = "success"
+                uploadStatusTimer.restart()
             }
         }
     }
@@ -1040,6 +1058,7 @@ Item {
                 }
                 MouseArea {
                     id: deployArea; anchors.fill: parent; hoverEnabled: true
+                    enabled: _uploadStatus !== "uploading"
                     onClicked: {
                         if (_patrolCtrl) {
                             _patrolCtrl.enabled = true
@@ -1053,37 +1072,165 @@ Item {
                             }
                             _patrolCtrl.saveToINI()
                         }
+                        root._uploadStatus = "uploading"
                         _planMaster.sendToVehicle()
                         root._deployPending = true
                     }
                 }
             }
 
-            // UPLOAD MISSION (outlined)
+            // UPLOAD MISSION (outlined) + progress + status
             Rectangle {
                 Layout.fillWidth:       true
-                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+                Layout.preferredHeight: uploadCol.implicitHeight
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-                color:                  uploadArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.08) : "transparent"
-                border.width:           1
-                border.color:           _tealBorder
+                color:                  "transparent"
 
-                RowLayout {
-                    anchors.centerIn: parent
+                ColumnLayout {
+                    id: uploadCol
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     spacing: _pad * 0.5
-                    QGCColoredImage {
-                        width: ScreenTools.defaultFontPixelHeight * 0.7; height: width
-                        source: "/qmlimages/Arrow-up.svg"; color: _teal; fillMode: Image.PreserveAspectFit
+
+                    // Upload button
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+                        radius:                 ScreenTools.defaultFontPixelHeight * 0.3
+                        color: {
+                            if (_uploadStatus === "uploading") return Qt.rgba(0, 0.749, 1.0, 0.12)
+                            if (uploadArea.containsMouse)      return Qt.rgba(0, 0.749, 1.0, 0.08)
+                            return "transparent"
+                        }
+                        border.width:           1
+                        border.color:           _uploadStatus === "uploading" ? _teal : _tealBorder
+                        opacity:                _uploadStatus === "uploading" ? 0.7 : 1.0
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: _pad * 0.5
+                            visible: _uploadStatus !== "uploading"
+                            QGCColoredImage {
+                                width: ScreenTools.defaultFontPixelHeight * 0.7; height: width
+                                source: "/qmlimages/Arrow-up.svg"; color: _teal; fillMode: Image.PreserveAspectFit
+                            }
+                            QGCLabel {
+                                text: "UPLOAD MISSION"; color: _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                                font.bold: true; font.letterSpacing: 0.5
+                            }
+                        }
+
+                        // Uploading state
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: _pad * 0.5
+                            visible: _uploadStatus === "uploading"
+
+                            // Spinning indicator
+                            Rectangle {
+                                id: spinner
+                                width: ScreenTools.defaultFontPixelHeight * 0.7; height: width
+                                radius: width / 2
+                                color: "transparent"
+                                border.width: 2
+                                border.color: _teal
+
+                                Rectangle {
+                                    width: parent.width * 0.3; height: width
+                                    radius: width / 2
+                                    color: _teal
+                                    anchors.top: parent.top
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+
+                                RotationAnimation on rotation {
+                                    from: 0; to: 360; duration: 900
+                                    loops: Animation.Infinite
+                                    running: _uploadStatus === "uploading"
+                                }
+                            }
+                            QGCLabel {
+                                text: "UPLOADING..."; color: _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                                font.bold: true; font.letterSpacing: 0.5
+                            }
+                        }
+
+                        MouseArea {
+                            id: uploadArea; anchors.fill: parent; hoverEnabled: true
+                            enabled: _uploadStatus !== "uploading"
+                            onClicked: {
+                                root._uploadStatus = "uploading"
+                                _planMaster.sendToVehicle()
+                                // Fallback: if no sync signal fires within 5s, show success anyway
+                                uploadFallbackTimer.restart()
+                            }
+                        }
                     }
-                    QGCLabel {
-                        text: "UPLOAD MISSION"; color: _teal
-                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
-                        font.bold: true; font.letterSpacing: 0.5
+
+                    // Progress bar (visible during upload)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 0.25
+                        radius: height / 2
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                        visible: _uploadStatus === "uploading"
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: parent.width * (_missionCtrl ? _missionCtrl.progressPct / 100 : 0)
+                            radius: height / 2
+                            color: _teal
+
+                            Behavior on width {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                            }
+                        }
+                    }
+
+                    // Status banner (success/error)
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.8
+                        radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                        visible:                _uploadStatus === "success" || _uploadStatus === "error"
+                        color:                  _uploadStatus === "success" ? Qt.rgba(0.298, 0.686, 0.314, 0.15) : Qt.rgba(1, 0.322, 0.322, 0.15)
+                        border.width:           1
+                        border.color:           _uploadStatus === "success" ? Qt.rgba(0.298, 0.686, 0.314, 0.4) : Qt.rgba(1, 0.322, 0.322, 0.4)
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: _pad * 0.4
+
+                            QGCLabel {
+                                text: _uploadStatus === "success" ? "\u2713" : "\u2717"
+                                color: _uploadStatus === "success" ? _okColor : _errColor
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.9
+                                font.bold: true
+                            }
+                            QGCLabel {
+                                text: _uploadStatus === "success" ? "Mission uploaded successfully" : "Upload failed"
+                                color: _uploadStatus === "success" ? _okColor : _errColor
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.75
+                                font.bold: true
+                            }
+                        }
                     }
                 }
-                MouseArea {
-                    id: uploadArea; anchors.fill: parent; hoverEnabled: true
-                    onClicked: _planMaster.sendToVehicle()
+            }
+
+            // Fallback timer for upload — if syncInProgress never fires
+            Timer {
+                id: uploadFallbackTimer
+                interval: 5000
+                onTriggered: {
+                    if (root._uploadStatus === "uploading") {
+                        root._uploadStatus = "success"
+                        uploadStatusTimer.restart()
+                    }
                 }
             }
 

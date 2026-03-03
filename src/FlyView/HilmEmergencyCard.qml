@@ -35,7 +35,7 @@ Rectangle {
         QGCLabel {
             text:               "Emergency Deployment"
             color:              "white"
-            font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.8
+            font.pointSize:     ScreenTools.defaultFontPointSize * 0.8
             font.bold:          true
         }
 
@@ -62,7 +62,7 @@ Rectangle {
                 QGCLabel {
                     text:               "SELECT LOCATION"
                     color:              "white"
-                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.7
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
                     font.bold:          true
                     font.letterSpacing: 0.5
                 }
