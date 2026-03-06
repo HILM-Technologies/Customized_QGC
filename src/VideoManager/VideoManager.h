@@ -64,6 +64,12 @@ public:
     Q_INVOKABLE void startVideo();
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void stopVideo();
+    Q_INVOKABLE void addCustomStream(const QString& name, const QString& uri);
+    Q_INVOKABLE void removeCustomStream(const QString& name);
+    Q_INVOKABLE QStringList customStreamNames() const;
+    Q_INVOKABLE void setCustomStreamWidget(const QString& name, QQuickItem* widget);
+    Q_INVOKABLE bool isCustomStreamStreaming(const QString& name) const;
+
 
     void init(QQuickWindow *mainWindow);
     void cleanup();
@@ -101,6 +107,7 @@ signals:
     void recordingChanged(bool recording);
     void recordingStarted(const QString &filename);
     void streamingChanged();
+    void customStreamStreamingChanged(const QString &name, bool active);
     void uvcVideoSourceIDChanged();
     void videoSizeChanged();
 
@@ -123,6 +130,7 @@ private:
     static void _cleanupOldVideos();
 
     QList<VideoReceiver*> _videoReceivers;
+    QMap<QString, VideoReceiver*> _customReceivers;
 
     SubtitleWriter *_subtitleWriter = nullptr;
     VideoSettings *_videoSettings = nullptr;

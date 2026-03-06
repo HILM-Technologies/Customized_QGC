@@ -33,6 +33,7 @@ class VideoManager;
 class UTMSPManager;
 class AirLinkManager;
 class QmlObjectListModel;
+class SurveillanceManager;
 
 Q_MOC_INCLUDE("ADSBVehicleManager.h")
 Q_MOC_INCLUDE("FactGroup.h")
@@ -45,6 +46,7 @@ Q_MOC_INCLUDE("QGCPalette.h")
 Q_MOC_INCLUDE("PositionManager.h")
 Q_MOC_INCLUDE("SettingsManager.h")
 Q_MOC_INCLUDE("VideoManager.h")
+Q_MOC_INCLUDE("SurveillanceManager.h")
 #ifdef QGC_UTM_ADAPTER
 Q_MOC_INCLUDE("UTMSPManager.h")
 #endif
@@ -125,6 +127,8 @@ public:
 
     Q_PROPERTY(bool              utmspSupported           READ    utmspSupported              CONSTANT)
 
+    Q_PROPERTY(SurveillanceManager* surveillanceManager READ surveillanceManager CONSTANT)
+
 #ifdef QGC_UTM_ADAPTER
     Q_PROPERTY(UTMSPManager*     utmspManager             READ    utmspManager                CONSTANT)
 #endif
@@ -175,6 +179,8 @@ public:
     VideoManager*           videoManager        ()  { return _videoManager; }
     QGCCorePlugin*          corePlugin          ()  { return _corePlugin; }
     SettingsManager*        settingsManager     ()  { return _settingsManager; }
+    SurveillanceManager*    surveillanceManager ()  { return _surveillanceManager;}
+
 #ifndef QGC_NO_SERIAL_LINK
     FactGroup*              gpsRtkFactGroup     ()  { return _gpsRtkFactGroup; }
 #endif
@@ -254,6 +260,7 @@ private:
     VideoManager*           _videoManager           = nullptr;
     LinkManager*            _linkManager            = nullptr;
     MultiVehicleManager*    _multiVehicleManager    = nullptr;
+    SurveillanceManager*    _surveillanceManager    = nullptr;
     SettingsManager*        _settingsManager        = nullptr;
     QGCCorePlugin*          _corePlugin             = nullptr;
     QGCPalette*             _globalPalette          = nullptr;

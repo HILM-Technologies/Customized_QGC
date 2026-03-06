@@ -34,6 +34,7 @@ public:
     QString name() const { return _name; }
     QString uri() const { return _uri; }
     bool started() const { return _started; }
+    bool streaming() const { return _streaming; }
     bool lowLatency() const { return _lowLatency; }
     QGCVideoStreamInfo *videoStreamInfo() { return _videoStreamInfo; }
     QString recordingOutput() const { return _recordingOutput; }
