@@ -189,4 +189,177 @@ Item {
         utmspSliderTrigger: utmspSendActTrigger
         visible:            !QGroundControl.videoManager.fullScreen
     }
+
+    // Enhanced Surveillance toggle button - middle left, visible only when video is enabled
+    Rectangle {
+        id: surveillanceButton
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: ScreenTools.defaultFontPixelHeight * 0.5
+        width: surveillanceButtonContent.width + 24
+        height: 120
+        radius: 8
+        visible: QGroundControl.videoManager.hasVideo && !QGroundControl.surveillanceManager.active
+        z: QGroundControl.zOrderWidgets + 1
+
+        color: surveillanceMouseArea.containsMouse ? "#2d2d2d" : "#1a1a1a"
+        border.color: surveillanceMouseArea.containsMouse ? "#0066cc" : "#2d2d2d"
+        border.width: 2
+
+        // Smooth transitions
+        Behavior on color { ColorAnimation { duration: 200 } }
+        Behavior on border.color { ColorAnimation { duration: 200 } }
+        Behavior on opacity { NumberAnimation { duration: 300 } }
+        opacity: visible ? 1.0 : 0.0
+
+        // Subtle glow effect when hovered
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1
+            radius: parent.radius + 1
+            color: "transparent"
+            border.color: "#0066cc"
+            border.width: surveillanceMouseArea.containsMouse ? 1 : 0
+            opacity: 0.3
+            Behavior on border.width { NumberAnimation { duration: 200 } }
+        }
+
+        ColumnLayout {
+            id: surveillanceButtonContent
+            anchors.centerIn: parent
+            spacing: 8
+
+            // Camera icon with animation
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                width: 48
+                height: 48
+                radius: 24
+                color: surveillanceMouseArea.containsMouse ? "#0066cc" : "#404040"
+                border.color: "#0088ff"
+                border.width: 2
+
+                Behavior on color { ColorAnimation { duration: 200 } }
+
+                // Animated recording indicator
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    radius: 12
+                    color: "#ff4444"
+
+                    SequentialAnimation on scale {
+                        running: true
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 1.2; duration: 1000; easing.type: Easing.InOutQuad }
+                        NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutQuad }
+                    }
+
+                    // Inner dot
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 12
+                        height: 12
+                        radius: 6
+                        color: "white"
+                    }
+                }
+
+                // Corner grid icon overlay
+                Text {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: -4
+                    text: "⊞"
+                    font.pixelSize: 16
+                    color: "white"
+                    style: Text.Outline
+                    styleColor: "#000000"
+                }
+            }
+
+            // Label
+            QGCLabel {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Surveillance")
+                font.pixelSize: 13
+                font.bold: true
+                color: surveillanceMouseArea.containsMouse ? "#ffffff" : "#cccccc"
+                Behavior on color { ColorAnimation { duration: 200 } }
+            }
+
+            // Subtitle
+            QGCLabel {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Monitor")
+                font.pixelSize: 10
+                color: "#999999"
+            }
+        }
+
+        MouseArea {
+            id: surveillanceMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                QGroundControl.surveillanceManager.active = true
+            }
+        }
+
+        // Tooltip on hover
+        Rectangle {
+            visible: surveillanceMouseArea.containsMouse
+            anchors.left: parent.right
+            anchors.leftMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: tooltipLabel.width + 16
+            height: tooltipLabel.height + 12
+            radius: 6
+            color: "#dd000000"
+            border.color: "#404040"
+            border.width: 1
+
+            QGCLabel {
+                id: tooltipLabel
+                anchors.centerIn: parent
+                text: qsTr("Open multi-camera\nsurveillance view")
+                font.pixelSize: 11
+                color: "#ffffff"
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            // Arrow pointer
+            Canvas {
+                anchors.right: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: 8
+                height: 12
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.fillStyle = "#dd000000"
+                    ctx.beginPath()
+                    ctx.moveTo(8, 6)
+                    ctx.lineTo(0, 0)
+                    ctx.lineTo(0, 12)
+                    ctx.closePath()
+                    ctx.fill()
+                }
+            }
+        }
+    }
+
+    // Surveillance view overlay
+    Loader {
+        id: surveillanceLoader
+        anchors.fill: parent
+        active: QGroundControl.surveillanceManager.active
+        visible: active
+        z: QGroundControl.zOrderTopMost  // Make sure it's on top of everything
+
+        sourceComponent: SurveillanceFlyView {
+            anchors.fill: parent
+        }
+    }
 }

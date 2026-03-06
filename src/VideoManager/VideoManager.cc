@@ -502,6 +502,10 @@ bool VideoManager::_updateVideoUri(VideoReceiver *receiver, const QString &uri)
 
 bool VideoManager::_updateSettings(VideoReceiver *receiver)
 {
+    if (_customReceivers.values().contains(receiver)) {
+        return false;  // Do not override URI for CCTV streams
+    }
+
     if (!receiver) {
         qCDebug(VideoManagerLog) << "VideoReceiver is NULL";
         return false;
@@ -654,6 +658,136 @@ void VideoManager::stopVideo()
     }
 }
 
+void VideoManager::addCustomStream(const QString& name, const QString& uri)
+{
+    /*
+    if (_customReceivers.contains(name)) {
+        qCWarning(VideoManagerLog) << "Stream already exists:" << name;
+        return;
+    }
+
+    VideoReceiver* receiver = QGCCorePlugin::instance()->createVideoReceiver(this);
+    if (!receiver)
+        return;
+
+    receiver->setName(name);
+
+    _initVideoReceiver(receiver, _mainWindow);
+
+    receiver->setUri(uri);
+    receiver->setLowLatency(true);
+    qCCritical(VideoManagerLog) << "Reciver URI is ..................." << receiver->uri();
+
+    _customReceivers.insert(name, receiver);
+
+    _startReceiver(receiver);
+*/
+    if (_customReceivers.contains(name)) {
+        qCWarning(VideoManagerLog) << "Stream already exists:" << name;
+        return;
+    }
+
+    VideoReceiver* receiver = QGCCorePlugin::instance()->createVideoReceiver(this);
+    if (!receiver)
+        return;
+
+    receiver->setName(name);
+    receiver->setUri(uri);
+    receiver->setLowLatency(true);
+
+    // ✅ Add to _customReceivers BEFORE calling _initVideoReceiver
+    _customReceivers.insert(name, receiver);
+
+    qCDebug(VideoManagerLog) << "Adding custom stream:" << name << "URI:" << uri;
+
+    _initVideoReceiver(receiver, _mainWindow);  // ← Now the check will work!
+
+    _startReceiver(receiver);
+}
+
+void VideoManager::removeCustomStream(const QString& name)
+{
+    if (!_customReceivers.contains(name))
+        return;
+
+    VideoReceiver* receiver = _customReceivers.take(name);
+    _videoReceivers.removeOne(receiver);  // Also added by _initVideoReceiver
+
+    // Disconnect all signals to this VideoManager to prevent the auto-restart
+    // loop in the onStopComplete handler set up by _initVideoReceiver
+    disconnect(receiver, nullptr, this, nullptr);
+
+    void* sink = receiver->sink();
+
+    if (receiver->started()) {
+        // GStreamer stop is async - releasing the sink while the pipeline is
+        // still in PLAYING state crashes the render thread. Defer cleanup
+        // until onStopComplete fires, which means the pipeline has reached
+        // NULL state and it is safe to destroy the sink.
+        connect(receiver, &VideoReceiver::onStopComplete, this,
+                [receiver, sink](VideoReceiver::STATUS) {
+                    // Clear the sink pointer on the receiver before releasing it.
+                    // Qt's disconnect() prevents future signal deliveries but does NOT
+                    // remove already-queued invocations from the event loop. If a
+                    // queued onStartComplete(OK) fires after releaseVideoSink frees
+                    // the GStreamer element, startDecoding(receiver->sink()) would
+                    // use a dangling pointer. setSink(nullptr) converts that into
+                    // a safe no-op via the null-sink guard in startDecoding().
+                    receiver->setSink(nullptr);
+                    if (sink) {
+                        QGCCorePlugin::instance()->releaseVideoSink(sink);
+                    }
+                    receiver->deleteLater();
+                }, Qt::SingleShotConnection);
+        receiver->stop();
+    } else {
+        receiver->setSink(nullptr);
+        if (sink) {
+            QGCCorePlugin::instance()->releaseVideoSink(sink);
+        }
+        receiver->deleteLater();
+    }
+}
+
+QStringList VideoManager::customStreamNames() const
+{
+    return _customReceivers.keys();
+}
+
+bool VideoManager::isCustomStreamStreaming(const QString& name) const
+{
+    VideoReceiver* receiver = _customReceivers.value(name, nullptr);
+    return receiver ? receiver->streaming() : false;
+}
+void VideoManager::setCustomStreamWidget(const QString& name, QQuickItem* widget)
+{
+    if (!_customReceivers.contains(name)) {
+        qCWarning(VideoManagerLog) << "Stream not found:" << name;
+        return;
+    }
+
+    VideoReceiver* receiver = _customReceivers.value(name);
+
+    if (receiver->widget() == widget) {
+        return;  // Already set
+    }
+
+    qCDebug(VideoManagerLog) << "Setting widget for custom stream:" << name;
+
+    receiver->setWidget(widget);
+
+    // Create video sink if not already created
+    if (!receiver->sink() && widget) {
+        void *sink = QGCCorePlugin::instance()->createVideoSink(widget, receiver);
+        if (sink) {
+            receiver->setSink(sink);
+            // If stream is already started, begin decoding
+            if (receiver->started()) {
+                receiver->startDecoding(sink);
+            }
+        }
+    }
+}
 void VideoManager::_startReceiver(VideoReceiver *receiver)
 {
     if (!receiver) {
@@ -684,6 +818,36 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
 {
     if (_videoReceivers.contains(receiver)) {
         qCWarning(VideoManagerLog) << "Receiver already initialized";
+        return;  // Add return here
+    }
+
+    QQuickItem *widget = nullptr;
+
+    // Check if this is a custom stream (widget will be set later from QML)
+    const bool isCustomStream = _customReceivers.values().contains(receiver);
+
+    if (!isCustomStream && window) {
+        // Standard stream - find existing widget
+        widget = window->findChild<QQuickItem*>(receiver->name());
+        if (!widget) {
+            qCCritical(VideoManagerLog) << "stream widget not found" << receiver->name();
+        }
+    } else if (isCustomStream) {
+        qCDebug(VideoManagerLog) << "Custom stream - widget will be set later:" << receiver->name();
+    }
+
+    receiver->setWidget(widget);
+
+    void *sink = nullptr;
+    if (widget) {
+        sink = QGCCorePlugin::instance()->createVideoSink(widget, receiver);
+        if (!sink) {
+            qCWarning(VideoManagerLog) << "createVideoSink() failed" << receiver->name();
+        }
+    }
+    receiver->setSink(sink);
+    /* if (_videoReceivers.contains(receiver)) {
+        qCWarning(VideoManagerLog) << "Receiver already initialized";
     }
 
     QQuickItem *widget = window->findChild<QQuickItem*>(receiver->name());
@@ -697,7 +861,7 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         qCCritical(VideoManagerLog) << "createVideoSink() failed" << receiver->name();
     }
     receiver->setSink(sink);
-
+    */
     (void) connect(receiver, &VideoReceiver::onStartComplete, this, [this, receiver](VideoReceiver::STATUS status) {
         if (!receiver) {
             return;
@@ -735,7 +899,9 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
 
     (void) connect(receiver, &VideoReceiver::streamingChanged, this, [this, receiver](bool active) {
         qCDebug(VideoManagerLog) << "Video" << receiver->name() << "streaming changed, active:" << (active ? "yes" : "no");
-        if (!receiver->isThermal()) {
+        if (_customReceivers.values().contains(receiver)) {
+            emit customStreamStreamingChanged(receiver->name(), active);
+        } else if (!receiver->isThermal()) {
             _streaming = active;
             emit streamingChanged();
         }

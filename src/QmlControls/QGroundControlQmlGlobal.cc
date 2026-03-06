@@ -17,6 +17,7 @@
 #include "AppSettings.h"
 #include "FlightMapSettings.h"
 #include "SettingsManager.h"
+#include "SurveillanceManager.h"
 #include "PositionManager.h"
 #include "QGCMapEngineManager.h"
 #include "ADSBVehicleManager.h"
@@ -55,6 +56,7 @@ QGroundControlQmlGlobal::QGroundControlQmlGlobal(QObject *parent)
     , _videoManager(VideoManager::instance())
     , _linkManager(LinkManager::instance())
     , _multiVehicleManager(MultiVehicleManager::instance())
+    , _surveillanceManager(SurveillanceManager::instance())
     , _settingsManager(SettingsManager::instance())
     , _corePlugin(QGCCorePlugin::instance())
     , _globalPalette(new QGCPalette(this))
