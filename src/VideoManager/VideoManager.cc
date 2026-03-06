@@ -660,28 +660,6 @@ void VideoManager::stopVideo()
 
 void VideoManager::addCustomStream(const QString& name, const QString& uri)
 {
-    /*
-    if (_customReceivers.contains(name)) {
-        qCWarning(VideoManagerLog) << "Stream already exists:" << name;
-        return;
-    }
-
-    VideoReceiver* receiver = QGCCorePlugin::instance()->createVideoReceiver(this);
-    if (!receiver)
-        return;
-
-    receiver->setName(name);
-
-    _initVideoReceiver(receiver, _mainWindow);
-
-    receiver->setUri(uri);
-    receiver->setLowLatency(true);
-    qCCritical(VideoManagerLog) << "Reciver URI is ..................." << receiver->uri();
-
-    _customReceivers.insert(name, receiver);
-
-    _startReceiver(receiver);
-*/
     if (_customReceivers.contains(name)) {
         qCWarning(VideoManagerLog) << "Stream already exists:" << name;
         return;
@@ -846,22 +824,6 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         }
     }
     receiver->setSink(sink);
-    /* if (_videoReceivers.contains(receiver)) {
-        qCWarning(VideoManagerLog) << "Receiver already initialized";
-    }
-
-    QQuickItem *widget = window->findChild<QQuickItem*>(receiver->name());
-    if (!widget) {
-        qCCritical(VideoManagerLog) << "stream widget not found" << receiver->name();
-    }
-    receiver->setWidget(widget);
-
-    void *sink = QGCCorePlugin::instance()->createVideoSink(receiver->widget(), receiver);
-    if (!sink) {
-        qCCritical(VideoManagerLog) << "createVideoSink() failed" << receiver->name();
-    }
-    receiver->setSink(sink);
-    */
     (void) connect(receiver, &VideoReceiver::onStartComplete, this, [this, receiver](VideoReceiver::STATUS status) {
         if (!receiver) {
             return;
