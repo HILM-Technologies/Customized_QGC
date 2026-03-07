@@ -16,8 +16,9 @@ Rectangle {
     property var  vehicle:    null
     property bool isSelected: vehicle && QGroundControl.multiVehicleManager.activeVehicle === vehicle
 
-    width:  parent ? parent.width : 300
-    height: cardLayout.implicitHeight + _pad * 3.5
+    width:          parent ? parent.width : 300
+    implicitHeight: cardLayout.implicitHeight + _pad * 3.5
+    height:         implicitHeight
     radius: ScreenTools.defaultFontPixelHeight * 0.35
     color:        isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
     border.width: 1

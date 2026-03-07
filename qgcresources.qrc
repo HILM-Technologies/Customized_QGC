@@ -23,6 +23,7 @@
         <file alias="DropArrow.svg">resources/DropArrow.svg</file>
         <file alias="gear-black.svg">resources/gear-black.svg</file>
         <file alias="broadcast.svg">resources/broadcast.svg</file>
+        <file alias="power-button.svg">resources/power-button.svg</file>
         <file alias="gear-white.svg">resources/gear-white.svg</file>
         <file alias="wrench-right.svg">resources/wrench-right.svg</file>
         <file alias="helicoptericon.svg">resources/helicoptericon.svg</file>

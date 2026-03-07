@@ -55,7 +55,7 @@ Item {
             }
 
             Text {
-                text: qsTr("Stream index is appended automatically  (e.g. base_url + 0, + 1, …)")
+                text: qsTr("Vehicle ID is appended automatically (e.g. base_url + 1, + 2, …  where 1, 2 are MAVLink vehicle IDs)")
                 color: "#aaaaaa"
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
@@ -290,7 +290,7 @@ Item {
                                 color: "#999999"
                             }
                             QGCLabel {
-                                text: root.cellCount
+                                text: SurveillanceManager.activeFeedCount
                                 font.pixelSize: 12
                                 font.bold: true
                                 color: "#ffffff"
@@ -452,16 +452,16 @@ Item {
                 }
 
                 Repeater {
-                    model: root.cellCount
+                    model: SurveillanceManager.videoFeeds
 
                     VideoFeed {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         visible: fullscreenIndex === -1 || fullscreenIndex === index
 
-                        streamName: "Camera " + (index + 1)
-                        streamId: "cam" + index
-                        rtspUrl: root.rtspBaseUrl + index
+                        streamName: modelData.vehicleName
+                        streamId:   "vehicle" + modelData.vehicleId
+                        rtspUrl:    root.rtspBaseUrl + modelData.vehicleId
                         isFullscreen: fullscreenIndex === index
 
                         onFullscreenRequested: {

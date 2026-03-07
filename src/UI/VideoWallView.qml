@@ -542,17 +542,29 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 // RTSP config button
-                Row {
-                    spacing: 6
-                    QGCLabel { anchors.verticalCenter: parent.verticalCenter; text: "⚙"; color: _dimText; font.pixelSize: 11 }
-                    QGCLabel {
+                Item {
+                    implicitWidth:  rtspRow.implicitWidth
+                    implicitHeight: rtspRow.implicitHeight
+
+                    Row {
+                        id: rtspRow
+                        spacing: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        text:  qsTr("RTSP URL")
-                        color: rtspLinkHov.containsMouse ? _teal : _dimText
-                        font.pixelSize: 10
-                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        QGCLabel { text: "⚙"; color: rtspLinkHov.containsMouse ? _teal : _dimText; font.pixelSize: 11 }
+                        QGCLabel {
+                            text:  qsTr("RTSP URL")
+                            color: rtspLinkHov.containsMouse ? _teal : _dimText
+                            font.pixelSize: 10
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                        }
                     }
-                    MouseArea { id: rtspLinkHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+
+                    MouseArea {
+                        id:          rtspLinkHov
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
                         onClicked: { urlInput.text = rtspSettings.baseUrl; urlDialog.visible = true }
                     }
                 }

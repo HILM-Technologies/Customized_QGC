@@ -96,7 +96,44 @@ Rectangle {
     property int  _aiHwAccelIndex:   1
     property bool _aiAutoSave:       true
     property bool _aiAlertOnDetect:  true
-    property bool _showMarketplace:  false
+    property bool   _showMarketplace: false
+    property string _searchText:      ""
+
+    // All section descriptors for match-count computation
+    readonly property var _sectionTags: [
+        "AI Detection Models ai detection confidence threshold hardware acceleration gpu cuda model variant auto-save alert",
+        "AI Model Marketplace install browse vehicle human inspection building solar wind turbine power line",
+        "General language color scheme audio mute font scaling save path locale settings clear reset",
+        "Units metric imperial distance speed temperature area horizontal vertical",
+        "Fly View fly checklist joystick instrument guided virtual 3d view multi-vehicle map centering",
+        "Plan View plan mission altitude vtol waypoint sequence takeoff landing gate condition",
+        "Video rtsp stream camera udp tcp decoder gstreamer recording format storage aspect ratio latency",
+        "Notifications Alerts notification alert battery geofence connection lost mission complete",
+        "Maps map satellite terrain mapbox esri cache offline tiles osm token provider tianditu vworld",
+        "Comm Links serial udp tcp bluetooth autoconnect nmea gps baudrate link connection pixhawk sik",
+        "Telemetry mavlink heartbeat log forwarding csv system id apm stream rates",
+        "ADSB Server adsb aircraft traffic host port connect",
+        "NTRIP RTK gps rtcm correction mountpoint username password spartn whitelist",
+        "Remote ID rid faa eu broadcast operator basic self emergency drone location",
+        "PX4 Log Transfer px4 ulog flight data manager vehicle logs",
+        "App Logging debug categories gstreamer filter",
+        "Advanced brand images logo indoor outdoor icon custom",
+        "Help documentation guide forum ardupilot px4",
+        "Mock Link mock vehicle simulate px4 apm arducopter arduplane ardusub ardurover generic",
+        "Debug font pixel screen density platform qt",
+        "Palette Test palette color theme window button text",
+        "About HILMOS version platform email website hilmos hilmtec tameem"
+    ]
+
+    property int _matchCount: {
+        if (_searchText.length === 0) return _sectionTags.length
+        var q = _searchText.toLowerCase()
+        var n = 0
+        for (var i = 0; i < _sectionTags.length; i++) {
+            if (_sectionTags[i].toLowerCase().indexOf(q) >= 0) n++
+        }
+        return n
+    }
 
     // AI placeholder data
     readonly property var _aiModels:     ["VEHICLE & HUMAN DETECTION", "POWER LINE INSPECTION", "BUILDING FACADE CLEANING", "WIND TURBINE BLADE INSPECTION", "SOLAR PANEL INSPECTION"]
@@ -149,6 +186,149 @@ Rectangle {
                 }
             }
 
+            // ── SEARCH BAR ──────────────────────────────────
+            Rectangle {
+                Layout.fillWidth: true
+                height: _fontSize * 3.4
+                radius: _fontSize * 0.6
+                color:  _searchText.length > 0 ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.04)
+                border.color: _searchField.activeFocus ? _teal
+                            : (_searchText.length > 0 ? _tealBorder : Qt.rgba(1, 1, 1, 0.1))
+                border.width: 1
+                Behavior on color        { ColorAnimation { duration: 200 } }
+                Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                // Outer glow ring when focused
+                Rectangle {
+                    anchors { fill: parent; margins: -3 }
+                    radius: parent.radius + 3
+                    color: "transparent"
+                    border.color: _teal
+                    border.width: 2
+                    opacity: _searchField.activeFocus ? 0.22 : 0
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin:  _pad * 1.2
+                    anchors.rightMargin: _pad * 0.8
+                    spacing: _pad * 0.8
+
+                    // Search icon
+                    QGCColoredImage {
+                        width: _fontSize * 1.15; height: width
+                        source: "/InstrumentValueIcons/magnify.svg"
+                        color:  _searchField.activeFocus || _searchText.length > 0 ? _teal : _dimText
+                        fillMode: Image.PreserveAspectFit
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
+
+                    // TextInput + placeholder
+                    Item {
+                        Layout.fillWidth: true
+                        height: parent.height
+
+                        TextInput {
+                            id: _searchField
+                            anchors.fill: parent
+                            color: "white"
+                            font.pointSize: _fontPt * 0.9
+                            selectionColor:    Qt.rgba(0, 0.749, 1.0, 0.45)
+                            selectedTextColor: "white"
+                            clip: true
+                            verticalAlignment: TextInput.AlignVCenter
+                            onTextChanged: _root._searchText = text
+                            Keys.onEscapePressed: { text = ""; focus = false }
+                        }
+
+                        QGCLabel {
+                            anchors.fill: parent
+                            text:    "Search settings…  try 'video', 'rtsp', 'map', 'alerts', 'telemetry'…"
+                            color:   Qt.rgba(1, 1, 1, 0.22)
+                            font.pointSize: _fontPt * 0.9
+                            visible: _searchField.text.length === 0
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    // Match count badge
+                    Rectangle {
+                        visible: _searchText.length > 0
+                        implicitWidth: _cntLabel.implicitWidth + _pad * 1.4
+                        height: _fontSize * 1.65
+                        radius: height / 2
+                        color:  _matchCount > 0 ? _tealDim : Qt.rgba(1, 0.1, 0.1, 0.18)
+                        border.color: _matchCount > 0 ? _tealBorder : Qt.rgba(1, 0.2, 0.2, 0.45)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        QGCLabel {
+                            id: _cntLabel
+                            anchors.centerIn: parent
+                            text:  _matchCount > 0 ? _matchCount + " found" : "no results"
+                            color: _matchCount > 0 ? _teal : _errColor
+                            font.pointSize: _fontPt * 0.65
+                            font.bold: true
+                        }
+                    }
+
+                    // Clear (✕) button
+                    Rectangle {
+                        visible: _searchText.length > 0
+                        width: _fontSize * 1.9; height: width; radius: width / 2
+                        color: _xArea.containsMouse ? Qt.rgba(1, 0.2, 0.2, 0.28) : Qt.rgba(1, 1, 1, 0.08)
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        QGCLabel {
+                            anchors.centerIn: parent
+                            text:  "✕"
+                            color: _xArea.containsMouse ? _errColor : _dimText
+                            font.pointSize: _fontPt * 0.85
+                            font.bold: true
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+
+                        MouseArea {
+                            id: _xArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: { _searchField.text = ""; _searchField.forceActiveFocus() }
+                        }
+                    }
+                }
+            }
+
+            // ── NO RESULTS MESSAGE ───────────────────────────
+            Rectangle {
+                visible: _searchText.length > 0 && _matchCount === 0
+                Layout.fillWidth: true
+                height: _noResCol.height + _pad * 4
+                radius: _fontSize * 0.6
+                color: Qt.rgba(1, 1, 1, 0.03)
+                border.color: Qt.rgba(1, 1, 1, 0.06); border.width: 1
+
+                ColumnLayout {
+                    id: _noResCol
+                    anchors.centerIn: parent
+                    spacing: _pad * 0.5
+
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: "No settings found for  \"" + _searchText + "\""
+                        color: _dimText
+                        font.pointSize: _fontPt * 0.95
+                    }
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: "Try: 'video', 'rtsp', 'map', 'link', 'rtk', 'alerts', 'telemetry'…"
+                        color: Qt.rgba(1, 1, 1, 0.25)
+                        font.pointSize: _fontPt * 0.75
+                    }
+                }
+            }
+
             // ════════════════════════════════════════════════
             // SECTION 1: AI DETECTION MODELS (placeholder)
             // ════════════════════════════════════════════════
@@ -157,6 +337,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/radar.svg"
                 heading: "AI Detection Models"
+                keywords: "ai detection confidence threshold hardware acceleration gpu cuda model variant auto-save alert camera analysis"
                 hasAction: true
                 actionText: _showMarketplace ? "HIDE MARKETPLACE" : "BROWSE MARKETPLACE"
                 actionIcon: "/InstrumentValueIcons/list.svg"
@@ -311,6 +492,7 @@ Rectangle {
             // ── AI MODEL MARKETPLACE (expandable) ───────────
             SettingsCard {
                 Layout.fillWidth: true
+                keywords: "marketplace install browse vehicle human inspection building solar wind turbine power line"
                 visible: _showMarketplace
                 heading: "AI Model Marketplace"
                 headingDesc: "Browse and install specialized detection models"
@@ -454,6 +636,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/cog.svg"
                 heading: "General"
+                keywords: "language color scheme audio mute font scaling save path locale settings clear reset ui"
 
                 LabelledFactComboBox {
                     Layout.fillWidth: true; label: qsTr("Language")
@@ -530,6 +713,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/dashboard.svg"
                 heading: "Units"
+                keywords: "metric imperial distance speed temperature area horizontal vertical measurement"
                 visible: _unitsSettings.visible
 
                 Repeater {
@@ -546,6 +730,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/airplane.svg"
                 heading: "Fly View"
+                keywords: "fly checklist joystick instrument guided virtual 3d view multi-vehicle map centering takeoff land"
 
                 // General toggles
                 FactCheckBoxSlider {
@@ -607,6 +792,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/map.svg"
                 heading: "Plan View"
+                keywords: "plan mission altitude vtol waypoint sequence takeoff landing gate condition"
 
                 LabelledFactTextField { Layout.fillWidth: true; textFieldPreferredWidth: ScreenTools.defaultFontPixelWidth * 40; label: qsTr("Default Mission Altitude"); fact: _appSettings.defaultMissionItemAltitude; visible: fact.visible }
                 LabelledFactTextField { Layout.fillWidth: true; textFieldPreferredWidth: ScreenTools.defaultFontPixelWidth * 40; label: qsTr("VTOL Transition Distance"); fact: _planViewSettings.vtolTransitionDistance; visible: fact.visible }
@@ -623,6 +809,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/camera.svg"
                 heading: "Video"
+                keywords: "rtsp stream camera udp tcp decoder gstreamer recording format storage aspect ratio latency url source"
                 visible: _videoSettings.visible
 
                 // Source
@@ -660,6 +847,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/exclamation-outline.svg"
                 heading: "Notifications & Alerts"
+                keywords: "notification alert battery geofence connection lost mission complete breach warning"
 
                 HilmSettingRow { Layout.fillWidth: true; label: "Low Battery Alert"; description: "Alert when drone battery falls below threshold"
                     QGCCheckBoxSlider { checked: true }
@@ -686,6 +874,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/map.svg"
                 heading: "Maps"
+                keywords: "satellite terrain mapbox esri cache offline tiles osm token provider tianditu vworld openaip mapbox"
 
                 Component.onCompleted: _mapEngineManager.loadTileSets()
 
@@ -752,6 +941,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/link.svg"
                 heading: "Comm Links"
+                keywords: "serial udp tcp bluetooth autoconnect nmea gps baudrate connection pixhawk sik librepilot zeroconf"
                 visible: _autoConnectSettings.visible
 
                 property var _linkManager: QGroundControl.linkManager
@@ -863,6 +1053,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/network.svg"
                 heading: "Telemetry"
+                keywords: "mavlink heartbeat log forwarding csv system id apm stream rates link status"
 
                 // Ground Station
                 QGCLabel { text: "Ground Station"; color: _teal; font.pointSize: _fontPt * 0.8; font.bold: true }
@@ -902,6 +1093,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/airplane.svg"
                 heading: "ADSB Server"
+                keywords: "adsb aircraft traffic host port connect ads-b"
                 visible: _adsbSettings.visible
 
                 FactCheckBoxSlider { Layout.fillWidth: true; text: _adsbSettings.adsbServerConnectEnabled.shortDescription; fact: _adsbSettings.adsbServerConnectEnabled; visible: fact.visible }
@@ -917,6 +1109,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/radio.svg"
                 heading: "NTRIP / RTK"
+                keywords: "gps rtcm correction mountpoint username password spartn whitelist ntrip rtk"
                 visible: _settingsManager.ntripSettings.visible
 
                 FactCheckBoxSlider { Layout.fillWidth: true; text: _ntrip.ntripServerConnectEnabled.shortDescription; fact: _ntrip.ntripServerConnectEnabled; visible: fact.visible }
@@ -940,6 +1133,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/shield.svg"
                 heading: "Remote ID"
+                keywords: "rid faa eu broadcast operator basic self emergency drone location utm"
                 visible: _settingsManager.remoteIDSettings.visible
 
                 // Status Flags (visible when connected)
@@ -1045,6 +1239,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/cloud-upload.svg"
                 heading: "PX4 Log Transfer"
+                keywords: "px4 ulog flight data manager logs upload download"
                 visible: QGroundControl.corePlugin.options.showPX4LogTransferOptions && (_activeVehicle ? _activeVehicle.px4Firmware : true)
 
                 // MAVLink 2.0 Logging
@@ -1133,6 +1328,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/code.svg"
                 heading: "App Logging"
+                keywords: "debug categories gstreamer filter logging console output"
 
                 // GStreamer Debug Level
                 LabelledFactComboBox {
@@ -1227,6 +1423,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/bug.svg"
                 heading: "Debug"
+                keywords: "font pixel screen density platform qt device ratio"
                 visible: ScreenTools.isDebug
 
                 GridLayout {
@@ -1251,6 +1448,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/color-palette.svg"
                 heading: "Palette Test"
+                keywords: "palette color theme window button text"
                 visible: ScreenTools.isDebug
 
                 QGCPalette { id: _testPal; colorGroupEnabled: true }
@@ -1315,6 +1513,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/bug.svg"
                 heading: "Mock Link"
+                keywords: "mock vehicle simulate px4 apm arducopter arduplane ardusub ardurover generic"
                 visible: ScreenTools.isDebug
 
                 QGCCheckBoxSlider {
@@ -1350,6 +1549,7 @@ Rectangle {
                 Layout.fillWidth: true
                 iconSrc: "/InstrumentValueIcons/cog.svg"
                 heading: "Advanced"
+                keywords: "brand images logo indoor outdoor icon custom"
 
                 // Brand Images
                 QGCLabel { text: "Brand Images"; color: _teal; font.pointSize: _fontPt * 0.8; font.bold: true; visible: _brandImageSettings.visible && !ScreenTools.isMobile }
@@ -1382,6 +1582,111 @@ Rectangle {
                     Layout.fillWidth: true; label: qsTr("Reset Images"); buttonText: qsTr("Reset")
                     visible: _brandImageSettings.visible && !ScreenTools.isMobile
                     onClicked: { _brandImageSettings.userBrandImageIndoor.rawValue = ""; _brandImageSettings.userBrandImageOutdoor.rawValue = "" }
+                }
+            }
+
+            // ════════════════════════════════════════════════════════
+            // ABOUT
+            // ════════════════════════════════════════════════════════
+            Rectangle {
+                id: _aboutCard
+                Layout.fillWidth: true
+                implicitHeight:   _aboutLayout.implicitHeight + _pad * 3
+                radius:           _fontSize * 0.6
+                color:            _cardBg
+                border.color:     Qt.rgba(1, 1, 1, 0.06)
+                border.width:     1
+
+                // Search filtering
+                readonly property bool _searchMatch: _root._searchText.length === 0 ||
+                    ("about hilmos version platform support website hilmtec tameem"
+                        .indexOf(_root._searchText.toLowerCase()) >= 0)
+                Binding {
+                    when:        _root._searchText.length > 0 && !_aboutCard._searchMatch
+                    target:      _aboutCard
+                    property:    "visible"
+                    value:       false
+                    restoreMode: Binding.RestoreBindingOrValue
+                }
+
+                ColumnLayout {
+                    id:              _aboutLayout
+                    anchors.left:    parent.left
+                    anchors.right:   parent.right
+                    anchors.top:     parent.top
+                    anchors.margins: _pad * 1.5
+                    spacing:         _pad * 0.9
+
+                    // ── Card header: icon + title
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.9
+
+                        Rectangle {
+                            width: _fontSize * 2.4; height: width
+                            radius: _fontSize * 0.4; color: _tealDim
+                            QGCColoredImage {
+                                anchors.centerIn: parent
+                                width: _fontSize * 1.3; height: width
+                                source: "/InstrumentValueIcons/information-outline.svg"
+                                color: _teal; fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                        QGCLabel {
+                            text: "About HILMOS"; color: "white"
+                            font.pointSize: _fontPt * 1.25; font.bold: true; font.letterSpacing: 0.5
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    // ── Meta rows
+                    RowLayout {
+                        Layout.fillWidth: true
+                        QGCLabel { text: "Version:";  color: _dimText; font.pointSize: _fontPt * 0.8; Layout.preferredWidth: _pad * 6 }
+                        Item { Layout.fillWidth: true }
+                        QGCLabel { text: "1.0.0 MVP (March 2026)"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        QGCLabel { text: "Platform:"; color: _dimText; font.pointSize: _fontPt * 0.8; Layout.preferredWidth: _pad * 6 }
+                        Item { Layout.fillWidth: true }
+                        QGCLabel { text: "QGroundControl Integration"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        QGCLabel { text: "Email:";   color: _dimText; font.pointSize: _fontPt * 0.8; Layout.preferredWidth: _pad * 6 }
+                        Item { Layout.fillWidth: true }
+                        QGCLabel {
+                            text: "tameem@hilmtec.com"; color: _teal
+                            font.pointSize: _fontPt * 0.8; font.bold: true
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally("mailto:tameem@hilmtec.com") }
+                        }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        QGCLabel { text: "Website:"; color: _dimText; font.pointSize: _fontPt * 0.8; Layout.preferredWidth: _pad * 6 }
+                        Item { Layout.fillWidth: true }
+                        QGCLabel {
+                            text: "www.hilmtec.com"; color: _teal
+                            font.pointSize: _fontPt * 0.8; font.bold: true
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally("https://www.hilmtec.com/") }
+                        }
+                    }
+
+                    // ── Divider
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.topMargin: _pad * 0.2; Layout.bottomMargin: _pad * 0.2
+                        height: 1; color: Qt.rgba(1, 1, 1, 0.08)
+                    }
+
+                    // ── Tagline
+                    QGCLabel {
+                        Layout.fillWidth: true; Layout.bottomMargin: _pad * 0.3
+                        text: "HILMOS AI Co-Pilot \u2014 Intelligent autonomous drone surveillance for security patrols, " +
+                              "emergency response, and mixed-fleet management. Eliminating vendor lock-in, one mission at a time."
+                        color: Qt.rgba(0, 0.749, 1.0, 0.65)
+                        font.pointSize: _fontPt * 0.72; wrapMode: Text.WordWrap; lineHeight: 1.45
+                    }
                 }
             }
 
@@ -1602,6 +1907,22 @@ Rectangle {
         property bool   actionIsLabel: false
 
         signal actionClicked()
+
+        // Search filtering: set keywords for terms beyond the heading
+        property string keywords: ""
+        readonly property bool _searchMatch: _root._searchText.length === 0 ||
+            (heading.toLowerCase() + " " + keywords.toLowerCase())
+                .indexOf(_root._searchText.toLowerCase()) >= 0
+
+        // Override visible when search is active and this card doesn't match;
+        // restores the original external visible binding when search clears.
+        Binding {
+            when:        _root._searchText.length > 0 && !_card._searchMatch
+            target:      _card
+            property:    "visible"
+            value:       false
+            restoreMode: Binding.RestoreBindingOrValue
+        }
 
         radius: _fontSize * 0.6
         color: _cardBg
