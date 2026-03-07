@@ -30,7 +30,8 @@ Rectangle {
 
     readonly property real _pad:      ScreenTools.defaultFontPixelWidth * 1.8
     readonly property real _fontSize: ScreenTools.defaultFontPixelHeight
-    readonly property real _fontPt:   ScreenTools.defaultFontPointSize
+    // Scale up base point size so all derived sizes are readable (Figma match)
+    readonly property real _fontPt:   ScreenTools.defaultFontPointSize * 1.45
     readonly property real _maxW:     parent.width * 0.92
 
     // ── QGC Settings Managers ───────────────────────────────
@@ -1626,8 +1627,8 @@ Rectangle {
 
                 ColumnLayout {
                     spacing: 2
-                    QGCLabel { text: heading; color: "white"; font.pointSize: _fontPt * 1.1; font.bold: true; font.letterSpacing: 0.5 }
-                    QGCLabel { text: headingDesc; color: _dimText; font.pointSize: _fontPt * 0.65; visible: headingDesc !== "" }
+                    QGCLabel { text: heading; color: "white"; font.pointSize: _fontPt * 1.25; font.bold: true; font.letterSpacing: 0.5 }
+                    QGCLabel { text: headingDesc; color: _dimText; font.pointSize: _fontPt * 0.8; visible: headingDesc !== "" }
                 }
 
                 Item { Layout.fillWidth: true }
@@ -1668,14 +1669,14 @@ Rectangle {
         spacing: _pad * 1.5
         Layout.topMargin: _pad * 0.4; Layout.bottomMargin: _pad * 0.4
         ColumnLayout { Layout.fillWidth: true; spacing: 2
-            QGCLabel { text: label; color: "white"; font.pointSize: _fontPt * 0.85; font.bold: true }
-            QGCLabel { text: description; color: _dimText; font.pointSize: _fontPt * 0.65; visible: description !== ""; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            QGCLabel { text: label; color: "white"; font.pointSize: _fontPt * 1.0; font.bold: true }
+            QGCLabel { text: description; color: _dimText; font.pointSize: _fontPt * 0.8; visible: description !== ""; wrapMode: Text.WordWrap; Layout.fillWidth: true }
         }
     }
 
     // HILM-styled ComboBox
     component HilmComboBox: QGCComboBox {
-        font.pointSize: _fontPt * 0.75
+        font.pointSize: _fontPt * 0.9
     }
 
     // Resource usage bar

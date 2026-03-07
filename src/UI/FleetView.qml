@@ -367,37 +367,69 @@ Rectangle {
             }
         }
 
-        // ── TAB BAR ─────────────────────────────────────────
-        RowLayout {
+        // ── TAB BAR — auto-width tabs left-aligned (matches Figma)
+        Row {
             Layout.fillWidth: true
-            spacing: _pad * 0.5
+            spacing: _pad * 0.8
 
-            Repeater {
-                model: ["MISSION HISTORY", "ALERTS & EVENTS", "FLEET PERFORMANCE"]
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: _fontSize * 2.8
-                    radius: _fontSize * 0.4
-                    color:  _activeTab === index ? _teal : "transparent"
-                    border.color: _activeTab === index ? _teal : _tealBorder
-                    border.width: 1
-
-                    QGCLabel {
-                        anchors.centerIn: parent
-                        text:           modelData
-                        color:          _activeTab === index ? "#000000" : _dimText
-                        font.pixelSize: _fontSize * 0.7
-                        font.bold:      _activeTab === index
-                        font.letterSpacing: 0.8
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  Qt.PointingHandCursor
-                        onClicked: _activeTab = index
-                    }
+            // Tab 0: MISSION HISTORY
+            Rectangle {
+                width:  _t0.implicitWidth + _pad * 3
+                height: _fontSize * 3.0
+                radius: _fontSize * 0.4
+                color:  _activeTab === 0 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
+                border.color: _activeTab === 0 ? _teal : _tealBorder
+                border.width: 1
+                QGCLabel {
+                    id: _t0
+                    anchors.centerIn: parent
+                    text:           "MISSION HISTORY"
+                    color:          _activeTab === 0 ? _teal : _dimText
+                    font.pixelSize: _fontSize * 0.82
+                    font.bold:      _activeTab === 0
+                    font.letterSpacing: 0.5
                 }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 0 }
+            }
+
+            // Tab 1: ALERTS & EVENTS
+            Rectangle {
+                width:  _t1.implicitWidth + _pad * 3
+                height: _fontSize * 3.0
+                radius: _fontSize * 0.4
+                color:  _activeTab === 1 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
+                border.color: _activeTab === 1 ? _teal : _tealBorder
+                border.width: 1
+                QGCLabel {
+                    id: _t1
+                    anchors.centerIn: parent
+                    text:           "ALERTS & EVENTS"
+                    color:          _activeTab === 1 ? _teal : _dimText
+                    font.pixelSize: _fontSize * 0.82
+                    font.bold:      _activeTab === 1
+                    font.letterSpacing: 0.5
+                }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 1 }
+            }
+
+            // Tab 2: FLEET PERFORMANCE
+            Rectangle {
+                width:  _t2.implicitWidth + _pad * 3
+                height: _fontSize * 3.0
+                radius: _fontSize * 0.4
+                color:  _activeTab === 2 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
+                border.color: _activeTab === 2 ? _teal : _tealBorder
+                border.width: 1
+                QGCLabel {
+                    id: _t2
+                    anchors.centerIn: parent
+                    text:           "FLEET PERFORMANCE"
+                    color:          _activeTab === 2 ? _teal : _dimText
+                    font.pixelSize: _fontSize * 0.82
+                    font.bold:      _activeTab === 2
+                    font.letterSpacing: 0.5
+                }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 2 }
             }
         }
 
@@ -449,7 +481,7 @@ Rectangle {
                         QGCLabel {
                             text:           _totalMissions + " entries"
                             color:          _dimText
-                            font.pixelSize: _fontSize * 0.65
+                            font.pixelSize: _fontSize * 0.725
                         }
                     }
 
@@ -466,11 +498,11 @@ Rectangle {
                             anchors.rightMargin: _pad
                             spacing: _pad
 
-                            QGCLabel { text: "MISSION";  color: _dimText; font.pixelSize: _fontSize * 0.6; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.30 }
-                            QGCLabel { text: "VEHICLE";  color: _dimText; font.pixelSize: _fontSize * 0.6; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "SIZE";     color: _dimText; font.pixelSize: _fontSize * 0.6; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "DATE";     color: _dimText; font.pixelSize: _fontSize * 0.6; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "STATUS";   color: _dimText; font.pixelSize: _fontSize * 0.6; font.bold: true; font.letterSpacing: 1; Layout.fillWidth: true }
+                            QGCLabel { text: "MISSION";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.30 }
+                            QGCLabel { text: "VEHICLE";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "SIZE";     color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "DATE";     color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "STATUS";   color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.fillWidth: true }
                         }
                     }
 
@@ -627,7 +659,7 @@ Rectangle {
                             QGCLabel {
                                 text:           "Real-time vehicle status and warnings"
                                 color:          _dimText
-                                font.pixelSize: _fontSize * 0.65
+                                font.pixelSize: _fontSize * 0.725
                             }
                         }
 
@@ -648,7 +680,7 @@ Rectangle {
                                 text: _alertsModel.count + " alert" + (_alertsModel.count !== 1 ? "s" : "")
                                 color: _alertsModel.count > 0 && _alertsModel.get(0).severity !== "OK"
                                        ? _errColor : _okColor
-                                font.pixelSize: _fontSize * 0.6
+                                font.pixelSize: _fontSize * 0.72
                                 font.bold: true
                             }
                         }
@@ -783,7 +815,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 text: _totalVehicles + " drone" + (_totalVehicles !== 1 ? "s" : "")
                                 color: _teal
-                                font.pixelSize: _fontSize * 0.6
+                                font.pixelSize: _fontSize * 0.72
                                 font.bold: true
                             }
                         }
@@ -878,7 +910,7 @@ Rectangle {
                                             QGCLabel {
                                                 text:  _v.vehicleTypeString || "Multi-Rotor"
                                                 color: _dimText
-                                                font.pixelSize: _fontSize * 0.6
+                                                font.pixelSize: _fontSize * 0.72
                                                 elide: Text.ElideRight
                                                 width: parent.width
                                             }
@@ -1021,7 +1053,7 @@ Rectangle {
     // INLINE COMPONENTS
     // ════════════════════════════════════════════════════════
 
-    // Stats card (top row) — with icon
+    // Stats card (top row) — label+value on left, icon on right (matches Figma)
     component StatsCard: Rectangle {
         property string label
         property string value
@@ -1030,62 +1062,45 @@ Rectangle {
 
         radius: _fontSize * 0.5
         color:  _cardBg
-        border.color: Qt.rgba(1, 1, 1, 0.06)
+        border.color: Qt.rgba(1, 1, 1, 0.08)
         border.width: 1
 
-        ColumnLayout {
-            anchors.fill: parent
+        // Label (top-left)
+        QGCLabel {
+            id: _scLabel
+            anchors.left:    parent.left
+            anchors.top:     parent.top
             anchors.margins: _pad
-            spacing: _pad * 0.3
+            text:               label
+            color:              _dimText
+            font.pixelSize:     _fontSize * 0.75
+            font.bold:          false
+            font.letterSpacing: 0.3
+        }
 
-            // Icon + label row
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: _pad * 0.5
+        // Value (below label)
+        QGCLabel {
+            anchors.left:       parent.left
+            anchors.bottom:     parent.bottom
+            anchors.leftMargin: _pad
+            anchors.bottomMargin: _pad
+            text:           value
+            color:          "white"
+            font.pixelSize: _fontSize * 1.9
+            font.bold:      true
+        }
 
-                Rectangle {
-                    visible: iconSrc !== ""
-                    width:  _fontSize * 1.6
-                    height: _fontSize * 1.6
-                    radius: _fontSize * 0.3
-                    color:  Qt.rgba(accent.r, accent.g, accent.b, 0.12)
-
-                    QGCColoredImage {
-                        anchors.centerIn: parent
-                        width:    _fontSize * 0.9
-                        height:   width
-                        source:   iconSrc
-                        color:    accent
-                        fillMode: Image.PreserveAspectFit
-                    }
-                }
-
-                QGCLabel {
-                    text:               label
-                    color:              _dimText
-                    font.pixelSize:     _fontSize * 0.6
-                    font.bold:          true
-                    font.letterSpacing: 0.8
-                }
-            }
-
-            Item { Layout.fillHeight: true }
-
-            QGCLabel {
-                text:           value
-                color:          accent
-                font.pixelSize: _fontSize * 1.8
-                font.bold:      true
-            }
-
-            // Accent bar
-            Rectangle {
-                Layout.fillWidth: true
-                height: 2
-                radius: 1
-                color:  accent
-                opacity: 0.4
-            }
+        // Icon (top-right)
+        QGCColoredImage {
+            visible: iconSrc !== ""
+            anchors.right:   parent.right
+            anchors.top:     parent.top
+            anchors.margins: _pad
+            width:    _fontSize * 1.6
+            height:   _fontSize * 1.6
+            source:   iconSrc
+            color:    accent
+            fillMode: Image.PreserveAspectFit
         }
     }
 

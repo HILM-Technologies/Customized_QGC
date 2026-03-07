@@ -169,9 +169,6 @@ Item {
         }
 
         function saveToSelectedFile() {
-            if (!checkReadyForSaveUpload(true /* save */)) {
-                return
-            }
             fileDialog.title =          qsTr("Save Plan")
             fileDialog.planFiles =      true
             fileDialog.nameFilters =    _planMasterController.saveNameFilters
@@ -183,9 +180,6 @@ Item {
         }
 
         function saveKmlToSelectedFile() {
-            if (!checkReadyForSaveUpload(true /* save */)) {
-                return
-            }
             fileDialog.title =          qsTr("Save KML")
             fileDialog.planFiles =      false
             fileDialog.nameFilters =    ShapeFileHelper.fileDialogKMLFilters
@@ -804,7 +798,11 @@ Item {
         id: promptForPlanUsageOnVehicleChangePopupComponent
         QGCPopupDialog {
             title: _planMasterController.managerVehicle.isOfflineEditingVehicle ? qsTr("Plan View - Vehicle Disconnected") : qsTr("Plan View - Vehicle Changed")
-            buttons: Dialog.NoButton
+            buttons: Dialog.Ok
+
+            onAccepted: {
+                _promptForPlanUsageShowing = false
+            }
 
             ColumnLayout {
                 QGCLabel {

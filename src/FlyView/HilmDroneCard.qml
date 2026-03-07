@@ -19,13 +19,27 @@ Rectangle {
     width:  parent ? parent.width : 300
     height: cardLayout.implicitHeight + _pad * 3.5
     radius: ScreenTools.defaultFontPixelHeight * 0.35
-    color:  isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
+    color:        isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
     border.width: 1
-    border.color: isSelected ? _tealBorder : Qt.rgba(1, 1, 1, 0.06)
+    border.color: isSelected ? _teal : Qt.rgba(0, 0.749, 1.0, 0.25)
+
+    Behavior on border.color { ColorAnimation { duration: 180 } }
+    Behavior on border.width { NumberAnimation  { duration: 180 } }
+
+    // Inner glow line at top for selected (stays inside card)
+    Rectangle {
+        anchors.top:   parent.top
+        anchors.left:  parent.left
+        anchors.right: parent.right
+        height:        2
+        radius:        parent.radius
+        color:         Qt.rgba(0, 0.749, 1.0, 0.35)
+        visible:       isSelected
+    }
 
     // HILM design tokens
     readonly property color _teal:       "#00BFFF"
-    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.40)
     readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.50)
     readonly property color _okColor:    "#4CAF50"
     readonly property color _warnColor:  "#FF9800"

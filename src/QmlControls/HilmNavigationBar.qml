@@ -36,13 +36,13 @@ Item {
     // Tab model
     ListModel {
         id: tabModel
-        ListElement { label: "OPS";          iconSource: "/qmlimages/PaperPlane.svg" }
-        ListElement { label: "MISSIONS";    iconSource: "/qmlimages/Plan.svg" }
+        ListElement { label: "OPS";          iconSource: "/res/broadcast.svg" }
+        ListElement { label: "MISSIONS";    iconSource: "/InstrumentValueIcons/target.svg" }
         ListElement { label: "FLEET";       iconSource: "/qmlimages/Quad.svg" }
-        ListElement { label: "VIDEO WALL";  iconSource: "/qmlimages/CameraIcon.svg" }
+        ListElement { label: "VIDEO WALL";  iconSource: "/InstrumentValueIcons/view-tile.svg" }
         ListElement { label: "CAMERA ROLL"; iconSource: "/qmlimages/CameraIcon.svg" }
-        ListElement { label: "SETUP";       iconSource: "/qmlimages/Gears.svg" }
-        ListElement { label: "SETTINGS";    iconSource: "/qmlimages/Gears.svg" }
+        ListElement { label: "SETUP";       iconSource: "/res/wrench-right.svg" }
+        ListElement { label: "SETTINGS";    iconSource: "/res/gear-white.svg" }
     }
 
     // ── Background
@@ -114,13 +114,13 @@ Item {
             }
         }
 
-        // ── Separator
+        // ── Separator (teal, between logo and tabs)
         Rectangle {
             Layout.preferredWidth:  1
             Layout.fillHeight:     true
             Layout.topMargin:      ScreenTools.defaultFontPixelHeight * 0.3
             Layout.bottomMargin:   ScreenTools.defaultFontPixelHeight * 0.3
-            color:                 Qt.rgba(1, 1, 1, 0.12)
+            color:                 Qt.rgba(0, 0.749, 1.0, 0.50)
         }
 
         // ── Navigation Tabs (left-aligned after logo, per Figma)

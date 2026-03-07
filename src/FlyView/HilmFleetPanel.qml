@@ -104,7 +104,7 @@ Item {
                 ColumnLayout {
                     id:     vehicleColumn
                     width:  parent.width
-                    spacing: _pad * 0.8
+                    spacing: _pad * 1.5
 
                     Repeater {
                         model: _vehicleModel

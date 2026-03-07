@@ -14,6 +14,8 @@ Item {
     property bool isFullscreen: false
     property bool isConnected: false
     property bool isRecording: false
+    property bool showHeader: true
+    property bool showBorder: true
 
     signal fullscreenRequested()
 
@@ -36,8 +38,8 @@ Item {
         anchors.fill: parent
         color: "#0a0a0a"
         radius: 8
-        border.color: hoverArea.containsMouse ? "#0066cc" : "#2d2d2d"
-        border.width: 2
+        border.color: showBorder ? (hoverArea.containsMouse ? "#0066cc" : "#2d2d2d") : "transparent"
+        border.width: showBorder ? 2 : 0
 
         Behavior on border.color {
             ColorAnimation { duration: 200 }
@@ -63,65 +65,30 @@ Item {
                 }
             }
 
-            // Connection Lost Overlay
+            // No stream overlay
             Rectangle {
                 anchors.fill: parent
-                color: "#0a0a0a"
+                color: "#0D1117"
                 visible: !isConnected
 
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 12
+                    spacing: 10
 
-                    Text {
+                    QGCColoredImage {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "⚠"
-                        font.pixelSize: 48
-                        color: "#ff9900"
+                        width:    52
+                        height:   52
+                        source:   "/qmlimages/CameraIcon.svg"
+                        color:    Qt.rgba(0, 0.749, 1.0, 0.65)
+                        fillMode: Image.PreserveAspectFit
                     }
 
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("Connection Lost")
-                        font.pixelSize: 16
-                        font.bold: true
-                        color: "#ff9900"
-                    }
-
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("Attempting to reconnect...")
-                        font.pixelSize: 12
-                        color: "#999999"
-                    }
-
-                    // Animated dots
-                    Row {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 4
-                        Repeater {
-                            model: 3
-                            Rectangle {
-                                width: 6
-                                height: 6
-                                radius: 3
-                                color: "#0066cc"
-
-                                SequentialAnimation on opacity {
-                                    running: !isConnected
-                                    loops: Animation.Infinite
-                                    NumberAnimation {
-                                        to: 0.2
-                                        duration: 400
-                                    }
-                                    NumberAnimation {
-                                        to: 1.0
-                                        duration: 400
-                                    }
-                                    PauseAnimation { duration: index * 200 }
-                                }
-                            }
-                        }
+                        text:           qsTr("No active stream")
+                        font.pixelSize: 13
+                        color:          Qt.rgba(1, 1, 1, 0.55)
                     }
                 }
             }
@@ -130,6 +97,7 @@ Item {
         // Top Bar - Stream Name and Status
         Rectangle {
             id: topBar
+            visible: root.showHeader
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
