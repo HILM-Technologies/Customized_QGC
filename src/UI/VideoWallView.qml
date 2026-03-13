@@ -26,7 +26,7 @@ Item {
     readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.65)
 
     // ── State
-    property int  gridLayout:     0        // 0=2×2  1=3×3  2=1+3
+    property int  gridLayout:     0        // 0=2×2  1=3×3  2=1+3  3=4×4
     property int  fullscreenIdx:  -1
     property int  selectedIdx:    0        // which card is focused
     property bool recordingAll:   false
@@ -36,13 +36,19 @@ Item {
     function _gridCols() {
         if (gridLayout === 1) return 3
         if (gridLayout === 2) return 2
+        if (gridLayout === 3) return 4
         return 2
     }
     function _gridRows() {
         if (gridLayout === 1) return 3
+        if (gridLayout === 2) return 3
+        if (gridLayout === 3) return 4
         return 2
     }
-    function _cellCount() { return _gridCols() * _gridRows() }
+    function _cellCount() {
+        if (gridLayout === 2) return 4
+        return _gridCols() * _gridRows()
+    }
 
     Settings {
         id: rtspSettings
@@ -166,18 +172,6 @@ Item {
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { gridLayout = 0; fullscreenIdx = -1 } }
                     }
 
-                    // 3×3
-                    Rectangle {
-                        width: 36; height: 32; radius: 5
-                        color:        gridLayout === 1 ? _tealDim : Qt.rgba(1,1,1,0.05)
-                        border.color: gridLayout === 1 ? _teal    : Qt.rgba(1,1,1,0.12); border.width: 1
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Grid { anchors.centerIn: parent; columns: 3; spacing: 2
-                            Repeater { model: 9; Rectangle { width: 4; height: 4; radius: 1; color: gridLayout === 1 ? _teal : Qt.rgba(1,1,1,0.4) } }
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { gridLayout = 1; fullscreenIdx = -1 } }
-                    }
-
                     // 1+3
                     Rectangle {
                         width: 36; height: 32; radius: 5
@@ -192,6 +186,30 @@ Item {
                             }
                         }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { gridLayout = 2; fullscreenIdx = -1 } }
+                    }
+
+                    // 3×3
+                    Rectangle {
+                        width: 36; height: 32; radius: 5
+                        color:        gridLayout === 1 ? _tealDim : Qt.rgba(1,1,1,0.05)
+                        border.color: gridLayout === 1 ? _teal    : Qt.rgba(1,1,1,0.12); border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Grid { anchors.centerIn: parent; columns: 3; spacing: 2
+                            Repeater { model: 9; Rectangle { width: 4; height: 4; radius: 1; color: gridLayout === 1 ? _teal : Qt.rgba(1,1,1,0.4) } }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { gridLayout = 1; fullscreenIdx = -1 } }
+                    }
+
+                    // 4×4
+                    Rectangle {
+                        width: 36; height: 32; radius: 5
+                        color:        gridLayout === 3 ? _tealDim : Qt.rgba(1,1,1,0.05)
+                        border.color: gridLayout === 3 ? _teal    : Qt.rgba(1,1,1,0.12); border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Grid { anchors.centerIn: parent; columns: 4; spacing: 2
+                            Repeater { model: 16; Rectangle { width: 3; height: 3; radius: 1; color: gridLayout === 3 ? _teal : Qt.rgba(1,1,1,0.4) } }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { gridLayout = 3; fullscreenIdx = -1 } }
                     }
                 }
 
@@ -271,6 +289,7 @@ Item {
                         id:    feedCard
                         Layout.fillWidth:  true
                         Layout.fillHeight: true
+                        Layout.rowSpan:    (gridLayout === 2 && index === 0) ? 3 : 1
                         visible: fullscreenIdx === -1 || fullscreenIdx === index
                         opacity: visible ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 180 } }
@@ -492,7 +511,10 @@ Item {
                                 anchors.fill:    parent
                                 hoverEnabled:    true
                                 propagateComposedEvents: true
-                                onClicked:       selectedIdx = index
+                                onClicked: (mouse) => {
+                                    selectedIdx = index
+                                    mouse.accepted = false
+                                }
                             }
                         }
                     }
