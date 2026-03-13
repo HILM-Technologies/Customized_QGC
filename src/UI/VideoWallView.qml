@@ -53,7 +53,7 @@ Item {
     Settings {
         id: rtspSettings
         category: "SurveillanceRTSP"
-        property string baseUrl: "rtsp://192.168.1.17:8554/mystream"
+        property string baseUrl: "rtsp://127.0.0.1:8554/"
     }
 
     // ── Background
@@ -362,8 +362,8 @@ Item {
                                 VideoFeed {
                                     anchors.fill:  parent
                                     streamName:    feedCard._name
-                                    streamId:      "cam" + index
-                                    rtspUrl:       rtspSettings.baseUrl + index
+                                    streamId:      "cam" + (feedCard._vehicle ? feedCard._vehicle.id : index)
+                                    rtspUrl:       feedCard._vehicle ? (rtspSettings.baseUrl + feedCard._vehicle.id) : ""
                                     isFullscreen:  fullscreenIdx === index
                                     showHeader:    false
                                     showBorder:    false

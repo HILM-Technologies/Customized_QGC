@@ -58,7 +58,11 @@ Item {
                 objectName: streamId
 
                 Component.onCompleted: {
-                    console.log("VideoFeed completed for:", streamId)
+                    if (!rtspUrl || rtspUrl === "") {
+                        console.log("VideoFeed skipping empty URL for:", streamId)
+                        return
+                    }
+                    console.log("VideoFeed completed for:", streamId, "URL:", rtspUrl)
                     QGroundControl.videoManager.addCustomStream(streamId, rtspUrl)
                     QGroundControl.videoManager.setCustomStreamWidget(streamId, this)
                     root.isConnected = QGroundControl.videoManager.isCustomStreamStreaming(streamId)
@@ -364,28 +368,4 @@ Item {
             acceptedButtons: Qt.NoButton
         }
     }
-}
-    // Subtle shadow effect
-    /*DropShadow {
-        anchors.fill: container
-        source: container
-        horizontalOffset: 0
-        verticalOffset: 4
-        radius: 12
-        samples: 16
-        color: "#40000000"
-        visible: hoverArea.containsMouse
-    }
-}
-
-// Fallback for DropShadow if not available
-Item {
-    id: dropShadowFallback
-    // Empty fallback component
-}
-
-// Simple replacement if DropShadow is not available
-Component {
-    id: dropShadowComponent
-    Item {}
 }

@@ -147,21 +147,23 @@ Item {
         }
     }
 
-    // Resize icon
+    // Resize icon — HILM style
     Rectangle {
         id:             pipResizeIcon
         anchors.right:  parent.right
         anchors.top:    parent.top
-        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
-        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.3
+        height:         ScreenTools.defaultFontPixelHeight * 1.8
         width:          height
-        radius:         ScreenTools.defaultFontPixelHeight * 0.2
-        color:          Qt.rgba(0, 0, 0, 0.50)
+        radius:         ScreenTools.defaultFontPixelHeight * 0.35
+        color:          Qt.rgba(0, 0, 0, 0.55)
+        border.width:   1
+        border.color:   Qt.rgba(0, 0.749, 1.0, 0.25)
         visible:        false
 
         QGCColoredImage {
             anchors.centerIn: parent
-            width:          parent.width * 0.55
+            width:          parent.width * 0.52
             height:         width
             source:         "/qmlimages/pipResize.svg"
             color:          "#00BFFF"
@@ -188,30 +190,40 @@ Item {
         }
     }
 
-    // Pip to Window
+    // Pip to Window — HILM futuristic style
     Rectangle {
         id:             popupPIP
         anchors.left:   parent.left
         anchors.top:    parent.top
-        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
-        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.3
+        height:         ScreenTools.defaultFontPixelHeight * 1.8
         width:          height
-        radius:         ScreenTools.defaultFontPixelHeight * 0.2
-        color:          Qt.rgba(0, 0, 0, 0.50)
+        radius:         ScreenTools.defaultFontPixelHeight * 0.35
+        color:          popupPIPMouse.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.18) : Qt.rgba(0, 0, 0, 0.55)
+        border.width:   1
+        border.color:   popupPIPMouse.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.60) : Qt.rgba(0, 0.749, 1.0, 0.25)
         visible:        _isExpanded && !ScreenTools.isMobile && pipMouseArea.containsMouse
+
+        Behavior on color        { ColorAnimation { duration: 150 } }
+        Behavior on border.color { ColorAnimation { duration: 150 } }
 
         QGCColoredImage {
             anchors.centerIn: parent
-            width:          parent.width * 0.55
+            width:          parent.width * 0.52
             height:         width
-            source:         "/qmlimages/PiP.svg"
-            color:          "#00BFFF"
+            source:         "/InstrumentValueIcons/window-new.svg"
+            color:          popupPIPMouse.containsMouse ? "#FFFFFF" : "#00BFFF"
             fillMode:       Image.PreserveAspectFit
             sourceSize.height: height
+
+            Behavior on color { ColorAnimation { duration: 150 } }
         }
 
         MouseArea {
+            id:             popupPIPMouse
             anchors.fill:   parent
+            hoverEnabled:   true
+            cursorShape:    Qt.PointingHandCursor
             onClicked:      _pipOrWindowItem.pipState.state = _pipOrWindowItem.pipState.windowState
         }
     }
@@ -220,16 +232,18 @@ Item {
         id:             hidePIP
         anchors.left:   parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.15
-        height:         ScreenTools.defaultFontPixelHeight * 1.6
+        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.3
+        height:         ScreenTools.defaultFontPixelHeight * 1.8
         width:          height
-        radius:         ScreenTools.defaultFontPixelHeight * 0.2
-        color:          Qt.rgba(0, 0, 0, 0.50)
+        radius:         ScreenTools.defaultFontPixelHeight * 0.35
+        color:          Qt.rgba(0, 0, 0, 0.55)
+        border.width:   1
+        border.color:   Qt.rgba(0, 0.749, 1.0, 0.25)
         visible:        false
 
         QGCColoredImage {
             anchors.centerIn: parent
-            width:          parent.width * 0.55
+            width:          parent.width * 0.52
             height:         width
             source:         "/qmlimages/pipHide.svg"
             color:          "#00BFFF"
@@ -244,18 +258,20 @@ Item {
 
     Rectangle {
         id:                     showPip
-        anchors.left :          parent.left
+        anchors.left:           parent.left
         anchors.bottom:         parent.bottom
-        anchors.margins:        ScreenTools.defaultFontPixelHeight * 0.15
-        height:                 ScreenTools.defaultFontPixelHeight * 1.6
+        anchors.margins:        ScreenTools.defaultFontPixelHeight * 0.3
+        height:                 ScreenTools.defaultFontPixelHeight * 1.8
         width:                  height
-        radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+        radius:                 ScreenTools.defaultFontPixelHeight * 0.35
         visible:                !_isExpanded
-        color:                  Qt.rgba(0, 0, 0, 0.50)
+        color:                  Qt.rgba(0, 0, 0, 0.55)
+        border.width:           1
+        border.color:           Qt.rgba(0, 0.749, 1.0, 0.25)
 
         QGCColoredImage {
             anchors.centerIn:   parent
-            width:              parent.width * 0.55
+            width:              parent.width * 0.52
             height:             width
             source:             "/res/buttonRight.svg"
             color:              "#00BFFF"

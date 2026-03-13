@@ -131,6 +131,8 @@ private:
 
     QList<VideoReceiver*> _videoReceivers;
     QMap<QString, VideoReceiver*> _customReceivers;
+    QMap<VideoReceiver*, int> _customRetryCount;
+    static constexpr int kMaxCustomRetries = 5;
 
     SubtitleWriter *_subtitleWriter = nullptr;
     VideoSettings *_videoSettings = nullptr;

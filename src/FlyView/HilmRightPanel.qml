@@ -9,6 +9,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+import QtCore
+
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FlyView
@@ -47,6 +49,13 @@ Item {
     property var _activeVehicle:    QGroundControl.multiVehicleManager.activeVehicle
     property var _guidedController: globals.guidedControllerFlyView
     property var _emergency:        _activeVehicle ? _activeVehicle.emergencyController : null
+
+    // RTSP base URL — shared with VideoWallView
+    Settings {
+        id: rtspSettings
+        category: "SurveillanceRTSP"
+        property string baseUrl: "rtsp://127.0.0.1:8554/"
+    }
 
     // Emergency state helpers
     property bool _emergencySelecting:  _emergency ? _emergency.selectingTarget : false
@@ -662,16 +671,151 @@ Item {
                 border.color:       Qt.rgba(0, 0.749, 1.0, 0.18)
                 clip:               true
 
+                // Hidden container kept for backward compat (PipView parenting)
                 Item {
                     id:             _videoContainer
                     anchors.fill:   parent
+                    visible:        false
                 }
 
+                // ── Persistent video sink (never destroyed, just swaps streams) ──
+                property string opsStreamId:   ""
+                property string opsStreamName: ""
+                property bool   opsConnected:  false
+
+                Rectangle {
+                    id: opsVideoSinkRect
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    color: "black"
+                    radius: ScreenTools.defaultFontPixelHeight * 0.4
+                    clip: true
+                    visible: videoArea.opsStreamId !== ""
+
+                    QGCVideoBackground {
+                        id: opsVideoWidget
+                        anchors.fill: parent
+                    }
+                }
+
+                // Connection status listener
+                Connections {
+                    target: QGroundControl.videoManager
+                    function onCustomStreamStreamingChanged(name, active) {
+                        if (name === videoArea.opsStreamId) {
+                            videoArea.opsConnected = active
+                        }
+                    }
+                }
+
+                // Header overlay
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: ScreenTools.defaultFontPixelHeight * 0.3
+                    height: ScreenTools.defaultFontPixelHeight * 1.8
+                    radius: ScreenTools.defaultFontPixelHeight * 0.3
+                    color: "#cc000000"
+                    visible: videoArea.opsStreamId !== ""
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: ScreenTools.defaultFontPixelHeight * 0.3
+                        spacing: ScreenTools.defaultFontPixelHeight * 0.3
+
+                        Rectangle {
+                            width: ScreenTools.defaultFontPixelHeight * 0.45
+                            height: width
+                            radius: width / 2
+                            color: videoArea.opsConnected ? "#4CAF50" : "#FF5252"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        QGCLabel {
+                            text: videoArea.opsStreamName
+                            color: "white"
+                            font.bold: true
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                // Phase 2: create new stream (after old one is removed)
+                Timer {
+                    id: opsCreateTimer
+                    interval: 500
+                    repeat: false
+                    property int    pendingId:   -1
+                    property string pendingUrl:  ""
+                    property string pendingName: ""
+
+                    onTriggered: {
+                        if (pendingId < 0) return
+                        var sid = "ops_vehicle_" + pendingId
+                        console.log("OPS Video: creating stream", sid, "URL:", pendingUrl)
+                        videoArea.opsStreamId   = sid
+                        videoArea.opsStreamName = pendingName
+                        videoArea.opsConnected  = false
+                        QGroundControl.videoManager.addCustomStream(sid, pendingUrl)
+                        QGroundControl.videoManager.setCustomStreamWidget(sid, opsVideoWidget)
+                        videoArea.opsConnected = QGroundControl.videoManager.isCustomStreamStreaming(sid)
+                    }
+                }
+
+                // Watch active vehicle
+                property int opsCurrentVehicleId: _activeVehicle ? _activeVehicle.id : -1
+                onOpsCurrentVehicleIdChanged: {
+                    console.log("OPS Video: vehicle changed to", opsCurrentVehicleId)
+
+                    // Remove old stream (if any)
+                    if (videoArea.opsStreamId !== "") {
+                        console.log("OPS Video: removing old stream", videoArea.opsStreamId)
+                        QGroundControl.videoManager.removeCustomStream(videoArea.opsStreamId)
+                        videoArea.opsStreamId  = ""
+                        videoArea.opsConnected = false
+                    }
+
+                    // Schedule new stream creation after GStreamer cleanup
+                    if (opsCurrentVehicleId > 0) {
+                        opsCreateTimer.pendingId   = opsCurrentVehicleId
+                        opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
+                        opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId
+                        opsCreateTimer.restart()
+                    }
+                }
+
+                // No stream overlay
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#0D1117"
+                    radius: ScreenTools.defaultFontPixelHeight * 0.4
+                    visible: videoArea.opsStreamId !== "" && !videoArea.opsConnected
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.8
+
+                        QGCColoredImage {
+                            Layout.alignment: Qt.AlignHCenter
+                            width: ScreenTools.defaultFontPixelHeight * 2.5; height: width
+                            source: "/qmlimages/CameraIcon.svg"; color: Qt.rgba(0, 0.749, 1.0, 0.65)
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        QGCLabel {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Connecting..."; color: Qt.rgba(1, 1, 1, 0.55)
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.8
+                        }
+                    }
+                }
+
+                // Placeholder when no vehicle selected
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing:          _pad * 1.2
-                    visible:          _videoContainer.children.length <= 0 ||
-                                      (!QGroundControl.videoManager.hasVideo && !QGroundControl.videoManager.decoding)
+                    visible:          videoArea.opsStreamId === "" && !_activeVehicle
 
                     QGCColoredImage {
                         Layout.alignment: Qt.AlignHCenter
@@ -686,7 +830,7 @@ Item {
                     }
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "Select armed drone"; color: Qt.rgba(1, 1, 1, 0.32)
+                        text: "Select a drone to view its feed"; color: Qt.rgba(1, 1, 1, 0.32)
                         font.pointSize: ScreenTools.defaultFontPointSize * 0.72
                     }
                 }

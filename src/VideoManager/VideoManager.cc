@@ -689,6 +689,7 @@ void VideoManager::removeCustomStream(const QString& name)
         return;
 
     VideoReceiver* receiver = _customReceivers.take(name);
+    _customRetryCount.remove(receiver);
     _videoReceivers.removeOne(receiver);  // Also added by _initVideoReceiver
 
     // Disconnect all signals to this VideoManager to prevent the auto-restart
@@ -852,10 +853,30 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         if (status == VideoReceiver::STATUS_INVALID_URL) {
             qCDebug(VideoManagerLog) << "Invalid video URL. Not restarting";
         } else {
+            // Limit retries for custom streams to prevent crash from infinite retry loop
+            bool isCustom = _customReceivers.values().contains(receiver);
+            if (isCustom) {
+                int retries = _customRetryCount.value(receiver, 0) + 1;
+                _customRetryCount[receiver] = retries;
+                if (retries > kMaxCustomRetries) {
+                    qCWarning(VideoManagerLog) << "Custom stream" << receiver->name()
+                                               << "exceeded max retries (" << kMaxCustomRetries << "). Stopping.";
+                    return;
+                }
+                qCDebug(VideoManagerLog) << "Custom stream retry" << retries << "/" << kMaxCustomRetries
+                                         << "for" << receiver->name();
+            }
             QTimer::singleShot(1000, receiver, [this, receiver]() {
                 qCDebug(VideoManagerLog) << "Restarting video receiver" << receiver->name() << receiver->uri();
                 _startReceiver(receiver);
             });
+        }
+    });
+
+    // Reset retry counter when streaming succeeds
+    (void) connect(receiver, &VideoReceiver::streamingChanged, this, [this, receiver](bool active) {
+        if (active && _customRetryCount.contains(receiver)) {
+            _customRetryCount[receiver] = 0;
         }
     });
 
