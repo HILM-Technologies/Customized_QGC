@@ -22,9 +22,10 @@ AnalyzePage {
 
     property bool isLoaded: false
 
-    // Key input on mobile is handled differently, so use a separate command input text field.
-    // E.g. for android see https://bugreports.qt.io/browse/QTBUG-40803
-    readonly property bool _separateCommandInput: ScreenTools.isMobile
+    readonly property bool  _separateCommandInput: ScreenTools.isMobile
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
 
     MAVLinkConsoleController { id: conController }
 
@@ -51,9 +52,6 @@ AnalyzePage {
             }
 
             function pasteFromClipboard() {
-                // we need to handle a few cases here:
-                // in the general form we have: <command_pre><cursor><command_post>
-                // and the clipboard may contain newlines
                 const cursor = textConsole.cursorPosition - _consoleOutputLen
                 var command = getCommandAndClear()
                 var command_pre = ""
@@ -71,7 +69,6 @@ AnalyzePage {
                 target: conController
                 function onDataChanged(topLeft, bottomRight, roles) {
                     if (isLoaded) {
-                        // rate-limit updates to reduce CPU load
                         updateTimer.start();
                     }
                 }
@@ -83,9 +80,7 @@ AnalyzePage {
                 running: false
                 repeat: false
                 onTriggered: {
-                    // only update if scroll bar is at the bottom
                     if (flickable.atYEnd) {
-                        // backup & restore cursor & command
                         const command = getCommand()
                         const cursor = textConsole.cursorPosition - _consoleOutputLen
                         textConsole.text = conController.text
@@ -94,7 +89,6 @@ AnalyzePage {
                         textConsole.cursorPosition = textConsole.length
                         scrollToBottom()
                         if (cursor >= 0) {
-                            // We could restore the selection here too...
                             textConsole.cursorPosition = _consoleOutputLen + cursor
                         }
                     } else {
@@ -103,137 +97,134 @@ AnalyzePage {
                 }
             }
 
-            QGCFlickable {
-                id: flickable
-                Layout.fillWidth: true
+            // ── Console card ──
+            Rectangle {
+                Layout.fillWidth:  true
                 Layout.fillHeight: true
-                contentWidth: textConsole.width
-                contentHeight: textConsole.height
+                color:             _cardBg
+                radius:            ScreenTools.defaultFontPixelHeight * 0.5
+                border.width:      1
+                border.color:      _tealBorder
+                clip:              true
 
-                TextArea.flickable: TextArea {
-                    id: textConsole
-                    width: availableWidth
-                    wrapMode: Text.WordWrap
-                    readOnly: _separateCommandInput
-                    textFormat: TextEdit.RichText
-                    inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhMultiLine
-                    text: "> "
-                    focus: true
-                    color: qgcPal.text
-                    selectedTextColor: qgcPal.windowShade
-                    selectionColor: qgcPal.text
-                    font.pointSize: ScreenTools.defaultFontPointSize
-                    font.family: ScreenTools.fixedFontFamily
+                QGCFlickable {
+                    id: flickable
+                    anchors.fill:       parent
+                    anchors.margins:    ScreenTools.defaultFontPixelWidth * 0.8
+                    contentWidth:       textConsole.width
+                    contentHeight:      textConsole.height
 
-                    Component.onCompleted: {
-                        root.isLoaded = true
-                        _consoleOutputLen = textConsole.length
-                        textConsole.cursorPosition = _consoleOutputLen
-                        if (!_separateCommandInput) {
-                            textConsole.forceActiveFocus()
-                        }
-                    }
+                    TextArea.flickable: TextArea {
+                        id: textConsole
+                        width: availableWidth - ScreenTools.defaultFontPixelWidth * 1.6
+                        wrapMode: Text.WordWrap
+                        readOnly: _separateCommandInput
+                        textFormat: TextEdit.RichText
+                        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhMultiLine
+                        text: "> "
+                        focus: true
+                        color: "#00E04B"
+                        selectedTextColor: "#0D1117"
+                        selectionColor: _teal
+                        font.pointSize: ScreenTools.defaultFontPointSize
+                        font.family: ScreenTools.fixedFontFamily
 
-                    background: Rectangle { color: qgcPal.windowShade }
-
-                    Keys.onPressed: (event) => {
-                        // ignore tabs
-                        if (event.key == Qt.Key_Tab) {
-                            event.accepted = true
-                        }
-
-                        // ignore for now
-                        if (event.matches(StandardKey.Cut)) {
-                            event.accepted = true
-                        }
-
-                        if (!event.matches(StandardKey.Copy) &&
-                            event.key != Qt.Key_Escape &&
-                            event.key != Qt.Key_Insert &&
-                            event.key != Qt.Key_Pause &&
-                            event.key != Qt.Key_Print &&
-                            event.key != Qt.Key_SysReq &&
-                            event.key != Qt.Key_Clear &&
-                            event.key != Qt.Key_Home &&
-                            event.key != Qt.Key_End &&
-                            event.key != Qt.Key_Left &&
-                            event.key != Qt.Key_Up &&
-                            event.key != Qt.Key_Right &&
-                            event.key != Qt.Key_Down &&
-                            event.key != Qt.Key_PageUp &&
-                            event.key != Qt.Key_PageDown &&
-                            event.key != Qt.Key_Shift &&
-                            event.key != Qt.Key_Control &&
-                            event.key != Qt.Key_Meta &&
-                            event.key != Qt.Key_Alt &&
-                            event.key != Qt.Key_AltGr &&
-                            event.key != Qt.Key_CapsLock &&
-                            event.key != Qt.Key_NumLock &&
-                            event.key != Qt.Key_ScrollLock &&
-                            event.key != Qt.Key_Super_L &&
-                            event.key != Qt.Key_Super_R &&
-                            event.key != Qt.Key_Menu &&
-                            event.key != Qt.Key_Hyper_L &&
-                            event.key != Qt.Key_Hyper_R &&
-                            event.key != Qt.Key_Direction_L &&
-                            event.key != Qt.Key_Direction_R) {
-                            // Note: dead keys do not generate keyPressed event on linux, see
-                            // https://bugreports.qt.io/browse/QTBUG-79216
-
-                            scrollToBottom()
-
-                            // ensure cursor position is at an editable region
-                            if (textConsole.selectionStart < _consoleOutputLen) {
-                                textConsole.select(_consoleOutputLen, textConsole.selectionEnd)
+                        Component.onCompleted: {
+                            root.isLoaded = true
+                            _consoleOutputLen = textConsole.length
+                            textConsole.cursorPosition = _consoleOutputLen
+                            if (!_separateCommandInput) {
+                                textConsole.forceActiveFocus()
                             }
+                        }
 
-                            if (textConsole.cursorPosition < _consoleOutputLen) {
+                        background: Rectangle { color: "transparent" }
+
+                        Keys.onPressed: (event) => {
+                            if (event.key == Qt.Key_Tab) {
+                                event.accepted = true
+                            }
+                            if (event.matches(StandardKey.Cut)) {
+                                event.accepted = true
+                            }
+                            if (!event.matches(StandardKey.Copy) &&
+                                event.key != Qt.Key_Escape &&
+                                event.key != Qt.Key_Insert &&
+                                event.key != Qt.Key_Pause &&
+                                event.key != Qt.Key_Print &&
+                                event.key != Qt.Key_SysReq &&
+                                event.key != Qt.Key_Clear &&
+                                event.key != Qt.Key_Home &&
+                                event.key != Qt.Key_End &&
+                                event.key != Qt.Key_Left &&
+                                event.key != Qt.Key_Up &&
+                                event.key != Qt.Key_Right &&
+                                event.key != Qt.Key_Down &&
+                                event.key != Qt.Key_PageUp &&
+                                event.key != Qt.Key_PageDown &&
+                                event.key != Qt.Key_Shift &&
+                                event.key != Qt.Key_Control &&
+                                event.key != Qt.Key_Meta &&
+                                event.key != Qt.Key_Alt &&
+                                event.key != Qt.Key_AltGr &&
+                                event.key != Qt.Key_CapsLock &&
+                                event.key != Qt.Key_NumLock &&
+                                event.key != Qt.Key_ScrollLock &&
+                                event.key != Qt.Key_Super_L &&
+                                event.key != Qt.Key_Super_R &&
+                                event.key != Qt.Key_Menu &&
+                                event.key != Qt.Key_Hyper_L &&
+                                event.key != Qt.Key_Hyper_R &&
+                                event.key != Qt.Key_Direction_L &&
+                                event.key != Qt.Key_Direction_R) {
+                                scrollToBottom()
+                                if (textConsole.selectionStart < _consoleOutputLen) {
+                                    textConsole.select(_consoleOutputLen, textConsole.selectionEnd)
+                                }
+                                if (textConsole.cursorPosition < _consoleOutputLen) {
+                                    textConsole.cursorPosition = textConsole.length
+                                }
+                            }
+                            switch (event.key) {
+                            case Qt.Key_Left:
+                                if (textConsole.cursorPosition == _consoleOutputLen) {
+                                    event.accepted = true
+                                }
+                                break;
+                            case Qt.Key_Backspace:
+                                if (textConsole.cursorPosition <= _consoleOutputLen) {
+                                    event.accepted = true
+                                }
+                                break;
+                            case Qt.Key_Enter:
+                            case Qt.Key_Return:
+                                conController.sendCommand(getCommandAndClear())
+                                event.accepted = true
+                                break;
+                            default:
+                                break;
+                            }
+                            if (event.matches(StandardKey.Paste)) {
+                                pasteFromClipboard()
+                                event.accepted = true
+                            }
+                            if (event.key == Qt.Key_Up) {
+                                const command = conController.historyUp(getCommandAndClear())
+                                textConsole.insert(textConsole.length, command)
                                 textConsole.cursorPosition = textConsole.length
-                            }
-                        }
-
-                        switch (event.key) {
-                        case Qt.Key_Left:
-                            // don't move beyond current command
-                            if (textConsole.cursorPosition == _consoleOutputLen) {
+                                event.accepted = true
+                            } else if (event.key == Qt.Key_Down) {
+                                const command = conController.historyDown(getCommandAndClear())
+                                textConsole.insert(textConsole.length, command)
+                                textConsole.cursorPosition = textConsole.length
                                 event.accepted = true
                             }
-                            break;
-                        case Qt.Key_Backspace:
-                            if (textConsole.cursorPosition <= _consoleOutputLen) {
-                                event.accepted = true
-                            }
-                            break;
-                        case Qt.Key_Enter:
-                        case Qt.Key_Return:
-                            conController.sendCommand(getCommandAndClear())
-                            event.accepted = true
-                            break;
-                        default:
-                            break;
-                        }
-
-                        if (event.matches(StandardKey.Paste)) {
-                            pasteFromClipboard()
-                            event.accepted = true
-                        }
-
-                        // command history
-                        if (event.key == Qt.Key_Up) {
-                            const command = conController.historyUp(getCommandAndClear())
-                            textConsole.insert(textConsole.length, command)
-                            textConsole.cursorPosition = textConsole.length
-                            event.accepted = true
-                        } else if (event.key == Qt.Key_Down) {
-                            const command = conController.historyDown(getCommandAndClear())
-                            textConsole.insert(textConsole.length, command)
-                            textConsole.cursorPosition = textConsole.length
-                            event.accepted = true
                         }
                     }
                 }
             }
 
+            // ── Mobile command input ──
             RowLayout {
                 Layout.fillWidth: true
                 visible: _separateCommandInput
@@ -250,7 +241,6 @@ AnalyzePage {
                         text = ""
                         scrollToBottom()
                     }
-
                 }
 
                 QGCButton {
@@ -259,5 +249,5 @@ AnalyzePage {
                 }
             }
         }
-    } // Component
-} // AnalyzePage
+    }
+}

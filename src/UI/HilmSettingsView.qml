@@ -345,7 +345,7 @@ Rectangle {
 
                 // Processing Location
                 Rectangle {
-                    Layout.fillWidth: true
+                    Layout.fillWidth: true; visible: _showMarketplace
                     height: _procLocRow.height + _pad * 2
                     radius: _fontSize * 0.4
                     color: Qt.rgba(1,1,1,0.03)
@@ -372,34 +372,33 @@ Rectangle {
                     }
                 }
 
-                QGCLabel { Layout.fillWidth: true; text: "AI models run locally on this computer for real-time video analysis. No cloud connection required."; color: _dimText; font.pointSize: _fontPt * 0.65; wrapMode: Text.WordWrap }
+                QGCLabel { Layout.fillWidth: true; visible: _showMarketplace; text: "AI models run locally on this computer for real-time video analysis. No cloud connection required."; color: _dimText; font.pointSize: _fontPt * 0.65; wrapMode: Text.WordWrap }
 
-                // Separator
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Enable AI Detection
                 HilmSettingRow {
-                    Layout.fillWidth: true
+                    Layout.fillWidth: true; visible: _showMarketplace
                     label: "Enable AI Detection"
                     description: "Activate AI models for real-time video analysis"
                     QGCCheckBoxSlider { checked: _aiEnabled; onClicked: _aiEnabled = checked }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Active AI Model
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: _pad * 0.3
+                    Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Active AI Model"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
                     HilmComboBox { Layout.fillWidth: true; model: _aiModels; currentIndex: _aiModelIndex; onActivated: (i) => _aiModelIndex = i }
                     QGCLabel { text: "Switch between detection models based on mission type"; color: _dimText; font.pointSize: _fontPt * 0.6 }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Model Variant
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: _pad * 0.3
+                    Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Model Variant (Speed vs Accuracy)"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
                     HilmComboBox { Layout.fillWidth: true; model: _aiVariants; currentIndex: _aiVariantIndex; onActivated: (i) => _aiVariantIndex = i }
                     RowLayout {
@@ -409,11 +408,11 @@ Rectangle {
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Active model info card
                 Rectangle {
-                    Layout.fillWidth: true
+                    Layout.fillWidth: true; visible: _showMarketplace
                     height: _modelInfoCol.height + _pad * 2
                     radius: _fontSize * 0.4
                     color: Qt.rgba(1,1,1,0.03); border.color: Qt.rgba(1,1,1,0.08); border.width: 1
@@ -444,44 +443,44 @@ Rectangle {
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Detection Confidence Threshold
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: _pad * 0.3
+                    Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Detection Confidence Threshold"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
                     HilmComboBox { Layout.fillWidth: true; model: _aiThresholds; currentIndex: _aiThresholdIndex; onActivated: (i) => _aiThresholdIndex = i }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Auto-Save Detections
-                HilmSettingRow { Layout.fillWidth: true; label: "Auto-Save Detections"; description: "Automatically save images when objects are detected"
+                HilmSettingRow { Layout.fillWidth: true; visible: _showMarketplace; label: "Auto-Save Detections"; description: "Automatically save images when objects are detected"
                     QGCCheckBoxSlider { checked: _aiAutoSave; onClicked: _aiAutoSave = checked }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Alert on Detection
-                HilmSettingRow { Layout.fillWidth: true; label: "Alert on Detection"; description: "Send notification when target objects are found"
+                HilmSettingRow { Layout.fillWidth: true; visible: _showMarketplace; label: "Alert on Detection"; description: "Send notification when target objects are found"
                     QGCCheckBoxSlider { checked: _aiAlertOnDetect; onClicked: _aiAlertOnDetect = checked }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Hardware Acceleration
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: _pad * 0.3
+                    Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Hardware Acceleration"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
                     HilmComboBox { Layout.fillWidth: true; model: _aiHwAccel; currentIndex: _aiHwAccelIndex; onActivated: (i) => _aiHwAccelIndex = i }
                     QGCLabel { text: "GPU acceleration recommended for real-time processing"; color: _dimText; font.pointSize: _fontPt * 0.6 }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Resource Usage
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: _pad * 0.5
+                    Layout.fillWidth: true; spacing: _pad * 0.5; visible: _showMarketplace
                     QGCLabel { text: "Resource Usage"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true; Layout.bottomMargin: _pad * 0.3 }
                     ResourceBar { Layout.fillWidth: true; label: "CPU Usage"; value: 23; barColor: _okColor }
                     ResourceBar { Layout.fillWidth: true; label: "GPU Usage"; value: 67; barColor: "#E040FB" }
@@ -491,9 +490,10 @@ Rectangle {
 
             // ── AI MODEL MARKETPLACE (expandable) ───────────
             SettingsCard {
+                id: _marketplaceCard
                 Layout.fillWidth: true
                 keywords: "marketplace install browse vehicle human inspection building solar wind turbine power line"
-                visible: _showMarketplace
+                visible: _showMarketplace && _marketplaceCard._searchMatch
                 heading: "AI Model Marketplace"
                 headingDesc: "Browse and install specialized detection models"
                 iconSrc: "/InstrumentValueIcons/list.svg"

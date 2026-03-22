@@ -51,6 +51,7 @@ public:
     Q_PROPERTY(GeoFenceController*      geoFenceController      READ geoFenceController                     CONSTANT)
     Q_PROPERTY(RallyPointController*    rallyPointController    READ rallyPointController                   CONSTANT)
     Q_PROPERTY(PatrolController*        patrolController        READ patrolController                       CONSTANT)
+    Q_PROPERTY(PatrolScheduler*        patrolScheduler         READ patrolScheduler                        CONSTANT)
     Q_PROPERTY(bool                     offline                 READ offline                                NOTIFY offlineChanged)          ///< true: controller is not connected to an active vehicle
     Q_PROPERTY(bool                     containsItems           READ containsItems                          NOTIFY containsItemsChanged)    ///< true: Elemement is non-empty
     Q_PROPERTY(bool                     syncInProgress          READ syncInProgress                         NOTIFY syncInProgressChanged)   ///< true: Information is currently being saved/sent, false: no active save/send in progress
@@ -96,6 +97,7 @@ public:
     GeoFenceController*     geoFenceController(void)    { return &_geoFenceController; }
     RallyPointController*   rallyPointController(void)  { return &_rallyPointController; }
     PatrolController*       patrolController()          { return &_patrolController; }
+    PatrolScheduler*        patrolScheduler()           { return &_patrolScheduler; }
 
 
     bool        offline         (void) const { return _offline; }

@@ -12,8 +12,8 @@ ChartView {
     antialiasing:       true
     animationOptions:   ChartView.NoAnimation
     legend.visible:     false
-    backgroundColor:    qgcPal.window
-    backgroundRoundness: 0
+    backgroundColor:    Qt.rgba(1, 1, 1, 0.04)
+    backgroundRoundness: ScreenTools.defaultFontPixelHeight * 0.5
     margins.bottom:     ScreenTools.defaultFontPixelHeight * 1.5
     margins.top:        chartHeader.height + (ScreenTools.defaultFontPixelHeight * 2)
     visible:            chartController.chartFields.length > 0
@@ -21,14 +21,28 @@ ChartView {
     required property var inspectorController
     required property int chartIndex
 
-    property var _seriesColors: ["#00E04B","#DE8500","#F32836","#BFBFBF","#536DFF","#EECC44"]
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _dimTxt:     Qt.rgba(1, 1, 1, 0.50)
+
+    property var _seriesColors: ["#00BFFF","#4CAF50","#FF9800","#FF5252","#536DFF","#EECC44"]
+
+    // Teal border around chart
+    Rectangle {
+        anchors.fill: parent
+        color:        "transparent"
+        radius:       ScreenTools.defaultFontPixelHeight * 0.5
+        border.width: 1
+        border.color: _tealBorder
+        z:            -1
+    }
 
     function addDimension(field) {
         var color   = _seriesColors[chartView.count]
         var serie   = createSeries(ChartView.SeriesTypeLine, field.label)
         serie.axisX = axisX
         serie.axisY = axisY
-        serie.useOpenGL = QGroundControl.videoManager.gstreamerEnabled // Details on why here: https://github.com/mavlink/qgroundcontrol/issues/13068
+        serie.useOpenGL = QGroundControl.videoManager.gstreamerEnabled
         serie.color = color
         serie.width = 1
         chartController.addSeries(field, serie)
@@ -59,9 +73,11 @@ ChartView {
         format:                     "<br/>mm:ss.zzz"
         tickCount:                  5
         gridVisible:                true
+        gridLineColor:              Qt.rgba(1, 1, 1, 0.08)
         labelsFont.family:          ScreenTools.fixedFontFamily
         labelsFont.pointSize:       ScreenTools.smallFontPointSize
-        labelsColor:                qgcPal.text
+        labelsColor:                _dimTxt
+        color:                      _tealBorder
     }
 
     ValueAxis {
@@ -70,9 +86,11 @@ ChartView {
         max:                        chartController ? chartController.rangeYMax : 0
         visible:                    chartController !== null
         lineVisible:                false
+        gridLineColor:              Qt.rgba(1, 1, 1, 0.08)
         labelsFont.family:          ScreenTools.fixedFontFamily
         labelsFont.pointSize:       ScreenTools.smallFontPointSize
-        labelsColor:                qgcPal.text
+        labelsColor:                _dimTxt
+        color:                      _tealBorder
     }
 
     Row {
@@ -92,6 +110,7 @@ ChartView {
             anchors.verticalCenter: parent.verticalCenter
             QGCLabel {
                 text:               qsTr("Scale:");
+                color:              _dimTxt
                 Layout.alignment:   Qt.AlignVCenter
             }
             QGCComboBox {
@@ -105,6 +124,7 @@ ChartView {
             }
             QGCLabel {
                 text:               qsTr("Range:");
+                color:              _dimTxt
                 Layout.alignment:   Qt.AlignVCenter
             }
             QGCComboBox {
@@ -125,6 +145,7 @@ ChartView {
                     text:           modelData.label
                     color:          chartView.series(index).color
                     font.pointSize: ScreenTools.smallFontPointSize
+                    font.bold:      true
                 }
             }
         }

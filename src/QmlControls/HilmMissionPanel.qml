@@ -48,7 +48,7 @@ Item {
     property bool   _lowBatterySafe:  true
     property bool   _scheduleEnabled: false
     property string _startTime:       ""
-    property string _endTime:         ""
+    // _endTime removed — patrol end is controlled by Loop Mode (Forever/NTimes/Duration)
     property bool   _deployPending:   false
     property bool   _scheduleSaved:   false
 
@@ -1356,47 +1356,8 @@ Item {
                             }
                         }
 
-                        Column {
-                            Layout.fillWidth: true
-                            spacing: _pad * 0.3
-                            QGCLabel {
-                                text: "End Time"; color: _dimText
-                                font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
-                            }
-                            Rectangle {
-                                width:  parent.width
-                                height: ScreenTools.defaultFontPixelHeight * 2.2
-                                radius: ScreenTools.defaultFontPixelHeight * 0.2
-                                color:  Qt.rgba(1, 1, 1, 0.04)
-                                border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.10)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: _pad * 0.5
-
-                                    TextInput {
-                                        Layout.fillWidth: true
-                                        verticalAlignment: Text.AlignVCenter
-                                        color: "white"
-                                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.65
-                                        text: _endTime
-                                        onTextChanged: _endTime = text
-                                        clip: true
-
-                                        Text {
-                                            anchors.fill: parent
-                                            verticalAlignment: Text.AlignVCenter
-                                            text: "--:--"; color: Qt.rgba(1,1,1,0.2)
-                                            font: parent.font
-                                            visible: !parent.text && !parent.activeFocus
-                                        }
-                                    }
-                                    QGCColoredImage {
-                                        width: ScreenTools.defaultFontPixelHeight * 0.6; height: width
-                                        source: "/qmlimages/Gears.svg"; color: _dimText; fillMode: Image.PreserveAspectFit
-                                    }
-                                }
-                            }
+                        // End Time removed — patrol duration is controlled by Loop Mode
+                        Item {
                         }
                     }
                 }

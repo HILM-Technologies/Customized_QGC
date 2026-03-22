@@ -20,90 +20,106 @@ AnalyzePage {
     pageComponent: pageComponent
     pageDescription: qsTr("Log Download allows you to download binary log files from your vehicle. Click Refresh to get list of available logs.")
 
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealDim:    Qt.rgba(0, 0.749, 1.0, 0.14)
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
+    readonly property color _dimTxt:     Qt.rgba(1, 1, 1, 0.50)
+
     Component {
         id: pageComponent
 
         RowLayout {
             width: availableWidth
             height: availableHeight
+            spacing: ScreenTools.defaultFontPixelWidth * 1.5
 
-            QGCFlickable {
+            // ── Log table card ──
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                contentWidth: gridLayout.width
-                contentHeight: gridLayout.height
+                color:          _cardBg
+                radius:         ScreenTools.defaultFontPixelHeight * 0.5
+                border.width:   1
+                border.color:   _tealBorder
 
-                GridLayout {
-                    id: gridLayout
-                    rows: LogDownloadController.model.count + 1
-                    columns: 5
-                    flow: GridLayout.TopToBottom
-                    columnSpacing: ScreenTools.defaultFontPixelWidth
-                    rowSpacing: 0
+                QGCFlickable {
+                    anchors.fill:       parent
+                    anchors.margins:    ScreenTools.defaultFontPixelWidth
+                    contentWidth:       gridLayout.width
+                    contentHeight:      gridLayout.height
+                    clip:               true
 
-                    QGCCheckBox {
-                        id: headerCheckBox
-                        enabled: false
-                    }
-
-                    Repeater {
-                        model: LogDownloadController.model
+                    GridLayout {
+                        id: gridLayout
+                        rows: LogDownloadController.model.count + 1
+                        columns: 5
+                        flow: GridLayout.TopToBottom
+                        columnSpacing: ScreenTools.defaultFontPixelWidth
+                        rowSpacing: 0
 
                         QGCCheckBox {
-                            Binding on checkState {
-                                value: object.selected ? Qt.Checked : Qt.Unchecked
-                            }
-
-                            onClicked: object.selected = checked
+                            id: headerCheckBox
+                            enabled: false
                         }
-                    }
 
-                    QGCLabel { text: qsTr("Id") }
+                        Repeater {
+                            model: LogDownloadController.model
 
-                    Repeater {
-                        model: LogDownloadController.model
-
-                        QGCLabel { text: object.id }
-                    }
-
-                    QGCLabel { text: qsTr("Date") }
-
-                    Repeater {
-                        model: LogDownloadController.model
-
-                        QGCLabel {
-                            text: {
-                                if (!object.received) {
-                                    return ""
+                            QGCCheckBox {
+                                Binding on checkState {
+                                    value: object.selected ? Qt.Checked : Qt.Unchecked
                                 }
 
-                                if (object.time.getUTCFullYear() < 2010) {
-                                    return qsTr("Date Unknown")
-                                }
-
-                                return object.time.toLocaleString(undefined)
+                                onClicked: object.selected = checked
                             }
                         }
-                    }
 
-                    QGCLabel { text: qsTr("Size") }
+                        // Column headers with teal color
+                        QGCLabel { text: qsTr("Id");     color: _teal; font.bold: true }
 
-                    Repeater {
-                        model: LogDownloadController.model
+                        Repeater {
+                            model: LogDownloadController.model
+                            QGCLabel { text: object.id; color: "#FFFFFF" }
+                        }
 
-                        QGCLabel { text: object.sizeStr }
-                    }
+                        QGCLabel { text: qsTr("Date");   color: _teal; font.bold: true }
 
-                    QGCLabel { text: qsTr("Status") }
+                        Repeater {
+                            model: LogDownloadController.model
 
-                    Repeater {
-                        model: LogDownloadController.model
+                            QGCLabel {
+                                color: "#FFFFFF"
+                                text: {
+                                    if (!object.received) {
+                                        return ""
+                                    }
+                                    if (object.time.getUTCFullYear() < 2010) {
+                                        return qsTr("Date Unknown")
+                                    }
+                                    return object.time.toLocaleString(undefined)
+                                }
+                            }
+                        }
 
-                        QGCLabel { text: object.status }
+                        QGCLabel { text: qsTr("Size");   color: _teal; font.bold: true }
+
+                        Repeater {
+                            model: LogDownloadController.model
+                            QGCLabel { text: object.sizeStr; color: "#FFFFFF" }
+                        }
+
+                        QGCLabel { text: qsTr("Status"); color: _teal; font.bold: true }
+
+                        Repeater {
+                            model: LogDownloadController.model
+                            QGCLabel { text: object.status; color: _dimTxt }
+                        }
                     }
                 }
             }
 
+            // ── Action buttons ──
             ColumnLayout {
                 spacing: ScreenTools.defaultFontPixelWidth
                 Layout.alignment: Qt.AlignTop
@@ -119,7 +135,6 @@ AnalyzePage {
                             mainWindow.showMessageDialog(qsTr("Log Refresh"), qsTr("You must be connected to a vehicle in order to download logs."))
                             return
                         }
-
                         LogDownloadController.refresh()
                     }
                 }
@@ -137,17 +152,14 @@ AnalyzePage {
                                 break
                             }
                         }
-
                         if (!logsSelected) {
                             mainWindow.showMessageDialog(qsTr("Log Download"), qsTr("You must select at least one log file to download."))
                             return
                         }
-
                         if (ScreenTools.isMobile) {
                             LogDownloadController.download()
                             return
                         }
-
                         fileDialog.title = qsTr("Select save directory")
                         fileDialog.folder = QGroundControl.settingsManager.appSettings.logSavePath
                         fileDialog.selectFolder = true

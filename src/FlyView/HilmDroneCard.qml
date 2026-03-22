@@ -128,6 +128,40 @@ Rectangle {
                 visible: vehicle !== null
             }
 
+            // Recording timer (shown when recording)
+            Row {
+                spacing: _pad * 0.25
+                visible: recordBtn._isRecording
+
+                Rectangle {
+                    id: headerRecDot
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:  ScreenTools.defaultFontPixelHeight * 0.35
+                    height: width; radius: width / 2
+                    color:  _errColor
+                    SequentialAnimation on opacity {
+                        running: recordBtn._isRecording
+                        loops:   Animation.Infinite
+                        NumberAnimation { to: 0.3; duration: 600 }
+                        NumberAnimation { to: 1.0; duration: 600 }
+                    }
+                    Binding { target: headerRecDot; property: "opacity"; value: 1.0; when: !recordBtn._isRecording }
+                }
+                QGCLabel {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: {
+                        if (!vehicle || !vehicle.flightPathRecorder) return ""
+                        var secs = vehicle.flightPathRecorder.elapsedSeconds
+                        var m = Math.floor(secs / 60)
+                        var s = secs % 60
+                        return m + ":" + (s < 10 ? "0" : "") + s
+                    }
+                    color: _errColor
+                    font.pointSize: ScreenTools.defaultFontPointSize * 0.7
+                    font.bold: true
+                }
+            }
+
             // Status badge
             Rectangle {
                 radius:  height / 2
@@ -303,31 +337,51 @@ Rectangle {
         }
 
         Rectangle {
+            id: recordBtn
             Layout.fillWidth:       true
             Layout.topMargin:       _pad * 0.3
-            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.2
-            radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-            color:                  recordManualArea.containsMouse ? Qt.rgba(1, 0.3, 0, 0.12) : "transparent"
-            border.width:           1
-            border.color:           Qt.rgba(1, 0.3, 0, 0.45)
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+            radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+
+            property bool _isRecording: vehicle && vehicle.flightPathRecorder ? vehicle.flightPathRecorder.recording : false
+
+            color: {
+                if (_isRecording)
+                    return recordManualArea.containsMouse ? "#E53935" : _errColor
+                return recordManualArea.containsMouse ? Qt.rgba(1, 0.3, 0, 0.12) : "transparent"
+            }
+            border.width: _isRecording ? 0 : 1
+            border.color: Qt.rgba(1, 0.3, 0, 0.45)
+
+            Behavior on color { ColorAnimation { duration: 150 } }
 
             RowLayout {
                 anchors.centerIn: parent
-                spacing:          _pad * 0.5
+                spacing:          _pad * 0.6
 
-                // Red recording dot
+                // Not recording: pulsing red dot | Recording: white stop square
                 Rectangle {
-                    width:   ScreenTools.defaultFontPixelHeight * 0.45
+                    id: recIcon
+                    width:   ScreenTools.defaultFontPixelHeight * 0.55
                     height:  width
-                    radius:  width / 2
-                    color:   _errColor
+                    radius:  recordBtn._isRecording ? ScreenTools.defaultFontPixelHeight * 0.06 : width / 2
+                    color:   recordBtn._isRecording ? "white" : _errColor
+
+                    SequentialAnimation on opacity {
+                        running: !recordBtn._isRecording
+                        loops:   Animation.Infinite
+                        NumberAnimation { to: 0.35; duration: 700 }
+                        NumberAnimation { to: 1.0;  duration: 700 }
+                    }
+                    Binding { target: recIcon; property: "opacity"; value: 1.0; when: recordBtn._isRecording }
                 }
+
                 QGCLabel {
-                    text:               "RECORD MANUAL CONTROL"
+                    text: recordBtn._isRecording ? "STOP RECORDING" : "RECORD MANUAL CONTROL"
                     color:              "white"
-                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
                     font.bold:          true
-                    font.letterSpacing: 0.5
+                    font.letterSpacing: 0.6
                 }
             }
 
@@ -335,15 +389,45 @@ Rectangle {
                 id:             recordManualArea
                 anchors.fill:   parent
                 hoverEnabled:   true
+                cursorShape:    Qt.PointingHandCursor
                 onClicked: {
-                    // TODO: implement manual control recording
+                    if (!vehicle || !vehicle.flightPathRecorder)
+                        return
+                    var rec = vehicle.flightPathRecorder
+                    if (rec.recording) {
+                        rec.stopRecording()
+                    } else {
+                        rec.startRecording()
+                    }
                 }
             }
         }
     }
 
-    // ── Click handler
+    // ── Save dialog after recording stops ──
+    Connections {
+        target: vehicle && vehicle.flightPathRecorder ? vehicle.flightPathRecorder : null
+        function onRecordingStopped() {
+            _recordSaveDialog.openForSave()
+        }
+    }
+
+    QGCFileDialog {
+        id:             _recordSaveDialog
+        title:          qsTr("Save Recorded Flight Path")
+        nameFilters:    [qsTr("Plan Files (*.plan)")]
+        defaultSuffix:  "plan"
+        onAcceptedForSave: (file) => {
+            if (vehicle && vehicle.flightPathRecorder) {
+                vehicle.flightPathRecorder.saveToFile(file)
+            }
+            close()
+        }
+    }
+
+    // ── Click handler (z: -1 so record button stays clickable)
     MouseArea {
+        z: -1
         anchors.fill: parent
         onClicked: {
             if (vehicle) {

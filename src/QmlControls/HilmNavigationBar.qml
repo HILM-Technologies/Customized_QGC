@@ -107,11 +107,8 @@ Item {
                 }
             }
 
-            // Click to open tool selector (backward compat)
-            MouseArea {
-                anchors.fill: parent
-                onClicked:    mainWindow.showToolSelectDialog()
-            }
+            // Logo is display-only — all navigation is via the tab bar
+
         }
 
         // ── Separator (teal, between logo and tabs)
