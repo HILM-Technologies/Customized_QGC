@@ -764,8 +764,11 @@ Item {
                     }
                 }
 
-                // Watch active vehicle
+                // Watch active vehicle — only create stream when user clicks GRID button
+                // (not auto-created on vehicle connect, to avoid GStreamer crash when no RTSP server)
                 property int opsCurrentVehicleId: _activeVehicle ? _activeVehicle.id : -1
+                property bool opsVideoRequested: false  // set true when user explicitly requests video
+
                 onOpsCurrentVehicleIdChanged: {
                     console.log("OPS Video: vehicle changed to", opsCurrentVehicleId)
 
@@ -777,13 +780,22 @@ Item {
                         videoArea.opsConnected = false
                     }
 
-                    // Schedule new stream creation after GStreamer cleanup
-                    if (opsCurrentVehicleId > 0) {
+                    // Only create new stream if video was explicitly requested
+                    if (opsCurrentVehicleId > 0 && opsVideoRequested) {
                         opsCreateTimer.pendingId   = opsCurrentVehicleId
                         opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
                         opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId
                         opsCreateTimer.restart()
                     }
+                }
+
+                function startVideoForCurrentVehicle() {
+                    if (opsCurrentVehicleId <= 0) return
+                    opsVideoRequested = true
+                    opsCreateTimer.pendingId   = opsCurrentVehicleId
+                    opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
+                    opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId
+                    opsCreateTimer.restart()
                 }
 
                 // No stream overlay
@@ -811,11 +823,11 @@ Item {
                     }
                 }
 
-                // Placeholder when no vehicle selected
+                // Placeholder when no video stream active
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing:          _pad * 1.2
-                    visible:          videoArea.opsStreamId === "" && !_activeVehicle
+                    visible:          videoArea.opsStreamId === ""
 
                     QGCColoredImage {
                         Layout.alignment: Qt.AlignHCenter
@@ -830,8 +842,19 @@ Item {
                     }
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "Select a drone to view its feed"; color: Qt.rgba(1, 1, 1, 0.32)
+                        text: _activeVehicle ? "Tap to connect video feed" : "Select armed drone"
+                        color: Qt.rgba(1, 1, 1, 0.32)
                         font.pointSize: ScreenTools.defaultFontPointSize * 0.72
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  _activeVehicle ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: {
+                            if (_activeVehicle) {
+                                videoArea.startVideoForCurrentVehicle()
+                            }
+                        }
                     }
                 }
             }
