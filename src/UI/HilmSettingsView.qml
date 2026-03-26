@@ -88,16 +88,244 @@ Rectangle {
     property var  _px4LogMgr:      _activeVehicle ? _activeVehicle.mavlinkLogManager : null
     property int  _px4SelectedCount: 0
 
-    // ── AI Detection placeholder state ──────────────────────
-    property bool _aiEnabled:        true
-    property int  _aiModelIndex:     0
-    property int  _aiVariantIndex:   1
-    property int  _aiThresholdIndex: 1
-    property int  _aiHwAccelIndex:   1
-    property bool _aiAutoSave:       true
-    property bool _aiAlertOnDetect:  true
-    property bool   _showMarketplace: false
-    property string _searchText:      ""
+    // ── AI Server Connection ──────────────────────────────────
+    property string _aiServerUrl:    "http://127.0.0.1:8080"
+    property bool   _aiServerConnected: false
+    property string _aiServerStatus:    "Disconnected"
+
+    // ── AI Detection state (fetched from API, fallback to defaults) ──
+    property bool   _aiEnabled:        true
+    property int    _aiModelIndex:     0
+    property int    _aiVariantIndex:   0
+    property real   _aiConfidence:     0.65
+    property int    _aiThresholdIndex: 2
+    property int    _aiMaxFps:         30
+    property int    _aiHwAccelIndex:   0
+    property bool   _aiAutoSave:       true
+    property bool   _aiAlertOnDetect:  true
+    property bool   _showMarketplace:  false
+    property string _searchText:       ""
+
+    // ── Dynamic model/variant/GPU lists from API ────────────
+    property var _aiModelsData:    []   // raw JSON array from /api/models
+    property var _aiModels:        ["Loading..."]
+    property var _aiVariants:      ["Loading..."]
+    property var _aiGpuList:       ["CPU ONLY"]
+    property var _aiThresholds:    ["LOW (30%)", "MEDIUM (50%)", "HIGH (65%)", "HIGH (75%)", "VERY HIGH (90%)"]
+
+    // ── Live resource stats from API ────────────────────────
+    property real _liveCpuUsage:   0
+    property real _liveGpuUsage:   0
+    property real _liveRamUsed:    0
+    property real _liveRamTotal:   1
+    property real _liveFps:        0
+
+    // ── AI Server API helpers ───────────────────────────────
+    function _aiGet(path, callback, errorCallback) {
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try { callback(JSON.parse(xhr.responseText)) }
+                    catch(e) { console.warn("AI API parse error:", e); if (errorCallback) errorCallback() }
+                } else {
+                    console.warn("AI API error:", path, "status:", xhr.status)
+                    if (errorCallback) errorCallback()
+                }
+            }
+        }
+        try {
+            xhr.open("GET", _aiServerUrl + path)
+            xhr.timeout = 5000  // 5 second timeout
+            xhr.ontimeout = function() {
+                console.warn("AI API timeout:", path)
+                if (errorCallback) errorCallback()
+            }
+            xhr.send()
+        } catch(e) {
+            console.warn("AI API exception:", path, e)
+            if (errorCallback) errorCallback()
+        }
+    }
+
+    function _aiPut(path, body) {
+        if (!_aiServerConnected) return
+
+        var xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    console.log("AI config updated:", path)
+                    _aiServerStatus = "Connected — config synced"
+                } else {
+                    console.warn("AI PUT failed:", path, xhr.status)
+                    _aiServerStatus = "Connected — sync failed"
+                    _aiServerConnected = false
+                    _aiServerStatus = "Disconnected — server not responding"
+                }
+            }
+        }
+        try {
+            xhr.open("PUT", _aiServerUrl + path)
+            xhr.timeout = 5000
+            xhr.ontimeout = function() {
+                _aiServerConnected = false
+                _aiServerStatus = "Disconnected — timeout"
+            }
+            xhr.setRequestHeader("Content-Type", "application/json")
+            xhr.send(JSON.stringify(body))
+        } catch(e) {
+            _aiServerConnected = false
+            _aiServerStatus = "Disconnected — error"
+        }
+    }
+
+    // ── Push current settings to AI server ──────────────────
+    function _syncConfigToServer() {
+        if (!_aiServerConnected) return
+
+        var modelId = ""
+        var variantId = "nano"
+        if (_aiModelsData.length > 0 && _aiModelIndex < _aiModelsData.length) {
+            modelId = _aiModelsData[_aiModelIndex].id
+            var variants = _aiModelsData[_aiModelIndex].variants
+            if (variants && _aiVariantIndex < variants.length) {
+                variantId = variants[_aiVariantIndex].id
+            }
+        }
+
+        var conf = [0.30, 0.50, 0.65, 0.75, 0.90]
+        var threshold = _aiConfidence
+        // Map threshold index if using dropdown
+        if (typeof _aiThresholdIndex === "number" && _aiThresholdIndex < conf.length) {
+            threshold = conf[_aiThresholdIndex]
+        }
+
+        _aiPut("/api/config", {
+            enabled:              _aiEnabled,
+            model:                modelId,
+            variant:              variantId,
+            confidence_threshold: threshold,
+            max_fps:              _aiMaxFps,
+            device:               _aiHwAccelIndex === 0 ? "cpu" : ("gpu:" + (_aiHwAccelIndex - 1)),
+            auto_save_detections: _aiAutoSave,
+            alert_on_detection:   _aiAlertOnDetect
+        })
+    }
+
+    // ── Connect to AI server and fetch everything ───────────
+    function _connectToAiServer() {
+        // Reset state first
+        _aiServerConnected = false
+        _aiServerStatus = "Connecting..."
+
+        function _onConnectionFailed() {
+            _aiServerConnected = false
+            _aiServerStatus = "Failed — cannot reach " + _aiServerUrl
+            _aiModels = ["No AI server connected"]
+            _aiVariants = ["--"]
+            _aiGpuList = ["CPU ONLY"]
+            _liveCpuUsage = 0
+            _liveGpuUsage = 0
+            _liveRamUsed = 0
+            _liveRamTotal = 1
+        }
+
+        // 1. Health check (this is the gate — if it fails, everything fails)
+        _aiGet("/api/health", function(data) {
+            _aiServerConnected = true
+            _aiServerStatus = "Connected — " + data.hostname
+
+            // GPU list
+            var gpus = ["CPU ONLY"]
+            if (data.gpus) {
+                for (var i = 0; i < data.gpus.length; i++) {
+                    if (data.gpus[i].name !== "CPU Only") {
+                        gpus.push(data.gpus[i].name + " (GPU " + data.gpus[i].id + ")")
+                    }
+                }
+            }
+            _aiGpuList = gpus
+
+            // Live stats
+            if (data.cpu) _liveCpuUsage = data.cpu.utilization || 0
+            if (data.ram) {
+                _liveRamUsed  = data.ram.used_gb || 0
+                _liveRamTotal = data.ram.total_gb || 1
+            }
+
+            // 2. Fetch models (only if health succeeded)
+            _aiGet("/api/models", function(modelData) {
+                _aiModelsData = modelData
+                var names = []
+                for (var i = 0; i < modelData.length; i++) {
+                    names.push(modelData[i].name.toUpperCase())
+                }
+                if (names.length > 0) _aiModels = names
+                _updateVariants()
+            })
+
+            // 3. Fetch current config (only if health succeeded)
+            _aiGet("/api/config", function(cfgData) {
+                _aiEnabled       = cfgData.enabled !== undefined ? cfgData.enabled : true
+                _aiConfidence    = cfgData.confidence_threshold || 0.65
+                _aiMaxFps        = cfgData.max_fps || 30
+                _aiAutoSave      = cfgData.auto_save_detections !== undefined ? cfgData.auto_save_detections : true
+                _aiAlertOnDetect = cfgData.alert_on_detection !== undefined ? cfgData.alert_on_detection : true
+
+                // Map confidence to threshold index
+                var conf = [0.30, 0.50, 0.65, 0.75, 0.90]
+                var best = 2
+                for (var i = 0; i < conf.length; i++) {
+                    if (Math.abs(conf[i] - _aiConfidence) < 0.05) { best = i; break }
+                }
+                _aiThresholdIndex = best
+            })
+
+        }, _onConnectionFailed)  // ← error callback for health check
+    }
+
+    // ── Update variant list when model selection changes ────
+    function _updateVariants() {
+        if (_aiModelsData.length === 0 || _aiModelIndex >= _aiModelsData.length) return
+
+        var variants = _aiModelsData[_aiModelIndex].variants
+        if (!variants) return
+
+        var names = []
+        for (var i = 0; i < variants.length; i++) {
+            var v = variants[i]
+            names.push(v.id.toUpperCase() + "  " + v.fps_estimate + " FPS \u00b7 " + v.accuracy)
+        }
+        if (names.length > 0) _aiVariants = names
+        if (_aiVariantIndex >= names.length) _aiVariantIndex = 0
+    }
+
+    // ── Poll live stats every 5 seconds ─────────────────────
+    Timer {
+        id: _aiPollTimer
+        interval: 5000
+        repeat:   true
+        running:  _aiServerConnected
+
+        onTriggered: {
+            _aiGet("/api/health", function(data) {
+                if (data.cpu) _liveCpuUsage = data.cpu.utilization || 0
+                if (data.ram) {
+                    _liveRamUsed  = data.ram.used_gb || 0
+                    _liveRamTotal = data.ram.total_gb || 1
+                }
+                _liveFps = data.total_fps || 0
+            }, function() {
+                // Server went down
+                _aiServerConnected = false
+                _aiServerStatus = "Disconnected — server unreachable"
+            })
+        }
+    }
+
+    // ── Auto-connect on load ────────────────────────────────
+    Component.onCompleted: _connectToAiServer()
 
     // All section descriptors for match-count computation
     readonly property var _sectionTags: [
@@ -136,10 +364,7 @@ Rectangle {
     }
 
     // AI placeholder data
-    readonly property var _aiModels:     ["VEHICLE & HUMAN DETECTION", "POWER LINE INSPECTION", "BUILDING FACADE CLEANING", "WIND TURBINE BLADE INSPECTION", "SOLAR PANEL INSPECTION"]
-    readonly property var _aiVariants:   ["NANO  60 FPS \u00b7 82%", "MEDIUM  45 FPS \u00b7 89%", "LARGE  25 FPS \u00b7 94%", "PRO  12 FPS \u00b7 96%"]
-    readonly property var _aiThresholds: ["LOW (30%) - PERMISSIVE", "MEDIUM (50%) - BALANCED", "HIGH (70%) - STRICT", "VERY HIGH (90%) - MAXIMUM"]
-    readonly property var _aiHwAccel:    ["CPU ONLY", "NVIDIA GPU (CUDA)", "OPENCL GPU"]
+    // (model/variant/threshold/gpu lists are now dynamic — defined above in AI Server section)
 
     // ════════════════════════════════════════════════════════
     // MAIN SCROLLABLE CONTENT
@@ -343,6 +568,100 @@ Rectangle {
                 actionIcon: "/InstrumentValueIcons/list.svg"
                 onActionClicked: _showMarketplace = !_showMarketplace
 
+                // AI Server Connection
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: _aiSrvCol.implicitHeight + _pad * 2
+                    radius: _fontSize * 0.4
+                    color: Qt.rgba(1,1,1,0.03)
+                    border.color: _aiServerConnected ? Qt.rgba(0.3, 0.87, 0.3, 0.30) : Qt.rgba(1,1,1,0.08)
+                    border.width: 1
+
+                    ColumnLayout {
+                        id: _aiSrvCol
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: _pad
+                        spacing: _pad * 0.6
+
+                        // Row 1: Label + Status
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _pad * 0.5
+
+                            Rectangle {
+                                width: _fontSize * 0.6; height: width; radius: width / 2
+                                color: _aiServerConnected ? _okColor
+                                     : (_aiServerStatus === "Connecting..." ? _warnColor : _errColor)
+
+                                SequentialAnimation on opacity {
+                                    running: _aiServerStatus === "Connecting..."
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.3; duration: 400 }
+                                    NumberAnimation { to: 1.0; duration: 400 }
+                                }
+                            }
+
+                            QGCLabel {
+                                text: "AI Server"
+                                color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            QGCLabel {
+                                text: _aiServerStatus
+                                color: _aiServerConnected ? _okColor
+                                     : (_aiServerStatus === "Connecting..." ? _warnColor : _errColor)
+                                font.pointSize: _fontPt * 0.65
+                            }
+                        }
+
+                        // Row 2: URL input + CONNECT button
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: _pad * 0.5
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: _fontSize * 2.4
+                                radius: _fontSize * 0.3
+                                color: Qt.rgba(1,1,1,0.06)
+                                border.color: _aiSrvInput.activeFocus ? _teal : Qt.rgba(1,1,1,0.1)
+                                border.width: 1
+
+                                TextInput {
+                                    id: _aiSrvInput
+                                    anchors.fill: parent; anchors.margins: _pad * 0.5
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: _aiServerUrl
+                                    color: "white"
+                                    font.pointSize: _fontPt * 0.7
+                                    selectByMouse: true
+                                    onEditingFinished: _aiServerUrl = text
+                                    onAccepted: { _aiServerUrl = text; _connectToAiServer() }
+                                }
+                            }
+
+                            Rectangle {
+                                width: _connectLabel.implicitWidth + _pad * 2.5
+                                height: _fontSize * 2.4
+                                radius: _fontSize * 0.3
+                                color: _connectMouse.containsMouse ? Qt.lighter(_teal, 1.15) : _teal
+
+                                QGCLabel {
+                                    id: _connectLabel; anchors.centerIn: parent
+                                    text: "CONNECT"
+                                    color: "#000000"; font.pointSize: _fontPt * 0.65; font.bold: true; font.letterSpacing: 0.5
+                                }
+
+                                MouseArea {
+                                    id: _connectMouse; anchors.fill: parent
+                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { _aiServerUrl = _aiSrvInput.text; _connectToAiServer() }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Processing Location
                 Rectangle {
                     Layout.fillWidth: true; visible: _showMarketplace
@@ -381,7 +700,7 @@ Rectangle {
                     Layout.fillWidth: true; visible: _showMarketplace
                     label: "Enable AI Detection"
                     description: "Activate AI models for real-time video analysis"
-                    QGCCheckBoxSlider { checked: _aiEnabled; onClicked: _aiEnabled = checked }
+                    QGCCheckBoxSlider { checked: _aiEnabled; onClicked: { _aiEnabled = checked; _syncConfigToServer() } }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
@@ -390,7 +709,7 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Active AI Model"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
-                    HilmComboBox { Layout.fillWidth: true; model: _aiModels; currentIndex: _aiModelIndex; onActivated: (i) => _aiModelIndex = i }
+                    HilmComboBox { Layout.fillWidth: true; model: _aiModels; currentIndex: _aiModelIndex; onActivated: (i) => { _aiModelIndex = i; _updateVariants(); _syncConfigToServer() } }
                     QGCLabel { text: "Switch between detection models based on mission type"; color: _dimText; font.pointSize: _fontPt * 0.6 }
                 }
 
@@ -400,7 +719,7 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Model Variant (Speed vs Accuracy)"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
-                    HilmComboBox { Layout.fillWidth: true; model: _aiVariants; currentIndex: _aiVariantIndex; onActivated: (i) => _aiVariantIndex = i }
+                    HilmComboBox { Layout.fillWidth: true; model: _aiVariants; currentIndex: _aiVariantIndex; onActivated: (i) => { _aiVariantIndex = i; _syncConfigToServer() } }
                     RowLayout {
                         spacing: _pad * 0.3
                         QGCLabel { text: "\uD83D\uDCA1"; font.pointSize: _fontPt * 0.7 }
@@ -438,8 +757,8 @@ Rectangle {
 
                         ModelInfoRow { label: "Category:"; value: "Security & Surveillance" }
                         ModelInfoRow { label: "Model Status:"; value: "Loaded & Ready"; valueColor: _okColor }
-                        ModelInfoRow { label: "Performance:"; value: ["60 FPS", "45 FPS", "25 FPS", "12 FPS"][_aiVariantIndex] }
-                        ModelInfoRow { label: "Accuracy:"; value: ["82%", "89%", "94%", "96%"][_aiVariantIndex] }
+                        ModelInfoRow { label: "Performance:"; value: (_aiModelsData.length > 0 && _aiModelIndex < _aiModelsData.length && _aiModelsData[_aiModelIndex].variants && _aiVariantIndex < _aiModelsData[_aiModelIndex].variants.length) ? (_aiModelsData[_aiModelIndex].variants[_aiVariantIndex].fps_estimate + " FPS") : "--" }
+                        ModelInfoRow { label: "Accuracy:"; value: (_aiModelsData.length > 0 && _aiModelIndex < _aiModelsData.length && _aiModelsData[_aiModelIndex].variants && _aiVariantIndex < _aiModelsData[_aiModelIndex].variants.length) ? _aiModelsData[_aiModelIndex].variants[_aiVariantIndex].accuracy : "--" }
                     }
                 }
 
@@ -449,21 +768,21 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Detection Confidence Threshold"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
-                    HilmComboBox { Layout.fillWidth: true; model: _aiThresholds; currentIndex: _aiThresholdIndex; onActivated: (i) => _aiThresholdIndex = i }
+                    HilmComboBox { Layout.fillWidth: true; model: _aiThresholds; currentIndex: _aiThresholdIndex; onActivated: (i) => { _aiThresholdIndex = i; _syncConfigToServer() } }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Auto-Save Detections
                 HilmSettingRow { Layout.fillWidth: true; visible: _showMarketplace; label: "Auto-Save Detections"; description: "Automatically save images when objects are detected"
-                    QGCCheckBoxSlider { checked: _aiAutoSave; onClicked: _aiAutoSave = checked }
+                    QGCCheckBoxSlider { checked: _aiAutoSave; onClicked: { _aiAutoSave = checked; _syncConfigToServer() } }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
 
                 // Alert on Detection
                 HilmSettingRow { Layout.fillWidth: true; visible: _showMarketplace; label: "Alert on Detection"; description: "Send notification when target objects are found"
-                    QGCCheckBoxSlider { checked: _aiAlertOnDetect; onClicked: _aiAlertOnDetect = checked }
+                    QGCCheckBoxSlider { checked: _aiAlertOnDetect; onClicked: { _aiAlertOnDetect = checked; _syncConfigToServer() } }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06); visible: _showMarketplace }
@@ -472,7 +791,7 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: _pad * 0.3; visible: _showMarketplace
                     QGCLabel { text: "Hardware Acceleration"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true }
-                    HilmComboBox { Layout.fillWidth: true; model: _aiHwAccel; currentIndex: _aiHwAccelIndex; onActivated: (i) => _aiHwAccelIndex = i }
+                    HilmComboBox { Layout.fillWidth: true; model: _aiGpuList; currentIndex: _aiHwAccelIndex; onActivated: (i) => { _aiHwAccelIndex = i; _syncConfigToServer() } }
                     QGCLabel { text: "GPU acceleration recommended for real-time processing"; color: _dimText; font.pointSize: _fontPt * 0.6 }
                 }
 
@@ -482,9 +801,9 @@ Rectangle {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: _pad * 0.5; visible: _showMarketplace
                     QGCLabel { text: "Resource Usage"; color: "white"; font.pointSize: _fontPt * 0.8; font.bold: true; Layout.bottomMargin: _pad * 0.3 }
-                    ResourceBar { Layout.fillWidth: true; label: "CPU Usage"; value: 23; barColor: _okColor }
-                    ResourceBar { Layout.fillWidth: true; label: "GPU Usage"; value: 67; barColor: "#E040FB" }
-                    ResourceBar { Layout.fillWidth: true; label: "RAM Usage"; value: 26; barColor: _teal; suffix: "4.2 GB / 16 GB" }
+                    ResourceBar { Layout.fillWidth: true; label: "CPU Usage"; value: _liveCpuUsage; barColor: _okColor }
+                    ResourceBar { Layout.fillWidth: true; label: "GPU Usage"; value: _liveGpuUsage; barColor: "#E040FB" }
+                    ResourceBar { Layout.fillWidth: true; label: "RAM Usage"; value: _liveRamTotal > 0 ? (_liveRamUsed / _liveRamTotal * 100) : 0; barColor: _teal; suffix: _liveRamUsed.toFixed(1) + " GB / " + _liveRamTotal.toFixed(1) + " GB" }
                 }
             }
 
