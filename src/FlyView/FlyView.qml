@@ -138,6 +138,8 @@ Item {
             anchors.bottomMargin:   _widgetMargin
             anchors.rightMargin:    _widgetMargin
             z:                      QGroundControl.zOrderWidgets
+            selectedVehicles:       hilmFleetPanel.selectedVehicles
+            selectionRevision:      hilmFleetPanel._selectionRev
         }
 
         FlyViewWidgetLayer {

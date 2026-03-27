@@ -23,6 +23,24 @@ QGCLabel {
 
     Menu {
         id: flightModesMenu
+
+        background: Rectangle {
+            implicitWidth:  ScreenTools.defaultFontPixelWidth * 22
+            radius:         ScreenTools.defaultFontPixelHeight * 0.4
+            color:          "#0D1117"
+            border.width:   1
+            border.color:   Qt.rgba(0, 0.749, 1.0, 0.35)
+
+            // Subtle inner top glow line
+            Rectangle {
+                anchors.top:   parent.top
+                anchors.left:  parent.left
+                anchors.right: parent.right
+                height:        1
+                radius:        parent.radius
+                color:         Qt.rgba(0, 0.749, 1.0, 0.18)
+            }
+        }
     }
 
     Component {
@@ -31,6 +49,33 @@ QGCLabel {
         MenuItem {
             enabled: true
             onTriggered: currentVehicle.flightMode = text
+
+            contentItem: Text {
+                text:                  parent.text
+                color:                 parent.highlighted ? "#00BFFF" : "white"
+                font.pointSize:        ScreenTools.defaultFontPointSize * 0.85
+                font.bold:             parent.highlighted
+                font.letterSpacing:    0.4
+                verticalAlignment:     Text.AlignVCenter
+                leftPadding:           ScreenTools.defaultFontPixelWidth * 1.2
+            }
+
+            background: Rectangle {
+                implicitHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                color:          parent.highlighted
+                                    ? Qt.rgba(0, 0.749, 1.0, 0.14)
+                                    : "transparent"
+
+                // Teal left accent on highlighted item
+                Rectangle {
+                    anchors.left:   parent.left
+                    anchors.top:    parent.top
+                    anchors.bottom: parent.bottom
+                    width:          2
+                    color:          "#00BFFF"
+                    visible:        parent.parent.highlighted
+                }
+            }
         }
     }
 

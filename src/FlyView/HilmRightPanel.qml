@@ -46,6 +46,21 @@ Item {
                                                                 rightPanelRoot.height * 0.10))
     readonly property real _sectionGap:      _pad * 1.2
 
+    // ── Multi-selection from fleet panel
+    property var selectedVehicles:  []
+    property int selectionRevision: 0
+
+    // Returns selected vehicles if any, otherwise the active vehicle as a single-element array
+    function targetVehicles() {
+        // Read selectionRevision to ensure binding updates
+        void selectionRevision
+        if (selectedVehicles.length > 0)
+            return selectedVehicles
+        if (_activeVehicle)
+            return [_activeVehicle]
+        return []
+    }
+
     property var _activeVehicle:    QGroundControl.multiVehicleManager.activeVehicle
     property var _guidedController: globals.guidedControllerFlyView
     property var _emergency:        _activeVehicle ? _activeVehicle.emergencyController : null
@@ -202,8 +217,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.armed = true
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].armed = true
                             }
                         }
                     }
@@ -251,8 +267,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.armed = false
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].armed = false
                             }
                         }
                     }
@@ -300,8 +317,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.guidedModeRTL(false)
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].guidedModeRTL(false)
                             }
                         }
                     }
@@ -400,6 +418,77 @@ Item {
                                 if (!_activeVehicle || !_emergency) return
                                 if (_emergencyActive || _emergencySelecting || _emergencyTargetSet) return
                                 _emergency.startEmergencySelect()
+                            }
+                        }
+                    }
+                }
+
+                // ── TAKEOFF  (full-width, teal accent — active when armed & on ground)
+                Item {
+                    Layout.fillWidth:       true
+                    Layout.columnSpan:      2
+                    Layout.preferredHeight: _actionBtnHeight
+
+                    property bool _canTakeoff: {
+                        var targets = targetVehicles()
+                        for (var i = 0; i < targets.length; i++) {
+                            if (targets[i].armed && !targets[i].flying)
+                                return true
+                        }
+                        return false
+                    }
+
+                    Rectangle {
+                        id: takeoffBtn
+                        anchors.fill: parent
+                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
+                        color:        takeoffArea.containsMouse && parent._canTakeoff
+                                        ? Qt.rgba(0, 0.749, 1.0, 0.20)
+                                        : Qt.rgba(0, 0.749, 1.0, 0.07)
+                        border.width: 1.5
+                        border.color: parent._canTakeoff
+                                        ? (takeoffArea.containsMouse ? _teal : Qt.rgba(0, 0.749, 1.0, 0.55))
+                                        : Qt.rgba(1, 1, 1, 0.12)
+                        opacity:      _activeVehicle ? 1.0 : 0.45
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing:          _pad * 0.7
+
+                            QGCColoredImage {
+                                width:    ScreenTools.defaultFontPixelHeight * 1.6
+                                height:   width
+                                source:   "/qmlimages/takeoff.svg"
+                                color:    parent.parent.parent._canTakeoff
+                                            ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
+                                            : Qt.rgba(1, 1, 1, 0.35)
+                                fillMode: Image.PreserveAspectFit
+                            }
+                            QGCLabel {
+                                text:               "TAKEOFF"
+                                color:              parent.parent.parent._canTakeoff
+                                                        ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
+                                                        : Qt.rgba(1, 1, 1, 0.35)
+                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
+                                font.bold:          true
+                                font.letterSpacing: 0.8
+                            }
+                        }
+
+                        MouseArea {
+                            id:          takeoffArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            enabled:      takeoffBtn.parent._canTakeoff
+                            onClicked: {
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++) {
+                                    if (targets[i].armed && !targets[i].flying) {
+                                        QGroundControl.multiVehicleManager.activeVehicle = targets[i]
+                                        _guidedController.confirmAction(_guidedController.actionTakeoff)
+                                    }
+                                }
                             }
                         }
                     }
