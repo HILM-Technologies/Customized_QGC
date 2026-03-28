@@ -10,24 +10,32 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
+import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.Controls
 
 Rectangle {
     id:     _root
-    color:  qgcPal.window
+    color:  "#0D1117"
     z:      QGroundControl.zOrderTopMost
 
     signal popout()
 
-    readonly property real  _defaultTextHeight:     ScreenTools.defaultFontPixelHeight
-    readonly property real  _defaultTextWidth:      ScreenTools.defaultFontPixelWidth
-    readonly property real  _horizontalMargin:      _defaultTextWidth / 2
-    readonly property real  _verticalMargin:        _defaultTextHeight / 2
-    readonly property real  _buttonWidth:           _defaultTextWidth * 18
+    // ── HILM design tokens ──────────────────────────────────
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealDim:    Qt.rgba(0, 0.749, 1.0, 0.14)
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
+    readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.50)
 
-    // This need to block click event leakage to underlying map.
+    readonly property real  _pad:               ScreenTools.defaultFontPixelWidth * 1.2
+    readonly property real  _defaultTextHeight: ScreenTools.defaultFontPixelHeight
+    readonly property real  _defaultTextWidth:  ScreenTools.defaultFontPixelWidth
+    readonly property real  _horizontalMargin:  _defaultTextWidth
+    readonly property real  _verticalMargin:    _defaultTextHeight * 0.6
+    readonly property real  _buttonWidth:       _defaultTextWidth * 18
+
     DeadMouseArea {
         anchors.fill: parent
     }
@@ -36,28 +44,45 @@ Rectangle {
         id: geoController
     }
 
+    // ── Sidebar ─────────────────────────────────────────────
+    Rectangle {
+        id:             sidebarBg
+        width:          buttonScroll.width + _horizontalMargin * 2
+        anchors.top:    parent.top
+        anchors.bottom: parent.bottom
+        anchors.left:   parent.left
+        color:          Qt.rgba(1, 1, 1, 0.03)
+
+        Rectangle {
+            anchors.right:  parent.right
+            anchors.top:    parent.top
+            anchors.bottom: parent.bottom
+            width:          1
+            color:          _tealBorder
+        }
+    }
+
     QGCFlickable {
         id:                 buttonScroll
         width:              buttonColumn.width
-        anchors.topMargin:  _defaultTextHeight / 2
+        anchors.topMargin:  _defaultTextHeight
         anchors.top:        parent.top
         anchors.bottom:     parent.bottom
         anchors.leftMargin: _horizontalMargin
         anchors.left:       parent.left
         contentHeight:      buttonColumn.height
-        flickableDirection: Flickable.VerticalFlick
+        flickableDirection:  Flickable.VerticalFlick
         clip:               true
 
         Column {
             id:         buttonColumn
             width:      _maxButtonWidth
-            spacing:    _defaultTextHeight / 2
+            spacing:    _defaultTextHeight * 0.4
 
             property real _maxButtonWidth: 0
 
             Component.onCompleted: reflowWidths()
 
-            // I don't know why this does not work
             Connections {
                 target:         QGroundControl.settingsManager.appSettings.appFontPointSize
                 function onValueChanged(value) { buttonColumn.reflowWidths() }
@@ -95,25 +120,14 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        id:                     divider
-        anchors.topMargin:      _verticalMargin
-        anchors.bottomMargin:   _verticalMargin
-        anchors.leftMargin:     _horizontalMargin
-        anchors.left:           buttonScroll.right
-        anchors.top:            parent.top
-        anchors.bottom:         parent.bottom
-        width:                  1
-        color:                  qgcPal.windowShade
-    }
-
+    // ── Content area ────────────────────────────────────────
     Loader {
         id:                     panelLoader
         anchors.topMargin:      _verticalMargin
         anchors.bottomMargin:   _verticalMargin
-        anchors.leftMargin:     _horizontalMargin
+        anchors.leftMargin:     _horizontalMargin * 1.5
         anchors.rightMargin:    _horizontalMargin
-        anchors.left:           divider.right
+        anchors.left:           sidebarBg.right
         anchors.right:          parent.right
         anchors.top:            parent.top
         anchors.bottom:         parent.bottom

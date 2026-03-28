@@ -7,6 +7,7 @@
  *
  ****************************************************************************/
 
+#include <QTimer>
 #include "PlanMasterController.h"
 #include "QGCApplication.h"
 #include "QGCCorePlugin.h"
@@ -96,6 +97,9 @@ void PlanMasterController::_commonInit(void)
         });
     }
     connect(&_patrolController, &PatrolController::patrolConfigChanged, &_patrolScheduler, &PatrolScheduler::updatePatrol);
+
+    // On startup: re-arm timers for any patrols scheduled before the app was closed
+    QTimer::singleShot(3000, &_patrolScheduler, &PatrolScheduler::checkAllPendingSchedules);
 }
 
 

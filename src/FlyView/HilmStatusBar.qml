@@ -152,6 +152,65 @@ Rectangle {
             font.pointSize: ScreenTools.defaultFontPointSize * 0.7
         }
 
+        // ── Recording indicator (shown when any vehicle is recording)
+        Item { Layout.preferredWidth: _margin * 1.5; visible: _recIndicator.visible }
+        Rectangle {
+            Layout.preferredWidth: 1; visible: _recIndicator.visible
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 0.8
+            color: Qt.rgba(1, 1, 1, 0.15)
+        }
+        Item { Layout.preferredWidth: _margin * 1.5; visible: _recIndicator.visible }
+
+        Row {
+            id: _recIndicator
+            spacing: _margin * 0.4
+            visible: _recVehicleName !== ""
+
+            property string _recVehicleName: {
+                if (!_vehicles) return ""
+                for (var i = 0; i < _vehicles.count; i++) {
+                    var v = _vehicles.get(i)
+                    if (v && v.flightPathRecorder && v.flightPathRecorder.recording)
+                        return v.defaultName || ("Vehicle " + v.id)
+                }
+                return ""
+            }
+            property int _recElapsed: {
+                if (!_vehicles) return 0
+                for (var i = 0; i < _vehicles.count; i++) {
+                    var v = _vehicles.get(i)
+                    if (v && v.flightPathRecorder && v.flightPathRecorder.recording)
+                        return v.flightPathRecorder.elapsedSeconds
+                }
+                return 0
+            }
+
+            Rectangle {
+                id: statusRecDot
+                anchors.verticalCenter: parent.verticalCenter
+                width: ScreenTools.defaultFontPixelHeight * 0.4; height: width; radius: width / 2
+                color: _errColor
+                SequentialAnimation on opacity {
+                    running: _recIndicator.visible
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: 600 }
+                    NumberAnimation { to: 1.0; duration: 600 }
+                }
+            }
+            QGCLabel {
+                anchors.verticalCenter: parent.verticalCenter
+                text: {
+                    var secs = _recIndicator._recElapsed
+                    var m = Math.floor(secs / 60)
+                    var s = secs % 60
+                    return "Recording: " + _recIndicator._recVehicleName + "  " + m + ":" + (s < 10 ? "0" : "") + s
+                }
+                color: _errColor
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.7
+                font.bold: true
+            }
+        }
+
         // Separator
         Item { Layout.preferredWidth: _margin * 1.5 }
         Rectangle {

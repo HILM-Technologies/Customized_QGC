@@ -34,7 +34,7 @@ Rectangle {
     property var  _autopilot:      _activeVehicle ? _activeVehicle.autopilotPlugin : null
     property var  _components:     (_autopilot && _vehicleAvail) ? _autopilot.vehicleComponents : []
 
-    // ── Tabs: 0=FLEET MANAGEMENT, 1=GENERAL, 2=RADIO, 3=SENSORS, 4=COMPANION COMPUTER
+    // ── Tabs: 0=FLEET MANAGEMENT, 1=GENERAL, 2=RADIO, 3=SENSORS, 4=ANALYZE TOOLS, 5=COMPANION COMPUTER
     property int _activeTab: 1
 
     // ── Which section is expanded (empty = none) ────────────
@@ -122,7 +122,7 @@ Rectangle {
             spacing: _pad * 0.5
 
             Repeater {
-                model: ["FLEET MANAGEMENT", "GENERAL", "RADIO", "SENSORS", "COMPANION COMPUTER"]
+                model: ["FLEET MANAGEMENT", "GENERAL", "RADIO", "SENSORS", "ANALYZE TOOLS", "COMPANION COMPUTER"]
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -567,10 +567,21 @@ Rectangle {
                 }
             }
 
-            // ─── TAB 4: COMPANION COMPUTER (placeholder) ────
+            // ─── TAB 4: ANALYZE TOOLS ──────────────────────────
             Item {
                 anchors.fill: parent
                 visible: _activeTab === 4
+
+                Loader {
+                    anchors.fill: parent
+                    source: _activeTab === 4 ? "qrc:/qml/QGroundControl/AnalyzeView/AnalyzeView.qml" : ""
+                }
+            }
+
+            // ─── TAB 5: COMPANION COMPUTER (placeholder) ────
+            Item {
+                anchors.fill: parent
+                visible: _activeTab === 5
 
                 ColumnLayout {
                     anchors.centerIn: parent; spacing: _fontSize

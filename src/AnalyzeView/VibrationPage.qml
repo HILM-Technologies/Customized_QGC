@@ -31,193 +31,256 @@ AnalyzePage {
     property real   _yValue:        _activeVehicle.vibration.yAxis.rawValue
     property real   _zValue:        _activeVehicle.vibration.zAxis.rawValue
 
-    readonly property real _barMinimum:     0.0
-    readonly property real _barMaximum:     90.0
-    readonly property real _barBadValue:    60.0
-    readonly property real _barMidValue:    30.0
+    readonly property real  _barMinimum:     0.0
+    readonly property real  _barMaximum:     90.0
+    readonly property real  _barBadValue:    60.0
+    readonly property real  _barMidValue:    30.0
+
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _cardBg:     Qt.rgba(1, 1, 1, 0.04)
+    readonly property color _dimTxt:     Qt.rgba(1, 1, 1, 0.50)
+    readonly property color _okColor:    "#4CAF50"
+    readonly property color _warnColor:  "#FF9800"
+    readonly property color _errColor:   "#FF5252"
+
+    function _barColor(val) {
+        if (val < _barMidValue) return _okColor
+        if (val < _barBadValue) return _warnColor
+        return _errColor
+    }
 
     QGCPalette { id:qgcPal; colorGroupEnabled: true }
 
     Component {
         id: pageComponent
 
-        Item {
-            width:  childrenRect.width
-            height: childrenRect.height
+        Rectangle {
+            width:  childrenRect.width + ScreenTools.defaultFontPixelWidth * 3
+            height: childrenRect.height + ScreenTools.defaultFontPixelWidth * 3
+            color:  _cardBg
+            radius: ScreenTools.defaultFontPixelHeight * 0.5
+            border.width: 1
+            border.color: _tealBorder
 
-            RowLayout {
-                id:         barRow
-                spacing:    ScreenTools.defaultFontPixelWidth * 2
+            Item {
+                anchors.margins: ScreenTools.defaultFontPixelWidth * 1.5
+                anchors.left:    parent.left
+                anchors.top:     parent.top
+                width:           childrenRect.width
+                height:          childrenRect.height
 
-                ColumnLayout {
-                    Rectangle {
-                        id:                 xBar
-                        height:             _barHeight
-                        width:              _barWidth
-                        Layout.alignment:   Qt.AlignHCenter
-                        color:              "transparent"
-                        border.width:       1
-                        border.color:       qgcPal.text
+                RowLayout {
+                    id:         barRow
+                    spacing:    ScreenTools.defaultFontPixelWidth * 2
 
+                    ColumnLayout {
                         Rectangle {
-                            anchors.bottom: parent.bottom
-                            width:          parent.width
-                            height:         parent.height * (Math.min(_barMaximum, _xValue) / (_barMaximum - _barMinimum))
-                            color:          qgcPal.text
+                            id:                 xBar
+                            height:             _barHeight
+                            width:              _barWidth
+                            Layout.alignment:   Qt.AlignHCenter
+                            color:              "transparent"
+                            radius:             4
+                            border.width:       1
+                            border.color:       _tealBorder
+
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                width:          parent.width
+                                height:         parent.height * (Math.min(_barMaximum, _xValue) / (_barMaximum - _barMinimum))
+                                radius:         4
+                                color:          _barColor(_xValue)
+                                opacity:        0.8
+
+                                Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _errColor
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _warnColor
+                            }
                         }
 
-                        // Max vibe indication line at 60
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
-                        }
-
-                        // Mid vibe indication line at 30
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               qsTr("X (%1)").arg(_xValue.toFixed(0))
+                            color:              _barColor(_xValue)
+                            font.bold:          true
                         }
                     }
+
+                    ColumnLayout {
+                        Rectangle {
+                            height:             _barHeight
+                            width:              _barWidth
+                            Layout.alignment:   Qt.AlignHCenter
+                            color:              "transparent"
+                            radius:             4
+                            border.width:       1
+                            border.color:       _tealBorder
+
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                width:          parent.width
+                                height:         parent.height * (Math.min(_barMaximum, _yValue) / (_barMaximum - _barMinimum))
+                                radius:         4
+                                color:          _barColor(_yValue)
+                                opacity:        0.8
+
+                                Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _errColor
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _warnColor
+                            }
+                        }
+
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               qsTr("Y (%1)").arg(_yValue.toFixed(0))
+                            color:              _barColor(_yValue)
+                            font.bold:          true
+                        }
+                    }
+
+                    ColumnLayout {
+                        Rectangle {
+                            height:             _barHeight
+                            width:              _barWidth
+                            Layout.alignment:   Qt.AlignHCenter
+                            color:              "transparent"
+                            radius:             4
+                            border.width:       1
+                            border.color:       _tealBorder
+
+                            Rectangle {
+                                anchors.bottom: parent.bottom
+                                width:          parent.width
+                                height:         parent.height * (Math.min(_barMaximum, _zValue) / (_barMaximum - _barMinimum))
+                                radius:         4
+                                color:          _barColor(_zValue)
+                                opacity:        0.8
+
+                                Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _errColor
+                            }
+
+                            Rectangle {
+                                anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
+                                anchors.top:            parent.top
+                                anchors.left:           parent.left
+                                anchors.right:          parent.right
+                                width:                  parent.width
+                                height:                 1
+                                color:                  _warnColor
+                            }
+                        }
+
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               qsTr("Z (%1)").arg(_zValue.toFixed(0))
+                            color:              _barColor(_zValue)
+                            font.bold:          true
+                        }
+                    }
+                }
+
+                // Clip counts card
+                Rectangle {
+                    anchors.left:       barRow.right
+                    anchors.leftMargin: ScreenTools.defaultFontPixelWidth * 2
+                    anchors.top:        barRow.top
+                    width:              clipCol.width + ScreenTools.defaultFontPixelWidth * 2
+                    height:             clipCol.height + ScreenTools.defaultFontPixelWidth * 2
+                    color:              Qt.rgba(1, 1, 1, 0.03)
+                    radius:             4
+                    border.width:       1
+                    border.color:       Qt.rgba(1, 1, 1, 0.08)
+
+                    Column {
+                        id: clipCol
+                        anchors.centerIn: parent
+                        spacing: ScreenTools.defaultFontPixelHeight * 0.3
+
+                        QGCLabel {
+                            text:       qsTr("Clip count")
+                            color:      _teal
+                            font.bold:  true
+                        }
+
+                        QGCLabel {
+                            text: qsTr("Accel 1: %1").arg(_activeVehicle.vibration.clipCount1.rawValue)
+                            color: "#FFFFFF"
+                        }
+
+                        QGCLabel {
+                            text: qsTr("Accel 2: %1").arg(_activeVehicle.vibration.clipCount2.rawValue)
+                            color: "#FFFFFF"
+                        }
+
+                        QGCLabel {
+                            text: qsTr("Accel 3: %1").arg(_activeVehicle.vibration.clipCount3.rawValue)
+                            color: "#FFFFFF"
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill:   barRow
+                    color:          "#0D1117"
+                    opacity:        0.75
+                    radius:         4
+                    visible:        !_available
 
                     QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
-                        text:               qsTr("X (%1)").arg(_xValue.toFixed(0))
+                        anchors.fill:           parent
+                        horizontalAlignment:    Text.AlignHCenter
+                        verticalAlignment:      Text.AlignVCenter
+                        text:                   qsTr("Not Available")
+                        color:                  _dimTxt
+                        font.pointSize:         ScreenTools.largeFontPointSize
                     }
-                }
-
-                ColumnLayout {
-                    Rectangle {
-                        height:             _barHeight
-                        width:              _barWidth
-                        Layout.alignment:   Qt.AlignHCenter
-                        color:              "transparent"
-                        border.width:       1
-                        border.color:       qgcPal.text
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width:          parent.width
-                            height:         parent.height * (Math.min(_barMaximum, _yValue) / (_barMaximum - _barMinimum))
-                            color:          qgcPal.text
-                        }
-
-                        // Max vibe indication line at 60
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
-                        }
-
-                        // Mid vibe indication line at 30
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
-                        }
-                    }
-
-                    QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
-                        text:               qsTr("Y (%1)").arg(_yValue.toFixed(0))
-                    }
-                }
-
-                ColumnLayout {
-                    Rectangle {
-                        height:             _barHeight
-                        width:              _barWidth
-                        Layout.alignment:   Qt.AlignHCenter
-                        color:              "transparent"
-                        border.width:       1
-                        border.color:       qgcPal.text
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width:          parent.width
-                            height:         parent.height * (Math.min(_barMaximum, _zValue) / (_barMaximum - _barMinimum))
-                            color:          qgcPal.text
-                        }
-
-                        // Max vibe indication line at 60
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barBadValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
-                        }
-
-                        // Mid vibe indication line at 30
-                        Rectangle {
-                            anchors.topMargin:      parent.height * (1.0 - ((_barMidValue - _barMinimum) / (_barMaximum - _barMinimum)))
-                            anchors.top:            parent.top
-                            anchors.left:           parent.left
-                            anchors.right:          parent.right
-                            width:                  parent.width
-                            height:                 1
-                            color:                  "red"
-                        }
-                    }
-
-                    QGCLabel {
-                        Layout.alignment:   Qt.AlignHCenter
-                        text:               qsTr("Z (%1)").arg(_zValue.toFixed(0))
-                    }
-                }
-            }
-
-            Column {
-                anchors.margins:    ScreenTools.defaultFontPixelWidth
-                anchors.left:       barRow.right
-
-                QGCLabel {
-                    text: qsTr("Clip count")
-                }
-
-                QGCLabel {
-                    text: qsTr("Accel 1: %1").arg(_activeVehicle.vibration.clipCount1.rawValue)
-                }
-
-                QGCLabel {
-                    text: qsTr("Accel 2: %1").arg(_activeVehicle.vibration.clipCount2.rawValue)
-                }
-
-                QGCLabel {
-                    text: qsTr("Accel 3: %1").arg(_activeVehicle.vibration.clipCount3.rawValue)
-                }
-            }
-
-            Rectangle {
-                anchors.fill:   parent
-                color:          qgcPal.window
-                opacity:        0.75
-                visible:        !_available
-
-                QGCLabel {
-                    anchors.fill:           parent
-                    horizontalAlignment:    Text.AlignHCenter
-                    verticalAlignment:      Text.AlignVCenter
-                    text:                   qsTr("Not Available")
                 }
             }
         }

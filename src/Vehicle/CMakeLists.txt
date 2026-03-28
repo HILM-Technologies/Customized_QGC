@@ -9,6 +9,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         Autotune.h
         EmergencyController.h
         EmergencyController.cc
+        FlightPathRecorder.h
+        FlightPathRecorder.cc
         FTPManager.cc
         FTPManager.h
         InitialConnectStateMachine.cc

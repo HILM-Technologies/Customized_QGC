@@ -9,6 +9,7 @@
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.Controls
@@ -27,6 +28,11 @@ Item {
     property bool   allowPopout:        false
     property bool   popped:             false
     property real   _margins:           ScreenTools.defaultFontPixelHeight * 0.5
+
+    // HILM tokens
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+    readonly property color _dimText:    Qt.rgba(1, 1, 1, 0.50)
 
     signal popout()
 
@@ -52,6 +58,8 @@ Item {
         QGCLabel {
             id:                 pageNameLabel
             font.pointSize:     ScreenTools.largeFontPointSize
+            color:              _teal
+            font.bold:          true
             visible:            !popped
         }
         QGCLabel {
@@ -59,6 +67,7 @@ Item {
             anchors.left:       parent.left
             anchors.right:      parent.right
             wrapMode:           Text.WordWrap
+            color:              _dimText
         }
     }
 
@@ -75,19 +84,36 @@ Item {
         }
     }
 
-    QGCColoredImage {
+    // Popout button — teal icon with hover glow
+    Rectangle {
         id:                     floatIcon
         anchors.verticalCenter: headerLoader.visible ? headerLoader.verticalCenter : headingColumn.verticalCenter
         anchors.right:          parent.right
-        width:                  ScreenTools.defaultFontPixelHeight * 2
+        width:                  ScreenTools.defaultFontPixelHeight * 2.2
         height:                 width
-        sourceSize.width:       width
-        source:                 "/qmlimages/FloatingWindow.svg"
-        fillMode:               Image.PreserveAspectFit
-        color:                  qgcPal.text
+        radius:                 ScreenTools.defaultFontPixelHeight * 0.4
+        color:                  floatMa.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
+        border.width:           floatMa.containsMouse ? 1 : 0
+        border.color:           _tealBorder
         visible:                allowPopout && !popped && !ScreenTools.isMobile
+
+        Behavior on color { ColorAnimation { duration: 150 } }
+
+        QGCColoredImage {
+            anchors.centerIn:   parent
+            width:              ScreenTools.defaultFontPixelHeight * 1.6
+            height:             width
+            sourceSize.width:   width
+            source:             "/qmlimages/FloatingWindow.svg"
+            fillMode:           Image.PreserveAspectFit
+            color:              floatMa.containsMouse ? _teal : Qt.rgba(1,1,1,0.60)
+        }
+
         MouseArea {
+            id:             floatMa
             anchors.fill:   parent
+            hoverEnabled:   true
+            cursorShape:    Qt.PointingHandCursor
             onClicked:      popout()
         }
     }

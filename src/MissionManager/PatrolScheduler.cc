@@ -102,6 +102,7 @@ void PatrolScheduler::updatePatrol(const QString& droneUID)
                 if (!vehicle) {
                     qWarning() << "PatrolScheduler: vehicle missing at trigger"
                                << vehicleId;
+                    emit patrolFailed(vehicleId, "Vehicle not connected");
                     return;
                 }
 
@@ -128,6 +129,8 @@ void PatrolScheduler::updatePatrol(const QString& droneUID)
                                    loopMode,
                                    loopCount,
                                    durationMin);
+
+                emit patrolTriggered(vehicleId);
             });
 
     runtime.timer->start(static_cast<int>(msecsToTrigger));
@@ -135,6 +138,8 @@ void PatrolScheduler::updatePatrol(const QString& droneUID)
     qInfo() << "PatrolScheduler: patrol scheduled for vehicle"
             << vehicleId
             << "at" << trigger.toString(Qt::ISODate);
+
+    emit patrolScheduled(vehicleId, trigger.toString("yyyy-MM-dd HH:mm"));
 }
 
 void PatrolScheduler::_sendPatrolCommand(Vehicle* vehicle, float speedMps, int loopMode, int loopCount, int durationMin)
@@ -161,6 +166,48 @@ void PatrolScheduler::_sendPatrolCommand(Vehicle* vehicle, float speedMps, int l
         0.0f,
         0.0f
         );
+}
+
+void PatrolScheduler::checkAllPendingSchedules()
+{
+    const QString iniPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+        + "/patrol.ini";
+
+    QSettings settings(iniPath, QSettings::IniFormat);
+    const QStringList groups = settings.childGroups();
+
+    for (const QString& group : groups) {
+        if (!group.startsWith("Patrol_"))
+            continue;
+
+        const QString droneUID = group.mid(7);  // strip "Patrol_"
+
+        settings.beginGroup(group);
+        const bool enabled = settings.value("Enabled", false).toBool();
+        const QString timeStr = settings.value("StartTime").toString();
+        const QDate date = QDate::fromString(
+            settings.value("StartDate").toString(), Qt::ISODate);
+        settings.endGroup();
+
+        if (!enabled || timeStr.isEmpty() || !date.isValid())
+            continue;
+
+        const QTime time = QTime::fromString(timeStr, "HH:mm");
+        if (!time.isValid())
+            continue;
+
+        const QDateTime target(date, time);
+        if (target <= QDateTime::currentDateTime()) {
+            qInfo() << "PatrolScheduler: startup — patrol for drone"
+                     << droneUID << "at" << target << "is in the past, skipping";
+            continue;
+        }
+
+        qInfo() << "PatrolScheduler: startup — re-scheduling patrol for drone"
+                 << droneUID << "at" << target;
+        updatePatrol(droneUID);
+    }
 }
 
 void PatrolScheduler::vehicleRemoved(Vehicle* vehicle)

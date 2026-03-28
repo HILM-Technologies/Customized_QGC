@@ -24,9 +24,26 @@ Button {
     property real _hzWidth:     ScreenTools.defaultFontPixelWidth * 6
     property real _nameWidth:   nameLabel.contentWidth
 
+    readonly property color _teal:       "#00BFFF"
+    readonly property color _tealDim:    Qt.rgba(0, 0.749, 1.0, 0.14)
+    readonly property color _tealBorder: Qt.rgba(0, 0.749, 1.0, 0.32)
+
     background: Rectangle {
         anchors.fill:   parent
-        color:          checked ? qgcPal.buttonHighlight : qgcPal.button
+        color:          checked ? _tealDim : "transparent"
+        radius:         ScreenTools.defaultFontPixelHeight * 0.3
+        border.width:   checked ? 1 : 0
+        border.color:   checked ? _tealBorder : "transparent"
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+
+        // Hover effect
+        Rectangle {
+            anchors.fill: parent
+            radius:       parent.radius
+            color:        Qt.rgba(0, 0.749, 1.0, 0.06)
+            visible:      control.hovered && !control.checked
+        }
     }
 
     property double messageHz:  0
@@ -38,24 +55,27 @@ Button {
 
         QGCLabel {
             text:                   control.compID
-            color:                  checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  checked ? _teal : Qt.rgba(1,1,1,0.40)
             verticalAlignment:      Text.AlignVCenter
             Layout.minimumHeight:   ScreenTools.isMobile ? (ScreenTools.defaultFontPixelHeight * 2) : (ScreenTools.defaultFontPixelHeight * 1.5)
             Layout.minimumWidth:    _compIDWidth
+            font.family:            ScreenTools.fixedFontFamily
         }
         QGCLabel {
             id:                     nameLabel
             text:                   control.text
-            color:                  checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  checked ? "#FFFFFF" : Qt.rgba(1,1,1,0.70)
             Layout.fillWidth:       true
             Layout.alignment:       Qt.AlignVCenter
+            font.bold:              checked
         }
         QGCLabel {
-            color:                  checked ? qgcPal.buttonHighlightText : qgcPal.buttonText
+            color:                  checked ? _teal : Qt.rgba(1,1,1,0.40)
             text:                   messageHz.toFixed(1) + 'Hz'
             horizontalAlignment:    Text.AlignRight
             Layout.minimumWidth:    _hzWidth
             Layout.alignment:       Qt.AlignVCenter
+            font.family:            ScreenTools.fixedFontFamily
         }
     }
 

@@ -54,6 +54,17 @@ Rectangle {
     readonly property color _errColor:   "#FF5252"
     readonly property real  _pad:        ScreenTools.defaultFontPixelWidth
 
+    // AI state for this drone card
+    property bool _aiEnabled: false
+    property int  _aiModelIdx: 0
+    readonly property var _aiModelNames: [
+        "VEHICLE & HUMAN",
+        "POWER LINE",
+        "BUILDING FACADE",
+        "WIND TURBINE",
+        "SOLAR PANEL"
+    ]
+
     // Vehicle states
     property bool _isConnected:  vehicle && !vehicle.vehicleLinkManager.communicationLost
     property bool _isFlying:     vehicle ? (vehicle.armed && vehicle.flying) : false
@@ -168,6 +179,40 @@ Rectangle {
                 radius:  width / 2
                 color:   _isConnected ? _okColor : _errColor
                 visible: vehicle !== null
+            }
+
+            // Recording timer (shown when recording)
+            Row {
+                spacing: _pad * 0.25
+                visible: recordBtn._isRecording
+
+                Rectangle {
+                    id: headerRecDot
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:  ScreenTools.defaultFontPixelHeight * 0.35
+                    height: width; radius: width / 2
+                    color:  _errColor
+                    SequentialAnimation on opacity {
+                        running: recordBtn._isRecording
+                        loops:   Animation.Infinite
+                        NumberAnimation { to: 0.3; duration: 600 }
+                        NumberAnimation { to: 1.0; duration: 600 }
+                    }
+                    Binding { target: headerRecDot; property: "opacity"; value: 1.0; when: !recordBtn._isRecording }
+                }
+                QGCLabel {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: {
+                        if (!vehicle || !vehicle.flightPathRecorder) return ""
+                        var secs = vehicle.flightPathRecorder.elapsedSeconds
+                        var m = Math.floor(secs / 60)
+                        var s = secs % 60
+                        return m + ":" + (s < 10 ? "0" : "") + s
+                    }
+                    color: _errColor
+                    font.pointSize: ScreenTools.defaultFontPointSize * 0.7
+                    font.bold: true
+                }
             }
 
             // Status badge
@@ -335,27 +380,233 @@ Rectangle {
         }
 
         // ════════════════════════════════════
-        // CHANGE MODE button (per-vehicle)
+        // AI Detection Toggle + Model Selector
         // ════════════════════════════════════
         Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: _pad * 0.3
+            height:           1
+            color:            Qt.rgba(1, 1, 1, 0.08)
+        }
+
+        // ── AI toggle button: OFF state = outline, ON state = teal filled with model name
+        Rectangle {
+            id: _aiBtn
             Layout.fillWidth:       true
-            Layout.topMargin:       _pad * 0.5
+            Layout.topMargin:       _pad * 0.4
             Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.2
             radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-            color:                  Qt.rgba(0, 0.749, 1.0, 0.07)
+            color:                  _aiEnabled ? Qt.rgba(0, 0.749, 1.0, 0.12)
+                                               : (_aiBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
             border.width:           1
-            border.color:           Qt.rgba(0, 0.749, 1.0, 0.35)
-            visible:                vehicle ? vehicle.flightModeSetAvailable : false
+            border.color:           _aiEnabled ? _teal : Qt.rgba(1, 1, 1, 0.15)
 
-            // FlightModeMenu fills the button — shows current mode, opens popup on click
-            FlightModeMenu {
-                anchors.fill:        parent
-                currentVehicle:      vehicle
-                color:               _teal
-                font.pointSize:      ScreenTools.defaultFontPointSize * 0.75
-                font.bold:           true
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment:   Text.AlignVCenter
+            Behavior on color        { ColorAnimation { duration: 120 } }
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+            // Left: green dot + AI label
+            Rectangle {
+                id: _aiDot
+                anchors.left:           parent.left
+                anchors.leftMargin:     _pad * 0.8
+                anchors.verticalCenter: parent.verticalCenter
+                width:  ScreenTools.defaultFontPixelHeight * 0.55
+                height: width
+                radius: width / 2
+                color:  _aiEnabled ? _okColor : Qt.rgba(1, 1, 1, 0.25)
+
+                SequentialAnimation on opacity {
+                    id: _dotPulse
+                    running: _aiEnabled
+                    loops:   Animation.Infinite
+                    NumberAnimation { to: 0.4; duration: 700 }
+                    NumberAnimation { to: 1.0; duration: 700 }
+                }
+                Component.onCompleted: if (!_aiEnabled) opacity = 1.0
+                onVisibleChanged:      if (!_aiEnabled) opacity = 1.0
+            }
+
+            QGCLabel {
+                id: _aiLabel
+                anchors.left:           _aiDot.right
+                anchors.leftMargin:     _pad * 0.4
+                anchors.verticalCenter: parent.verticalCenter
+                text:           "AI"
+                color:          _aiEnabled ? "white" : _dimText
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                font.bold:      true
+            }
+
+            // Right: model name + arrow (when ON) or "DISABLED" (when OFF)
+            QGCLabel {
+                anchors.left:           _aiLabel.right
+                anchors.leftMargin:     _pad * 0.6
+                anchors.right:          _aiArrow.left
+                anchors.rightMargin:    _pad * 0.3
+                anchors.verticalCenter: parent.verticalCenter
+                text:           _aiEnabled ? _aiModelNames[_aiModelIdx] : "DISABLED"
+                color:          _aiEnabled ? _teal : Qt.rgba(1, 1, 1, 0.30)
+                font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                font.bold:      _aiEnabled
+                font.letterSpacing: 0.3
+                elide:          Text.ElideRight
+                horizontalAlignment: Text.AlignRight
+            }
+
+            QGCColoredImage {
+                id:      _aiArrow
+                anchors.right:          parent.right
+                anchors.rightMargin:    _pad * 0.8
+                anchors.verticalCenter: parent.verticalCenter
+                width:    ScreenTools.defaultFontPixelHeight * 0.65
+                height:   width
+                source:   "/InstrumentValueIcons/arrow-simple-down.svg"
+                color:    _aiEnabled ? _teal : _dimText
+                fillMode: Image.PreserveAspectFit
+                rotation: _aiModelPopup.visible ? 180 : 0
+                Behavior on rotation { NumberAnimation { duration: 150 } }
+            }
+
+            // Click on dot/AI text area = toggle on/off
+            MouseArea {
+                anchors.left:   parent.left
+                anchors.top:    parent.top
+                anchors.bottom: parent.bottom
+                width:          _aiLabel.x + _aiLabel.width + _pad * 0.5
+                cursorShape:    Qt.PointingHandCursor
+                onClicked: {
+                    _aiEnabled = !_aiEnabled
+                    if (!_aiEnabled) _aiModelPopup.visible = false
+                }
+            }
+
+            // Click on model name / arrow area = open dropdown (or turn on if off)
+            MouseArea {
+                id:             _aiBtnMouse
+                anchors.left:   _aiLabel.right
+                anchors.right:  parent.right
+                anchors.top:    parent.top
+                anchors.bottom: parent.bottom
+                hoverEnabled:   true
+                cursorShape:    Qt.PointingHandCursor
+                onClicked: {
+                    if (!_aiEnabled) {
+                        _aiEnabled = true
+                    } else {
+                        _aiModelPopup.visible = !_aiModelPopup.visible
+                    }
+                }
+            }
+        }
+
+        // ── Model selection popup (dark themed dropdown)
+        Rectangle {
+            id: _aiModelPopup
+            Layout.fillWidth: true
+            visible:          false
+            implicitHeight:   _popupCol.implicitHeight + _pad * 0.6
+            radius:           ScreenTools.defaultFontPixelHeight * 0.3
+            color:            Qt.rgba(0.05, 0.07, 0.10, 0.95)
+            border.width:     1
+            border.color:     _teal
+
+            ColumnLayout {
+                id: _popupCol
+                anchors.left:    parent.left
+                anchors.right:   parent.right
+                anchors.top:     parent.top
+                anchors.margins: _pad * 0.3
+                spacing:         1
+
+                Repeater {
+                    model: _aiModelNames
+
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.0
+                        radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+                        color: {
+                            if (_aiModelIdx === index)
+                                return Qt.rgba(0, 0.749, 1.0, 0.18)
+                            return _popItemMouse.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.08) : "transparent"
+                        }
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        QGCLabel {
+                            anchors.left:           parent.left
+                            anchors.leftMargin:     _pad * 0.8
+                            anchors.verticalCenter: parent.verticalCenter
+                            text:           modelData
+                            color:          _aiModelIdx === index ? _teal : Qt.rgba(1, 1, 1, 0.70)
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                            font.bold:      _aiModelIdx === index
+                            font.letterSpacing: 0.3
+                        }
+
+                        // Checkmark for selected
+                        QGCLabel {
+                            anchors.right:          parent.right
+                            anchors.rightMargin:    _pad * 0.8
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible:        _aiModelIdx === index
+                            text:           "\u2713"
+                            color:          _teal
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                            font.bold:      true
+                        }
+
+                        MouseArea {
+                            id:           _popItemMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                _aiModelIdx = index
+                                _aiModelPopup.visible = false
+                            }
+                        }
+                    }
+                }
+
+                // ── Disable AI option at bottom
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 1
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.0
+                    radius: ScreenTools.defaultFontPixelHeight * 0.2
+                    color:  _popOffMouse.containsMouse ? Qt.rgba(1, 0.3, 0.3, 0.10) : "transparent"
+
+                    Rectangle {
+                        anchors.top:   parent.top
+                        anchors.left:  parent.left
+                        anchors.right: parent.right
+                        height: 1
+                        color:  Qt.rgba(1, 1, 1, 0.08)
+                    }
+
+                    QGCLabel {
+                        anchors.left:           parent.left
+                        anchors.leftMargin:     _pad * 0.8
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:           "DISABLE AI"
+                        color:          _errColor
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.75
+                        font.bold:      true
+                        font.letterSpacing: 0.3
+                    }
+
+                    MouseArea {
+                        id:           _popOffMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked: {
+                            _aiEnabled = false
+                            _aiModelPopup.visible = false
+                        }
+                    }
+                }
             }
         }
 
@@ -370,31 +621,51 @@ Rectangle {
         }
 
         Rectangle {
+            id: recordBtn
             Layout.fillWidth:       true
             Layout.topMargin:       _pad * 0.3
-            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.2
-            radius:                 ScreenTools.defaultFontPixelHeight * 0.3
-            color:                  recordManualArea.containsMouse ? Qt.rgba(1, 0.3, 0, 0.12) : "transparent"
-            border.width:           1
-            border.color:           Qt.rgba(1, 0.3, 0, 0.45)
+            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+            radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+
+            property bool _isRecording: vehicle && vehicle.flightPathRecorder ? vehicle.flightPathRecorder.recording : false
+
+            color: {
+                if (_isRecording)
+                    return recordManualArea.containsMouse ? "#E53935" : _errColor
+                return recordManualArea.containsMouse ? Qt.rgba(1, 0.3, 0, 0.12) : "transparent"
+            }
+            border.width: _isRecording ? 0 : 1
+            border.color: Qt.rgba(1, 0.3, 0, 0.45)
+
+            Behavior on color { ColorAnimation { duration: 150 } }
 
             RowLayout {
                 anchors.centerIn: parent
-                spacing:          _pad * 0.5
+                spacing:          _pad * 0.6
 
-                // Red recording dot
+                // Not recording: pulsing red dot | Recording: white stop square
                 Rectangle {
-                    width:   ScreenTools.defaultFontPixelHeight * 0.45
+                    id: recIcon
+                    width:   ScreenTools.defaultFontPixelHeight * 0.55
                     height:  width
-                    radius:  width / 2
-                    color:   _errColor
+                    radius:  recordBtn._isRecording ? ScreenTools.defaultFontPixelHeight * 0.06 : width / 2
+                    color:   recordBtn._isRecording ? "white" : _errColor
+
+                    SequentialAnimation on opacity {
+                        running: !recordBtn._isRecording
+                        loops:   Animation.Infinite
+                        NumberAnimation { to: 0.35; duration: 700 }
+                        NumberAnimation { to: 1.0;  duration: 700 }
+                    }
+                    Binding { target: recIcon; property: "opacity"; value: 1.0; when: recordBtn._isRecording }
                 }
+
                 QGCLabel {
-                    text:               "RECORD MANUAL CONTROL"
+                    text: recordBtn._isRecording ? "STOP RECORDING" : "RECORD MANUAL CONTROL"
                     color:              "white"
-                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
                     font.bold:          true
-                    font.letterSpacing: 0.5
+                    font.letterSpacing: 0.6
                 }
             }
 
@@ -402,10 +673,39 @@ Rectangle {
                 id:             recordManualArea
                 anchors.fill:   parent
                 hoverEnabled:   true
+                cursorShape:    Qt.PointingHandCursor
                 onClicked: {
-                    // TODO: implement manual control recording
+                    if (!vehicle || !vehicle.flightPathRecorder)
+                        return
+                    var rec = vehicle.flightPathRecorder
+                    if (rec.recording) {
+                        rec.stopRecording()
+                    } else {
+                        rec.startRecording()
+                    }
                 }
             }
+        }
+    }
+
+    // ── Save dialog after recording stops ──
+    Connections {
+        target: vehicle && vehicle.flightPathRecorder ? vehicle.flightPathRecorder : null
+        function onRecordingStopped() {
+            _recordSaveDialog.openForSave()
+        }
+    }
+
+    QGCFileDialog {
+        id:             _recordSaveDialog
+        title:          qsTr("Save Recorded Flight Path")
+        nameFilters:    [qsTr("Plan Files (*.plan)")]
+        defaultSuffix:  "plan"
+        onAcceptedForSave: (file) => {
+            if (vehicle && vehicle.flightPathRecorder) {
+                vehicle.flightPathRecorder.saveToFile(file)
+            }
+            close()
         }
     }
 

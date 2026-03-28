@@ -90,6 +90,24 @@ ApplicationWindow {
     /// Default color palette used throughout the UI
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
+    // ── Patrol Scheduler notifications ──
+    Connections {
+        target: globals.planMasterControllerFlyView ? globals.planMasterControllerFlyView.patrolScheduler : null
+        function onPatrolTriggered(vehicleId) {
+            mainWindow.showMessageDialog(
+                qsTr("Patrol Started"),
+                qsTr("Scheduled patrol triggered for Vehicle %1. Patrol command sent to companion computer.").arg(vehicleId))
+        }
+        function onPatrolScheduled(vehicleId, dateTime) {
+            console.log("Patrol scheduled for Vehicle", vehicleId, "at", dateTime)
+        }
+        function onPatrolFailed(vehicleId, reason) {
+            mainWindow.showMessageDialog(
+                qsTr("Patrol Failed"),
+                qsTr("Patrol for Vehicle %1 failed: %2").arg(vehicleId).arg(reason))
+        }
+    }
+
     //-------------------------------------------------------------------------
     //-- Actions
 
@@ -487,11 +505,12 @@ ApplicationWindow {
                         Layout.fillWidth:   true
                         text:               qsTr("Analyze Tools")
                         imageResource:      "/qmlimages/Analyze.svg"
-                        visible:            QGroundControl.corePlugin.showAdvancedUI
                         onClicked: {
                             if (mainWindow.allowViewSwitch()) {
                                 mainWindow.closeIndicatorDrawer()
-                                mainWindow.showAnalyzeTool()
+                                hilmNavBar.activeTab = 5
+                                mainWindow._switchToTab(5)
+                                hilmSetupView._activeTab = 4
                             }
                         }
                     }

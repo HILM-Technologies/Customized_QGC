@@ -53,6 +53,7 @@ class AutoPilotPlugin;
 class Autotune;
 class ComponentInformationManager;
 class EmergencyController;
+class FlightPathRecorder;
 class EventHandler;
 class FirmwarePlugin;
 class FTPManager;
@@ -98,6 +99,7 @@ class Vehicle : public VehicleFactGroup
     Q_MOC_INCLUDE("ParameterManager.h")
     Q_MOC_INCLUDE("VehicleObjectAvoidance.h")
     Q_MOC_INCLUDE("Autotune.h")
+    Q_MOC_INCLUDE("FlightPathRecorder.h")
     Q_MOC_INCLUDE("RemoteIDManager.h")
     Q_MOC_INCLUDE("Actuators.h")
     Q_MOC_INCLUDE("MAVLinkLogManager.h")
@@ -230,7 +232,8 @@ public:
     Q_PROPERTY(QGCMapCircle*    orbitMapCircle  READ orbitMapCircle     CONSTANT)
 
      // The following properties relate to emergency deployment
-    Q_PROPERTY(EmergencyController* emergencyController READ emergencyController CONSTANT)
+    Q_PROPERTY(EmergencyController*  emergencyController  READ emergencyController  CONSTANT)
+    Q_PROPERTY(FlightPathRecorder*  flightPathRecorder   READ flightPathRecorder   CONSTANT)
 
     // Vehicle state used for guided control
     Q_PROPERTY(bool     flying                  READ flying                                         NOTIFY flyingChanged)       ///< Vehicle is flying
@@ -572,6 +575,7 @@ public:
     bool            orbitActive                 () const { return _orbitActive; }
     QGCMapCircle*   orbitMapCircle              () { return &_orbitMapCircle; }
     EmergencyController* emergencyController    () const { return _emergencyController; }
+    FlightPathRecorder*  flightPathRecorder     () const { return _flightPathRecorder; }
 
     bool            readyToFlyAvailable         () const{ return _readyToFlyAvailable; }
     bool            readyToFly                  () const{ return _readyToFly; }
@@ -1275,6 +1279,7 @@ private:
     RemoteIDManager*                _remoteIDManager            = nullptr;
     StandardModes*                  _standardModes              = nullptr;
     EmergencyController*            _emergencyController        = nullptr;
+    FlightPathRecorder*             _flightPathRecorder         = nullptr;
 
 
     // Terrain query members, used to get terrain altitude for doSetHome()

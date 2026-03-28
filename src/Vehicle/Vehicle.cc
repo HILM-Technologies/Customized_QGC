@@ -14,6 +14,7 @@
 #include "AutoPilotPlugin.h"
 #include "ComponentInformationManager.h"
 #include "EmergencyController.h"
+#include "FlightPathRecorder.h"
 #include "EventHandler.h"
 #include "FirmwarePlugin.h"
 #include "FirmwarePluginManager.h"
@@ -313,6 +314,7 @@ void Vehicle::_commonInit(LinkInterface* link)
     _remoteIDManager = new RemoteIDManager(this);
 
     _emergencyController = new EmergencyController(this, this);
+    _flightPathRecorder  = new FlightPathRecorder(this, this);
 
 
 

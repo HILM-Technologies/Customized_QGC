@@ -44,7 +44,7 @@ void PatrolController::setAvailableDrones(const QStringList& drones)
 
         _config.droneUID.clear();
         emit droneUIDChanged(_config.droneUID);
-           // cancel timer
+        // Timer cleanup handled by PatrolScheduler::vehicleRemoved
     }
 
     emit availableDronesChanged();
@@ -267,7 +267,7 @@ void PatrolController::removeAll()
     emit startDateChanged(_config.startDate);
     emit droneUIDChanged(_config.droneUID);
 
-     // cancel timer
+    // Timer cleanup handled by PatrolScheduler via patrolConfigChanged signal
     setDirty(true);
 }
 
@@ -342,7 +342,6 @@ void PatrolController::setStartDate(const QDate& d)
         _config.startDate = d;
         emit startDateChanged(d);
         setDirty(true);
-
     }
 }
 
