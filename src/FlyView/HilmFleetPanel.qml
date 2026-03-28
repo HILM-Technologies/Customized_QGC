@@ -32,6 +32,62 @@ Item {
 
     property var _vehicleModel: QGroundControl.multiVehicleManager.vehicles
 
+    // ── Multi-selection state
+    property var  selectedVehicles: []
+    property int  _selectionRev:    0          // bump to trigger binding updates
+
+    function isVehicleSelected(vehicle) {
+        // Read _selectionRev so bindings re-evaluate
+        void _selectionRev
+        if (!vehicle) return false
+        for (var i = 0; i < selectedVehicles.length; i++) {
+            if (selectedVehicles[i] === vehicle) return true
+        }
+        return false
+    }
+
+    function toggleVehicleSelection(vehicle) {
+        if (!vehicle) return
+        var idx = -1
+        for (var i = 0; i < selectedVehicles.length; i++) {
+            if (selectedVehicles[i] === vehicle) { idx = i; break }
+        }
+        if (idx !== -1)
+            selectedVehicles.splice(idx, 1)
+        else
+            selectedVehicles.push(vehicle)
+        _selectionRev++
+        selectedVehiclesChanged()
+    }
+
+    function selectAll() {
+        selectedVehicles = []
+        if (_vehicleModel) {
+            for (var i = 0; i < _vehicleModel.count; i++)
+                selectedVehicles.push(_vehicleModel.get(i))
+        }
+        _selectionRev++
+        selectedVehiclesChanged()
+    }
+
+    function unselectAll() {
+        selectedVehicles = []
+        _selectionRev++
+        selectedVehiclesChanged()
+    }
+
+    property bool _allSelected: {
+        void _selectionRev
+        return _vehicleModel
+            ? (selectedVehicles.length === _vehicleModel.count && _vehicleModel.count > 0)
+            : false
+    }
+
+    property bool _hasSelection: {
+        void _selectionRev
+        return selectedVehicles.length > 0
+    }
+
     // ── Main panel body (stops before collapse handle)
     Rectangle {
         id: panelBody
@@ -94,6 +150,59 @@ Item {
                 }
             }
 
+            // ── Select All / Unselect All bar
+            Item {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.6
+                visible:                _vehicleModel && _vehicleModel.count > 0
+
+                // Selected count (left)
+                QGCLabel {
+                    anchors.left:           parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text:                   _hasSelection
+                                                ? selectedVehicles.length + " of " + _vehicleModel.count + " selected"
+                                                : _vehicleModel.count + " drones"
+                    color:                  _hasSelection ? _teal : _dimText
+                    font.pointSize:         ScreenTools.defaultFontPointSize * 0.7
+                    font.letterSpacing:     0.3
+                }
+
+                // Select All / Unselect All button (right)
+                Rectangle {
+                    anchors.right:          parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width:                  selectAllLabel.implicitWidth + _pad * 2
+                    height:                 ScreenTools.defaultFontPixelHeight * 1.5
+                    radius:                 height / 2
+                    color:                  selectAllArea.containsMouse
+                                                ? Qt.rgba(0, 0.749, 1.0, 0.15)
+                                                : "transparent"
+                    border.width:           1
+                    border.color:           selectAllArea.containsMouse
+                                                ? _teal
+                                                : Qt.rgba(0, 0.749, 1.0, 0.25)
+
+                    QGCLabel {
+                        id:                 selectAllLabel
+                        anchors.centerIn:   parent
+                        text:               _allSelected ? "UNSELECT ALL" : "SELECT ALL"
+                        color:              _teal
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.65
+                        font.bold:          true
+                        font.letterSpacing: 0.5
+                    }
+
+                    MouseArea {
+                        id:           selectAllArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    _allSelected ? unselectAll() : selectAll()
+                    }
+                }
+            }
+
             // ── Vehicle List (scrollable, fills remaining space)
             QGCFlickable {
                 Layout.fillWidth:   true
@@ -112,6 +221,11 @@ Item {
                         delegate: HilmDroneCard {
                             Layout.fillWidth: true
                             vehicle:          object
+                            isMultiSelected:  fleetPanel.isVehicleSelected(object)
+
+                            onSelectionToggled: function(v) {
+                                fleetPanel.toggleVehicleSelection(v)
+                            }
                         }
                     }
 
