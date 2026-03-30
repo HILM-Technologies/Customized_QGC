@@ -46,6 +46,21 @@ Item {
                                                                 rightPanelRoot.height * 0.10))
     readonly property real _sectionGap:      _pad * 1.2
 
+    // ── Multi-selection from fleet panel
+    property var selectedVehicles:  []
+    property int selectionRevision: 0
+
+    // Returns selected vehicles if any, otherwise the active vehicle as a single-element array
+    function targetVehicles() {
+        // Read selectionRevision to ensure binding updates
+        void selectionRevision
+        if (selectedVehicles.length > 0)
+            return selectedVehicles
+        if (_activeVehicle)
+            return [_activeVehicle]
+        return []
+    }
+
     property var _activeVehicle:    QGroundControl.multiVehicleManager.activeVehicle
     property var _guidedController: globals.guidedControllerFlyView
     property var _emergency:        _activeVehicle ? _activeVehicle.emergencyController : null
@@ -202,8 +217,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.armed = true
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].armed = true
                             }
                         }
                     }
@@ -251,8 +267,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.armed = false
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].armed = false
                             }
                         }
                     }
@@ -300,8 +317,9 @@ Item {
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
-                                if (_activeVehicle)
-                                    _activeVehicle.guidedModeRTL(false)
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++)
+                                    targets[i].guidedModeRTL(false)
                             }
                         }
                     }
@@ -400,6 +418,262 @@ Item {
                                 if (!_activeVehicle || !_emergency) return
                                 if (_emergencyActive || _emergencySelecting || _emergencyTargetSet) return
                                 _emergency.startEmergencySelect()
+                            }
+                        }
+                    }
+                }
+
+                // ── TAKEOFF  (full-width, teal accent — active when armed & on ground)
+                Item {
+                    Layout.fillWidth:       true
+                    Layout.columnSpan:      2
+                    Layout.preferredHeight: _actionBtnHeight
+
+                    property bool _canTakeoff: {
+                        var targets = targetVehicles()
+                        for (var i = 0; i < targets.length; i++) {
+                            if (targets[i].armed && !targets[i].flying)
+                                return true
+                        }
+                        return false
+                    }
+
+                    Rectangle {
+                        id: takeoffBtn
+                        anchors.fill: parent
+                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
+                        color:        takeoffArea.containsMouse && parent._canTakeoff
+                                        ? Qt.rgba(0, 0.749, 1.0, 0.20)
+                                        : Qt.rgba(0, 0.749, 1.0, 0.07)
+                        border.width: 1.5
+                        border.color: parent._canTakeoff
+                                        ? (takeoffArea.containsMouse ? _teal : Qt.rgba(0, 0.749, 1.0, 0.55))
+                                        : Qt.rgba(1, 1, 1, 0.12)
+                        opacity:      _activeVehicle ? 1.0 : 0.45
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing:          _pad * 0.7
+
+                            QGCColoredImage {
+                                width:    ScreenTools.defaultFontPixelHeight * 1.6
+                                height:   width
+                                source:   "/qmlimages/takeoff.svg"
+                                color:    parent.parent.parent._canTakeoff
+                                            ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
+                                            : Qt.rgba(1, 1, 1, 0.35)
+                                fillMode: Image.PreserveAspectFit
+                            }
+                            QGCLabel {
+                                text:               "TAKEOFF"
+                                color:              parent.parent.parent._canTakeoff
+                                                        ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
+                                                        : Qt.rgba(1, 1, 1, 0.35)
+                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
+                                font.bold:          true
+                                font.letterSpacing: 0.8
+                            }
+                        }
+
+                        MouseArea {
+                            id:          takeoffArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            enabled:      takeoffBtn.parent._canTakeoff
+                            onClicked: {
+                                var targets = targetVehicles()
+                                for (var i = 0; i < targets.length; i++) {
+                                    if (targets[i].armed && !targets[i].flying) {
+                                        QGroundControl.multiVehicleManager.activeVehicle = targets[i]
+                                        _guidedController.confirmAction(_guidedController.actionTakeoff)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ══════════════════════════════════
+            // CHANGE MODE — toggle panel with mode chips
+            // ══════════════════════════════════
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.topMargin:       _pad * 0.8
+                Layout.preferredHeight: changeModeBtn.height
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color:                  changeModeArea.containsMouse
+                                            ? Qt.rgba(0, 0.749, 1.0, 0.14)
+                                            : Qt.rgba(0, 0.749, 1.0, 0.06)
+                border.width:           1
+                border.color:           modePanel.visible
+                                            ? _teal
+                                            : (changeModeArea.containsMouse
+                                                ? Qt.rgba(0, 0.749, 1.0, 0.55)
+                                                : Qt.rgba(0, 0.749, 1.0, 0.30))
+                opacity:                _activeVehicle ? 1.0 : 0.45
+
+                RowLayout {
+                    id: changeModeBtn
+                    anchors.left:   parent.left
+                    anchors.right:  parent.right
+                    height:         ScreenTools.defaultFontPixelHeight * 2.8
+                    anchors.margins: _pad
+
+                    QGCColoredImage {
+                        Layout.alignment:   Qt.AlignVCenter
+                        width:              ScreenTools.defaultFontPixelHeight * 1.2
+                        height:             width
+                        source:             "/qmlimages/PaperPlane.svg"
+                        color:              _teal
+                        fillMode:           Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        Layout.fillWidth:   true
+                        text:               "CHANGE MODE"
+                        color:              _teal
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
+                        font.bold:          true
+                        font.letterSpacing: 0.8
+                        verticalAlignment:  Text.AlignVCenter
+                    }
+
+                    // Current mode indicator (from active vehicle)
+                    Rectangle {
+                        visible:            _activeVehicle !== null
+                        Layout.alignment:   Qt.AlignVCenter
+                        width:              currentModeLabel.implicitWidth + _pad * 1.6
+                        height:             ScreenTools.defaultFontPixelHeight * 1.4
+                        radius:             height / 2
+                        color:              Qt.rgba(0, 0.749, 1.0, 0.12)
+                        border.width:       1
+                        border.color:       Qt.rgba(0, 0.749, 1.0, 0.30)
+
+                        QGCLabel {
+                            id:                 currentModeLabel
+                            anchors.centerIn:   parent
+                            text:               _activeVehicle ? _activeVehicle.flightMode : "--"
+                            color:              "white"
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.7
+                            font.bold:          true
+                            font.letterSpacing: 0.3
+                        }
+                    }
+
+                    // Chevron
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignVCenter
+                        text:             modePanel.visible ? "\u25B2" : "\u25BC"
+                        color:            _teal
+                        font.pointSize:   ScreenTools.defaultFontPointSize * 0.65
+                    }
+                }
+
+                MouseArea {
+                    id:             changeModeArea
+                    anchors.fill:   parent
+                    hoverEnabled:   true
+                    cursorShape:    Qt.PointingHandCursor
+                    onClicked:      modePanel.visible = !modePanel.visible
+                }
+            }
+
+            // Flight mode chips panel (expandable)
+            Rectangle {
+                id:                     modePanel
+                Layout.fillWidth:       true
+                Layout.preferredHeight: modePanelContent.implicitHeight + _pad * 1.6
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color:                  Qt.rgba(0, 0.04, 0.08, 0.90)
+                border.width:           1
+                border.color:           Qt.rgba(0, 0.749, 1.0, 0.20)
+                visible:                false
+                clip:                   true
+
+                ColumnLayout {
+                    id:                 modePanelContent
+                    anchors.left:       parent.left
+                    anchors.right:      parent.right
+                    anchors.top:        parent.top
+                    anchors.margins:    _pad * 0.8
+                    spacing:            _pad * 0.5
+
+                    // Section label
+                    QGCLabel {
+                        text:               "SELECT FLIGHT MODE"
+                        color:              Qt.rgba(1, 1, 1, 0.45)
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.65
+                        font.bold:          true
+                        font.letterSpacing: 1.0
+                    }
+
+                    // Mode chips grid
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing:          _pad * 0.5
+
+                        Repeater {
+                            model: _activeVehicle ? _activeVehicle.flightModes : []
+
+                            Rectangle {
+                                width:   modeChipLabel.implicitWidth + _pad * 2.4
+                                height:  ScreenTools.defaultFontPixelHeight * 2.2
+                                radius:  ScreenTools.defaultFontPixelHeight * 0.3
+                                property bool isCurrentMode: _activeVehicle && _activeVehicle.flightMode === modelData
+
+                                color: {
+                                    if (isCurrentMode) return Qt.rgba(0, 0.749, 1.0, 0.18)
+                                    return modeChipArea.containsMouse
+                                        ? Qt.rgba(0, 0.749, 1.0, 0.12)
+                                        : Qt.rgba(1, 1, 1, 0.04)
+                                }
+                                border.width: isCurrentMode ? 1.5 : 1
+                                border.color: {
+                                    if (isCurrentMode) return _teal
+                                    return modeChipArea.containsMouse
+                                        ? Qt.rgba(0, 0.749, 1.0, 0.50)
+                                        : Qt.rgba(1, 1, 1, 0.12)
+                                }
+
+                                Behavior on color        { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                // Active mode left accent
+                                Rectangle {
+                                    anchors.left:   parent.left
+                                    anchors.top:    parent.top
+                                    anchors.bottom: parent.bottom
+                                    width:          2.5
+                                    radius:         1.5
+                                    color:          _teal
+                                    visible:        parent.isCurrentMode
+                                }
+
+                                QGCLabel {
+                                    id:                 modeChipLabel
+                                    anchors.centerIn:   parent
+                                    text:               modelData
+                                    color:              parent.isCurrentMode ? _teal
+                                                            : (modeChipArea.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.70))
+                                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.75
+                                    font.bold:          parent.isCurrentMode || modeChipArea.containsMouse
+                                    font.letterSpacing: 0.3
+                                }
+
+                                MouseArea {
+                                    id:             modeChipArea
+                                    anchors.fill:   parent
+                                    hoverEnabled:   true
+                                    cursorShape:    Qt.PointingHandCursor
+                                    onClicked: {
+                                        var targets = targetVehicles()
+                                        for (var i = 0; i < targets.length; i++) {
+                                            targets[i].flightMode = modelData
+                                        }
+                                        modePanel.visible = false
+                                    }
+                                }
                             }
                         }
                     }

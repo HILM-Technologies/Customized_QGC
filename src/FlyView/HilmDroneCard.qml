@@ -13,16 +13,23 @@ import QGroundControl.Controls
 Rectangle {
     id: card
 
-    property var  vehicle:    null
-    property bool isSelected: vehicle && QGroundControl.multiVehicleManager.activeVehicle === vehicle
+    property var  vehicle:         null
+    property bool isSelected:      vehicle && QGroundControl.multiVehicleManager.activeVehicle === vehicle
+    property bool isMultiSelected: false
+
+    signal selectionToggled(var vehicle)
 
     width:          parent ? parent.width : 300
     implicitHeight: cardLayout.implicitHeight + _pad * 3.5
     height:         implicitHeight
     radius: ScreenTools.defaultFontPixelHeight * 0.35
-    color:        isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06) : Qt.rgba(1, 1, 1, 0.03)
-    border.width: 1
-    border.color: isSelected ? _teal : Qt.rgba(0, 0.749, 1.0, 0.25)
+    color:        isMultiSelected ? Qt.rgba(0, 0.749, 1.0, 0.10)
+                                   : isSelected ? Qt.rgba(0, 0.749, 1.0, 0.06)
+                                   : Qt.rgba(1, 1, 1, 0.03)
+    border.width: isMultiSelected ? 1.5 : 1
+    border.color: isMultiSelected ? _teal
+                                   : isSelected ? _teal
+                                   : Qt.rgba(0, 0.749, 1.0, 0.25)
 
     Behavior on border.color { ColorAnimation { duration: 180 } }
     Behavior on border.width { NumberAnimation  { duration: 180 } }
@@ -115,11 +122,46 @@ Rectangle {
         spacing:            _pad * 0.6
 
         // ════════════════════════════════════
-        // Row 1: Vehicle name + dot + badge
+        // Row 1: Checkbox + Vehicle name + dot + badge
         // ════════════════════════════════════
         RowLayout {
             Layout.fillWidth: true
             spacing: _pad * 0.6
+
+            // Multi-select checkbox (inline)
+            Rectangle {
+                id:           selectBox
+                Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.05
+                Layout.preferredHeight: Layout.preferredWidth
+                Layout.alignment:       Qt.AlignVCenter
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.15
+                color:                  isMultiSelected ? _teal : "transparent"
+                border.width:           1.5
+                border.color:           isMultiSelected ? _teal
+                                            : checkboxArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.6)
+                                            : Qt.rgba(1, 1, 1, 0.25)
+
+                Behavior on color        { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text:             "\u2713"
+                    color:            "white"
+                    font.pixelSize:   parent.width * 0.65
+                    font.bold:        true
+                    visible:          isMultiSelected
+                }
+
+                MouseArea {
+                    id:              checkboxArea
+                    anchors.fill:    parent
+                    anchors.margins: -_pad * 0.4
+                    hoverEnabled:    true
+                    cursorShape:     Qt.PointingHandCursor
+                    onClicked:       card.selectionToggled(vehicle)
+                }
+            }
 
             QGCLabel {
                 text:           vehicle ? qsTr("Vehicle") + " " + vehicle.id : "Unknown"
@@ -667,14 +709,13 @@ Rectangle {
         }
     }
 
-    // ── Click handler (z: -1 so record button stays clickable)
+    // ── Click handler (z:-1 so buttons inside the card receive events first)
     MouseArea {
-        z: -1
         anchors.fill: parent
+        z:            -1
         onClicked: {
-            if (vehicle) {
+            if (vehicle)
                 QGroundControl.multiVehicleManager.activeVehicle = vehicle
-            }
         }
     }
 }
