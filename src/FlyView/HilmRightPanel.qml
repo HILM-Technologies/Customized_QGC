@@ -780,8 +780,9 @@ Item {
                         videoArea.opsConnected = false
                     }
 
-                    // Only create new stream if video was explicitly requested
-                    if (opsCurrentVehicleId > 0 && opsVideoRequested) {
+                    // Auto-create stream for new vehicle
+                    if (opsCurrentVehicleId > 0) {
+                        opsVideoRequested = true
                         opsCreateTimer.pendingId   = opsCurrentVehicleId
                         opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
                         opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId

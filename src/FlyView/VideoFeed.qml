@@ -54,18 +54,44 @@ Item {
             clip: true
 
             QGCVideoBackground {
+                id: _videoBackground
                 anchors.fill: parent
                 objectName: streamId
 
-                Component.onCompleted: {
-                    if (!rtspUrl || rtspUrl === "") {
-                        console.log("VideoFeed skipping empty URL for:", streamId)
-                        return
+                property bool _streamStarted: false
+
+                function _startStream() {
+                    if (_streamStarted) return
+                    if (!root.rtspUrl || root.rtspUrl === "") return
+                    if (!root.streamId || root.streamId === "") return
+
+                    console.log("VideoFeed starting stream:", root.streamId, "URL:", root.rtspUrl)
+                    QGroundControl.videoManager.addCustomStream(root.streamId, root.rtspUrl)
+                    QGroundControl.videoManager.setCustomStreamWidget(root.streamId, _videoBackground)
+                    root.isConnected = QGroundControl.videoManager.isCustomStreamStreaming(root.streamId)
+                    _streamStarted = true
+                }
+
+                Component.onCompleted: _startStream()
+
+                // Watch for URL changes (e.g. vehicle connects after VideoFeed is created)
+                Connections {
+                    target: root
+                    function onRtspUrlChanged() {
+                        if (_videoBackground._streamStarted) {
+                            // URL changed — remove old stream and start new one
+                            QGroundControl.videoManager.removeCustomStream(root.streamId)
+                            _videoBackground._streamStarted = false
+                        }
+                        _videoBackground._startStream()
                     }
-                    console.log("VideoFeed completed for:", streamId, "URL:", rtspUrl)
-                    QGroundControl.videoManager.addCustomStream(streamId, rtspUrl)
-                    QGroundControl.videoManager.setCustomStreamWidget(streamId, this)
-                    root.isConnected = QGroundControl.videoManager.isCustomStreamStreaming(streamId)
+                    function onStreamIdChanged() {
+                        if (_videoBackground._streamStarted) {
+                            QGroundControl.videoManager.removeCustomStream(root.streamId)
+                            _videoBackground._streamStarted = false
+                        }
+                        _videoBackground._startStream()
+                    }
                 }
             }
 
