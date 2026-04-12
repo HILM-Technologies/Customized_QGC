@@ -17,19 +17,22 @@ Item {
     property bool showHeader: true
     property bool showBorder: true
 
+    // When false the stream is torn down (saves resources when the parent view is hidden)
+    property bool active: true
+
     signal fullscreenRequested()
 
     Connections {
         target: QGroundControl.videoManager
-        function onCustomStreamStreamingChanged(name, active) {
+        function onCustomStreamStreamingChanged(name, act) {
             if (name === streamId) {
-                isConnected = active
+                isConnected = act
             }
         }
     }
 
     Component.onDestruction: {
-        QGroundControl.videoManager.removeCustomStream(streamId)
+        _videoBackground._stopStream()
     }
 
     // Main Container
@@ -62,6 +65,7 @@ Item {
 
                 function _startStream() {
                     if (_streamStarted) return
+                    if (!root.active) return
                     if (!root.rtspUrl || root.rtspUrl === "") return
                     if (!root.streamId || root.streamId === "") return
 
@@ -72,24 +76,31 @@ Item {
                     _streamStarted = true
                 }
 
+                function _stopStream() {
+                    if (!_streamStarted) return
+                    console.log("VideoFeed stopping stream:", root.streamId)
+                    QGroundControl.videoManager.removeCustomStream(root.streamId)
+                    _streamStarted = false
+                    root.isConnected = false
+                }
+
                 Component.onCompleted: _startStream()
 
-                // Watch for URL changes (e.g. vehicle connects after VideoFeed is created)
+                // React to active (visibility) changes
                 Connections {
                     target: root
+                    function onActiveChanged() {
+                        if (root.active)
+                            _videoBackground._startStream()
+                        else
+                            _videoBackground._stopStream()
+                    }
                     function onRtspUrlChanged() {
-                        if (_videoBackground._streamStarted) {
-                            // URL changed — remove old stream and start new one
-                            QGroundControl.videoManager.removeCustomStream(root.streamId)
-                            _videoBackground._streamStarted = false
-                        }
+                        _videoBackground._stopStream()
                         _videoBackground._startStream()
                     }
                     function onStreamIdChanged() {
-                        if (_videoBackground._streamStarted) {
-                            QGroundControl.videoManager.removeCustomStream(root.streamId)
-                            _videoBackground._streamStarted = false
-                        }
+                        _videoBackground._stopStream()
                         _videoBackground._startStream()
                     }
                 }
@@ -253,7 +264,7 @@ Item {
                     spacing: 2
 
                     QGCLabel {
-                        text: qsTr("RTSP Stream")
+                        text: qsTr("Video Stream")
                         font.pixelSize: 9
                         color: "#999999"
                     }

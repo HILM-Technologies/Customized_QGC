@@ -9,8 +9,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import QtCore
-
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FlyView
@@ -65,11 +63,45 @@ Item {
     property var _guidedController: globals.guidedControllerFlyView
     property var _emergency:        _activeVehicle ? _activeVehicle.emergencyController : null
 
-    // RTSP base URL — shared with VideoWallView
-    Settings {
-        id: rtspSettings
-        category: "SurveillanceRTSP"
-        property string baseUrl: "rtsp://127.0.0.1:8554/"
+    // Video settings — shared with VideoWallView
+    property var _videoSettings: QGroundControl.settingsManager.videoSettings
+
+    // Derive the base URL from the active video source setting
+    property string _activeBaseUrl: {
+        var src = _videoSettings.videoSource.rawValue
+        if (src === _videoSettings.rtspVideoSource)
+            return _videoSettings.rtspUrl.rawValue
+        if (src === _videoSettings.udp264VideoSource || src === _videoSettings.udp265VideoSource || src === _videoSettings.mpegtsVideoSource)
+            return _videoSettings.udpUrl.rawValue
+        if (src === _videoSettings.tcpVideoSource)
+            return _videoSettings.tcpUrl.rawValue
+        return ""
+    }
+
+    // Build a full stream URL for a given vehicle ID
+    function _streamUrl(vehicleId) {
+        if (_activeBaseUrl === "") return ""
+        var base = _activeBaseUrl
+        var src = _videoSettings.videoSource.rawValue
+        if (src === _videoSettings.rtspVideoSource) {
+            if (base.charAt(base.length - 1) !== '/') base += '/'
+            return base + vehicleId
+        }
+        // UDP/TCP/MPEG-TS: port-based — increment port per vehicle
+        var colonIdx = base.lastIndexOf(':')
+        if (colonIdx >= 0) {
+            var host = base.substring(0, colonIdx)
+            var port = parseInt(base.substring(colonIdx + 1))
+            if (!isNaN(port)) {
+                var scheme = ""
+                if (src === _videoSettings.udp264VideoSource)    scheme = "udp://"
+                else if (src === _videoSettings.udp265VideoSource) scheme = "udp265://"
+                else if (src === _videoSettings.tcpVideoSource)    scheme = "tcp://"
+                else if (src === _videoSettings.mpegtsVideoSource) scheme = "mpegts://"
+                return scheme + host + ":" + (port + vehicleId)
+            }
+        }
+        return ""
     }
 
     // Emergency state helpers
@@ -1026,7 +1058,7 @@ Item {
                     property string pendingName: ""
 
                     onTriggered: {
-                        if (pendingId < 0) return
+                        if (pendingId < 0 || pendingUrl === "") return
                         var sid = "ops_vehicle_" + pendingId
                         console.log("OPS Video: creating stream", sid, "URL:", pendingUrl)
                         videoArea.opsStreamId   = sid
@@ -1038,39 +1070,50 @@ Item {
                     }
                 }
 
-                // Watch active vehicle — only create stream when user clicks GRID button
-                // (not auto-created on vehicle connect, to avoid GStreamer crash when no RTSP server)
-                property int opsCurrentVehicleId: _activeVehicle ? _activeVehicle.id : -1
-                property bool opsVideoRequested: false  // set true when user explicitly requests video
+                // Track active vehicle and parent visibility
+                property int  opsCurrentVehicleId: _activeVehicle ? _activeVehicle.id : -1
+                property bool opsViewVisible:      rightPanelRoot.visible
 
                 onOpsCurrentVehicleIdChanged: {
                     console.log("OPS Video: vehicle changed to", opsCurrentVehicleId)
+                    _teardownStream()
+                    if (opsCurrentVehicleId > 0 && opsViewVisible)
+                        _createStream(opsCurrentVehicleId)
+                }
 
-                    // Remove old stream (if any)
+                onOpsViewVisibleChanged: {
+                    if (opsViewVisible) {
+                        // Panel became visible — start stream for current vehicle
+                        if (opsCurrentVehicleId > 0 && videoArea.opsStreamId === "")
+                            _createStream(opsCurrentVehicleId)
+                    } else {
+                        // Panel hidden (switched to Video Wall etc.) — release the stream
+                        _teardownStream()
+                    }
+                }
+
+                function _teardownStream() {
                     if (videoArea.opsStreamId !== "") {
-                        console.log("OPS Video: removing old stream", videoArea.opsStreamId)
+                        console.log("OPS Video: removing stream", videoArea.opsStreamId)
                         QGroundControl.videoManager.removeCustomStream(videoArea.opsStreamId)
                         videoArea.opsStreamId  = ""
                         videoArea.opsConnected = false
                     }
+                    opsCreateTimer.stop()
+                }
 
-                    // Auto-create stream for new vehicle
-                    if (opsCurrentVehicleId > 0) {
-                        opsVideoRequested = true
-                        opsCreateTimer.pendingId   = opsCurrentVehicleId
-                        opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
-                        opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId
-                        opsCreateTimer.restart()
-                    }
+                function _createStream(vehicleId) {
+                    var url = rightPanelRoot._streamUrl(vehicleId)
+                    if (url === "") return
+                    opsCreateTimer.pendingId   = vehicleId
+                    opsCreateTimer.pendingUrl  = url
+                    opsCreateTimer.pendingName = "Drone " + vehicleId
+                    opsCreateTimer.restart()
                 }
 
                 function startVideoForCurrentVehicle() {
                     if (opsCurrentVehicleId <= 0) return
-                    opsVideoRequested = true
-                    opsCreateTimer.pendingId   = opsCurrentVehicleId
-                    opsCreateTimer.pendingUrl  = rtspSettings.baseUrl + opsCurrentVehicleId
-                    opsCreateTimer.pendingName = "Drone " + opsCurrentVehicleId
-                    opsCreateTimer.restart()
+                    _createStream(opsCurrentVehicleId)
                 }
 
                 // No stream overlay
