@@ -7,7 +7,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtCore
 
 import QGC
 import QGroundControl
@@ -32,6 +31,59 @@ Item {
     property bool recordingAll:   false
 
     property var  _vehicles:      QGroundControl.multiVehicleManager.vehicles
+    property var  _videoSettings: QGroundControl.settingsManager.videoSettings
+
+    // Derive the base URL from the active video source setting
+    property string _activeBaseUrl: {
+        var src = _videoSettings.videoSource.rawValue
+        if (src === _videoSettings.rtspVideoSource)
+            return _videoSettings.rtspUrl.rawValue
+        if (src === _videoSettings.udp264VideoSource || src === _videoSettings.udp265VideoSource || src === _videoSettings.mpegtsVideoSource)
+            return _videoSettings.udpUrl.rawValue
+        if (src === _videoSettings.tcpVideoSource)
+            return _videoSettings.tcpUrl.rawValue
+        return ""
+    }
+
+    // Short label for the active protocol
+    property string _activeProtocol: {
+        var src = _videoSettings.videoSource.rawValue
+        if (src === _videoSettings.rtspVideoSource)      return "RTSP"
+        if (src === _videoSettings.udp264VideoSource)    return "UDP h.264"
+        if (src === _videoSettings.udp265VideoSource)    return "UDP h.265"
+        if (src === _videoSettings.tcpVideoSource)       return "TCP"
+        if (src === _videoSettings.mpegtsVideoSource)    return "MPEG-TS"
+        return "N/A"
+    }
+
+    // Build a full stream URL for a given vehicle ID
+    function _streamUrl(vehicleId) {
+        if (_activeBaseUrl === "") return ""
+        // Ensure trailing separator for RTSP (path-based), or colon-based for UDP/TCP
+        var base = _activeBaseUrl
+        var src = _videoSettings.videoSource.rawValue
+        if (src === _videoSettings.rtspVideoSource) {
+            // RTSP: path-based → rtsp://host:port/base/ + vehicleId
+            if (base.charAt(base.length - 1) !== '/') base += '/'
+            return base + vehicleId
+        }
+        // UDP/TCP/MPEG-TS: port-based → increment port per vehicle
+        // e.g. base = "0.0.0.0:5600" → vehicle 0 = :5600, vehicle 1 = :5601
+        var colonIdx = base.lastIndexOf(':')
+        if (colonIdx >= 0) {
+            var host = base.substring(0, colonIdx)
+            var port = parseInt(base.substring(colonIdx + 1))
+            if (!isNaN(port)) {
+                var scheme = ""
+                if (src === _videoSettings.udp264VideoSource)    scheme = "udp://"
+                else if (src === _videoSettings.udp265VideoSource) scheme = "udp265://"
+                else if (src === _videoSettings.tcpVideoSource)    scheme = "tcp://"
+                else if (src === _videoSettings.mpegtsVideoSource) scheme = "mpegts://"
+                return scheme + host + ":" + (port + vehicleId)
+            }
+        }
+        return ""
+    }
 
     function _gridCols() {
         if (gridLayout === 1) return 3
@@ -50,21 +102,15 @@ Item {
         return _gridCols() * _gridRows()
     }
 
-    Settings {
-        id: rtspSettings
-        category: "SurveillanceRTSP"
-        property string baseUrl: "rtsp://127.0.0.1:8554/"
-    }
-
     // ── Background
     Rectangle { anchors.fill: parent; color: _panelBg }
 
-    // ── RTSP URL Config Dialog
+    // ── Stream URL Config Dialog
     Rectangle {
         id:           urlDialog
         visible:      false
         anchors.centerIn: parent
-        width:        480; height: 148
+        width:        520; height: 180
         radius:       10
         color:        "#161D27"
         border.color: _teal; border.width: 1
@@ -73,11 +119,29 @@ Item {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 16; spacing: 10
 
-            QGCLabel { text: qsTr("Configure RTSP Base URL"); color: "white"; font.pixelSize: 13; font.bold: true }
+            QGCLabel { text: qsTr("Configure Video Wall Stream URL"); color: "white"; font.pixelSize: 13; font.bold: true }
             QGCLabel {
-                text: qsTr("Stream index appended automatically: base_url + 0, + 1, …")
+                text: {
+                    var src = _videoSettings.videoSource.rawValue
+                    if (src === _videoSettings.rtspVideoSource)
+                        return qsTr("Protocol: RTSP — Vehicle ID appended as path: base_url/ + id")
+                    return qsTr("Protocol: %1 — Vehicle ID added as port offset: base_port + id").arg(_activeProtocol)
+                }
                 color: _dimText; font.pixelSize: 10
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
+            }
+
+            // Show active source type
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                QGCLabel { text: qsTr("Source:"); color: _dimText; font.pixelSize: 11 }
+                Rectangle {
+                    height: 22; width: srcLabel.implicitWidth + 14; radius: 4
+                    color: _tealDim; border.color: _teal; border.width: 1
+                    QGCLabel { id: srcLabel; anchors.centerIn: parent; text: _activeProtocol; color: _teal; font.pixelSize: 11; font.bold: true }
+                }
+                Item { Layout.fillWidth: true }
+                QGCLabel { text: qsTr("Change source in Application Settings → Video"); color: Qt.rgba(1,1,1,0.35); font.pixelSize: 9 }
             }
 
             RowLayout {
@@ -87,7 +151,7 @@ Item {
                     border.color: urlInput.activeFocus ? _teal : Qt.rgba(1,1,1,0.15); border.width: 1
                     TextInput {
                         id: urlInput; anchors.fill: parent; anchors.margins: 8
-                        text: rtspSettings.baseUrl; color: "white"; font.pixelSize: 12
+                        text: _activeBaseUrl; color: "white"; font.pixelSize: 12
                         clip: true; verticalAlignment: TextInput.AlignVCenter; selectionColor: _teal
                     }
                 }
@@ -97,7 +161,17 @@ Item {
                     Behavior on color { ColorAnimation { duration: 120 } }
                     QGCLabel { anchors.centerIn: parent; text: qsTr("Apply"); color: "white"; font.pixelSize: 12; font.bold: true }
                     MouseArea { id: applyHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: { rtspSettings.baseUrl = urlInput.text; urlDialog.visible = false }
+                        onClicked: {
+                            // Write back to the correct setting based on active source
+                            var src = _videoSettings.videoSource.rawValue
+                            if (src === _videoSettings.rtspVideoSource)
+                                _videoSettings.rtspUrl.rawValue = urlInput.text
+                            else if (src === _videoSettings.udp264VideoSource || src === _videoSettings.udp265VideoSource || src === _videoSettings.mpegtsVideoSource)
+                                _videoSettings.udpUrl.rawValue = urlInput.text
+                            else if (src === _videoSettings.tcpVideoSource)
+                                _videoSettings.tcpUrl.rawValue = urlInput.text
+                            urlDialog.visible = false
+                        }
                     }
                 }
                 Rectangle {
@@ -363,8 +437,9 @@ Item {
                                     anchors.fill:  parent
                                     streamName:    feedCard._name
                                     streamId:      "cam" + (feedCard._vehicle ? feedCard._vehicle.id : index)
-                                    rtspUrl:       feedCard._vehicle ? (rtspSettings.baseUrl + feedCard._vehicle.id) : ""
+                                    rtspUrl:       feedCard._vehicle ? root._streamUrl(feedCard._vehicle.id) : ""
                                     isFullscreen:  fullscreenIdx === index
+                                    active:        root.visible
                                     showHeader:    false
                                     showBorder:    false
                                     onFullscreenRequested: fullscreenIdx = fullscreenIdx === index ? -1 : index
@@ -563,7 +638,7 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                // RTSP config button
+                // Stream URL config button
                 Item {
                     implicitWidth:  rtspRow.implicitWidth
                     implicitHeight: rtspRow.implicitHeight
@@ -575,7 +650,7 @@ Item {
 
                         QGCLabel { text: "⚙"; color: rtspLinkHov.containsMouse ? _teal : _dimText; font.pixelSize: 11 }
                         QGCLabel {
-                            text:  qsTr("RTSP URL")
+                            text:  _activeProtocol + qsTr(" URL")
                             color: rtspLinkHov.containsMouse ? _teal : _dimText
                             font.pixelSize: 10
                             Behavior on color { ColorAnimation { duration: 120 } }
@@ -587,7 +662,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape:  Qt.PointingHandCursor
-                        onClicked: { urlInput.text = rtspSettings.baseUrl; urlDialog.visible = true }
+                        onClicked: { urlInput.text = _activeBaseUrl; urlDialog.visible = true }
                     }
                 }
 
