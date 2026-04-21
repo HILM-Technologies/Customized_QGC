@@ -1,13 +1,14 @@
 /****************************************************************************
  *
  * HILM Ground Control — Fleet Analytics & Mission History
- * Matches Figma: 3-tab layout with stats cards, alerts, fleet performance
+ * Database-backed view with flight history, alerts, fleet performance charts
  *
  ****************************************************************************/
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCharts
 
 import QGroundControl
 import QGroundControl.Controls
@@ -33,25 +34,43 @@ Rectangle {
     property var _multiVehicleMgr: QGroundControl.multiVehicleManager
     property var _vehicles:        _multiVehicleMgr ? _multiVehicleMgr.vehicles : null
     property var _activeVehicle:   _multiVehicleMgr ? _multiVehicleMgr.activeVehicle : null
+    property var _flightDb:        QGroundControl.flightDatabase
 
     // ── Active tab: 0 = Mission History, 1 = Alerts & Events, 2 = Fleet Performance
     property int _activeTab: 0
 
-    // ── Computed fleet stats (live from connected vehicles) ─
-    property int    _totalVehicles:   _vehicles ? _vehicles.count : 0
-    property real   _avgBattery:      _computeAvgBattery()
-    property string _totalFlightTime: _computeTotalFlightTime()
-    property int    _totalMissions:   _missionHistoryModel.count
-    property string _successRate:     _computeSuccessRate()
+    // ── Filter state ────────────────────────────────────────
+    property string _filterVehicleUid: ""
+    property int    _filterDays:       30
+    property string _filterStatus:     ""
 
-    // Mission history model
-    ListModel { id: _missionHistoryModel }
-    // Alerts model
+    // ── Flight detail drill-down ────────────────────────────
+    property int  _selectedFlightId: -1
+    property bool _showFlightDetail: false
+
+    // ── Computed fleet stats ────────────────────────────────
+    // Use DB stats when ready, fallback to live
+    property int    _totalVehicles:   _flightDb && _flightDb.ready ? _flightDb.totalVehicles : (_vehicles ? _vehicles.count : 0)
+    property real   _avgBattery:      _flightDb && _flightDb.ready ? _flightDb.avgBatteryEndPct : _computeAvgBattery()
+    property string _totalFlightTime: _flightDb && _flightDb.ready ? _flightDb.totalFlightHours.toFixed(1) + "h" : _computeTotalFlightTime()
+    property int    _totalMissions:   _flightDb && _flightDb.ready ? _flightDb.totalFlights : 0
+    property string _successRate:     _flightDb && _flightDb.ready ? _flightDb.successRate.toFixed(1) + "%" : "--"
+
+    // Alerts model (live)
     ListModel { id: _alertsModel }
 
     Component.onCompleted: {
-        _scanMissionFiles()
         _collectAlerts()
+        if (_flightDb && _flightDb.ready) {
+            _refreshDbData()
+        }
+    }
+
+    // Refresh when DB becomes ready
+    Connections {
+        target: _flightDb
+        function onReadyChanged()          { if (_flightDb.ready) _refreshDbData() }
+        function onFleetSummaryChanged()   { /* properties auto-update via bindings */ }
     }
 
     // Refresh when vehicles change
@@ -65,24 +84,32 @@ Rectangle {
         id: _refreshTimer
         interval: 1000
         repeat: false
-        onTriggered: _refreshAll()
+        onTriggered: { _collectAlerts() }
     }
 
-    // Periodic stats refresh (every 5s for live telemetry)
+    // Periodic live alerts refresh (every 5s)
     Timer {
         id: _statsRefresh
         interval: 5000
         repeat: true
         running: _root.visible
-        onTriggered: _refreshAll()
+        onTriggered: _collectAlerts()
     }
 
     // ── Helper functions ────────────────────────────────────
-    function _refreshAll() {
-        _avgBattery      = _computeAvgBattery()
-        _totalFlightTime = _computeTotalFlightTime()
-        _successRate     = _computeSuccessRate()
-        _collectAlerts()
+    function _refreshDbData() {
+        if (!_flightDb) return
+        _flightDb.queryFleetSummary()
+        _flightDb.queryFlights(_filterVehicleUid, _getDateFrom(), "", _filterStatus, 100)
+        _flightDb.queryVehicles()
+        _flightDb.queryFlightActivity(_filterDays)
+    }
+
+    function _getDateFrom() {
+        if (_filterDays <= 0) return ""
+        var d = new Date()
+        d.setDate(d.getDate() - _filterDays)
+        return d.toISOString()
     }
 
     function _computeAvgBattery() {
@@ -114,47 +141,6 @@ Rectangle {
         return mins + "m"
     }
 
-    function _computeSuccessRate() {
-        if (_missionHistoryModel.count === 0) return "--"
-        var success = 0
-        for (var i = 0; i < _missionHistoryModel.count; i++) {
-            var entry = _missionHistoryModel.get(i)
-            if (entry.status === "COMPLETED" || entry.status === "UPLOADED")
-                success++
-        }
-        if (_missionHistoryModel.count === 0) return "--"
-        return (success / _missionHistoryModel.count * 100).toFixed(1) + "%"
-    }
-
-    function _scanMissionFiles() {
-        _missionHistoryModel.clear()
-        if (_vehicles) {
-            for (var i = 0; i < _vehicles.count; i++) {
-                var v = _vehicles.get(i)
-                if (v && v.mavlinkLogManager && v.mavlinkLogManager.logFiles) {
-                    var logs = v.mavlinkLogManager.logFiles
-                    for (var j = 0; j < logs.count; j++) {
-                        var log = logs.get(j)
-                        _missionHistoryModel.append({
-                            missionName: log.name || ("Flight Log " + (j + 1)),
-                            vehicleId:   v.id,
-                            duration:    _formatBytes(log.size),
-                            status:      log.uploaded ? "UPLOADED" : "LOCAL",
-                            date:        log.date ? Qt.formatDateTime(log.date, "yyyy-MM-dd") : "--"
-                        })
-                    }
-                }
-            }
-        }
-        if (_missionHistoryModel.count === 0) {
-            _missionHistoryModel.append({
-                missionName: "No missions recorded yet",
-                vehicleId: 0, duration: "--", status: "NONE", date: "--"
-            })
-        }
-        _totalMissions = _missionHistoryModel.count
-    }
-
     function _collectAlerts() {
         _alertsModel.clear()
         if (!_vehicles) return
@@ -165,78 +151,66 @@ Rectangle {
             var v = _vehicles.get(i)
             if (!v) continue
 
-            // Communication lost alert
             if (v.communicationLost) {
                 _alertsModel.append({
-                    severity:  "ERROR",
-                    message:   "Drone " + v.id + " communication lost",
-                    timestamp: timeStr,
-                    vehicleId: v.id
+                    severity: "ERROR", message: "Drone " + v.id + " communication lost",
+                    timestamp: timeStr, vehicleId: v.id
                 })
             }
 
-            // Low battery alert
             if (v.batteries && v.batteries.count > 0) {
                 var pct = v.batteries.get(0).percentRemaining.value
                 if (!isNaN(pct) && pct > 0 && pct < 30) {
                     _alertsModel.append({
-                        severity:  pct < 10 ? "ERROR" : "WARNING",
-                        message:   "Drone " + v.id + " low battery warning (" + pct.toFixed(0) + "%)",
-                        timestamp: timeStr,
-                        vehicleId: v.id
+                        severity: pct < 10 ? "ERROR" : "WARNING",
+                        message: "Drone " + v.id + " low battery (" + pct.toFixed(0) + "%)",
+                        timestamp: timeStr, vehicleId: v.id
                     })
                 }
             }
 
-            // GPS quality alert
             if (v.gps) {
                 var satCount = v.gps.count.value
                 if (!isNaN(satCount) && satCount < 6 && satCount > 0) {
                     _alertsModel.append({
-                        severity:  "WARNING",
-                        message:   "Drone " + v.id + " low GPS satellites (" + satCount + ")",
-                        timestamp: timeStr,
-                        vehicleId: v.id
+                        severity: "WARNING",
+                        message: "Drone " + v.id + " low GPS satellites (" + satCount + ")",
+                        timestamp: timeStr, vehicleId: v.id
                     })
                 }
             }
 
-            // Link quality alert
-            var rssi = v.rcRSSI
-            if (!isNaN(rssi) && rssi >= 0 && rssi < 50) {
-                _alertsModel.append({
-                    severity:  "WARNING",
-                    message:   "Link quality dropped below 50% for Drone " + v.id,
-                    timestamp: timeStr,
-                    vehicleId: v.id
-                })
-            }
-
-            // Armed & flying info
             if (v.armed) {
                 _alertsModel.append({
-                    severity:  "INFO",
-                    message:   "Drone " + v.id + (v.flying ? " is in flight" : " is armed"),
-                    timestamp: timeStr,
-                    vehicleId: v.id
+                    severity: "INFO",
+                    message: "Drone " + v.id + (v.flying ? " is in flight" : " is armed"),
+                    timestamp: timeStr, vehicleId: v.id
                 })
             }
         }
 
         if (_alertsModel.count === 0) {
             _alertsModel.append({
-                severity: "OK",
-                message: "All systems nominal — no active alerts",
-                timestamp: timeStr,
-                vehicleId: 0
+                severity: "OK", message: "All systems nominal — no active alerts",
+                timestamp: timeStr, vehicleId: 0
             })
         }
     }
 
-    function _formatBytes(bytes) {
-        if (bytes < 1024) return bytes + " B"
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"
-        return (bytes / 1048576).toFixed(1) + " MB"
+    function _formatDuration(sec) {
+        if (sec <= 0) return "--"
+        var h = Math.floor(sec / 3600)
+        var m = Math.floor((sec % 3600) / 60)
+        var s = Math.floor(sec % 60)
+        if (h > 0) return h + "h " + m + "m"
+        if (m > 0) return m + "m " + s + "s"
+        return s + "s"
+    }
+
+    function _formatDistance(meters) {
+        if (meters <= 0) return "--"
+        if (meters >= 1000) return (meters / 1000).toFixed(1) + " km"
+        return meters.toFixed(0) + " m"
     }
 
     // ════════════════════════════════════════════════════════
@@ -247,13 +221,13 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: _pad * 2
         spacing: _pad * 1.5
+        visible: !_showFlightDetail
 
         // ── HEADER ──────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             spacing: _pad
 
-            // Shield icon
             Rectangle {
                 width:  _fontSize * 2.8
                 height: _fontSize * 2.8
@@ -272,7 +246,6 @@ Rectangle {
 
             ColumnLayout {
                 spacing: 2
-
                 QGCLabel {
                     text:               "Analytics & Mission History"
                     color:              "white"
@@ -280,7 +253,6 @@ Rectangle {
                     font.bold:          true
                     font.letterSpacing: 1
                 }
-
                 QGCLabel {
                     text:           "Review fleet performance and mission data"
                     color:          _dimText
@@ -289,6 +261,24 @@ Rectangle {
             }
 
             Item { Layout.fillWidth: true }
+
+            // DB status indicator
+            Rectangle {
+                visible: _flightDb
+                width: _dbStatusText.implicitWidth + _pad * 1.5
+                height: _fontSize * 1.6
+                radius: _fontSize * 0.8
+                color: _flightDb && _flightDb.ready ? Qt.rgba(0.298, 0.686, 0.314, 0.15)
+                                                     : Qt.rgba(1, 0.596, 0, 0.15)
+                QGCLabel {
+                    id: _dbStatusText
+                    anchors.centerIn: parent
+                    text: _flightDb && _flightDb.ready ? "DB Connected" : "DB Loading..."
+                    color: _flightDb && _flightDb.ready ? _okColor : _warnColor
+                    font.pixelSize: _fontSize * 0.6
+                    font.bold: true
+                }
+            }
 
             // Refresh button
             Rectangle {
@@ -313,10 +303,7 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape:  Qt.PointingHandCursor
-                    onClicked: {
-                        _refreshAll()
-                        _scanMissionFiles()
-                    }
+                    onClicked: _refreshDbData()
                 }
             }
         }
@@ -326,17 +313,15 @@ Rectangle {
             Layout.fillWidth: true
             spacing: _pad
 
-            // Card 1: Total Missions
             StatsCard {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: _fontSize * 6.5
-                label:    "Total Missions"
+                label:    "Total Flights"
                 value:    _totalMissions.toString()
                 accent:   _teal
                 iconSrc:  "/InstrumentValueIcons/target.svg"
             }
 
-            // Card 2: Flight Hours
             StatsCard {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: _fontSize * 6.5
@@ -346,7 +331,6 @@ Rectangle {
                 iconSrc:  "/InstrumentValueIcons/time.svg"
             }
 
-            // Card 3: Avg Battery
             StatsCard {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: _fontSize * 6.5
@@ -356,7 +340,6 @@ Rectangle {
                 iconSrc:  "/InstrumentValueIcons/battery-half.svg"
             }
 
-            // Card 4: Success Rate
             StatsCard {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: _fontSize * 6.5
@@ -367,69 +350,35 @@ Rectangle {
             }
         }
 
-        // ── TAB BAR — auto-width tabs left-aligned (matches Figma)
+        // ── TAB BAR ─────────────────────────────────────────
         Row {
             Layout.fillWidth: true
             spacing: _pad * 0.8
 
-            // Tab 0: MISSION HISTORY
-            Rectangle {
-                width:  _t0.implicitWidth + _pad * 3
-                height: _fontSize * 3.0
-                radius: _fontSize * 0.4
-                color:  _activeTab === 0 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
-                border.color: _activeTab === 0 ? _teal : _tealBorder
-                border.width: 1
-                QGCLabel {
-                    id: _t0
-                    anchors.centerIn: parent
-                    text:           "MISSION HISTORY"
-                    color:          _activeTab === 0 ? _teal : _dimText
-                    font.pixelSize: _fontSize * 0.82
-                    font.bold:      _activeTab === 0
-                    font.letterSpacing: 0.5
+            Repeater {
+                model: ["MISSION HISTORY", "ALERTS & EVENTS", "FLEET PERFORMANCE"]
+                Rectangle {
+                    width:  _tabLabel.implicitWidth + _pad * 3
+                    height: _fontSize * 3.0
+                    radius: _fontSize * 0.4
+                    color:  _activeTab === index ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
+                    border.color: _activeTab === index ? _teal : _tealBorder
+                    border.width: 1
+                    QGCLabel {
+                        id: _tabLabel
+                        anchors.centerIn: parent
+                        text:           modelData
+                        color:          _activeTab === index ? _teal : _dimText
+                        font.pixelSize: _fontSize * 0.82
+                        font.bold:      _activeTab === index
+                        font.letterSpacing: 0.5
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: _activeTab = index
+                    }
                 }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 0 }
-            }
-
-            // Tab 1: ALERTS & EVENTS
-            Rectangle {
-                width:  _t1.implicitWidth + _pad * 3
-                height: _fontSize * 3.0
-                radius: _fontSize * 0.4
-                color:  _activeTab === 1 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
-                border.color: _activeTab === 1 ? _teal : _tealBorder
-                border.width: 1
-                QGCLabel {
-                    id: _t1
-                    anchors.centerIn: parent
-                    text:           "ALERTS & EVENTS"
-                    color:          _activeTab === 1 ? _teal : _dimText
-                    font.pixelSize: _fontSize * 0.82
-                    font.bold:      _activeTab === 1
-                    font.letterSpacing: 0.5
-                }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 1 }
-            }
-
-            // Tab 2: FLEET PERFORMANCE
-            Rectangle {
-                width:  _t2.implicitWidth + _pad * 3
-                height: _fontSize * 3.0
-                radius: _fontSize * 0.4
-                color:  _activeTab === 2 ? Qt.rgba(0, 0.749, 1.0, 0.12) : "transparent"
-                border.color: _activeTab === 2 ? _teal : _tealBorder
-                border.width: 1
-                QGCLabel {
-                    id: _t2
-                    anchors.centerIn: parent
-                    text:           "FLEET PERFORMANCE"
-                    color:          _activeTab === 2 ? _teal : _dimText
-                    font.pixelSize: _fontSize * 0.82
-                    font.bold:      _activeTab === 2
-                    font.letterSpacing: 0.5
-                }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: _activeTab = 2 }
             }
         }
 
@@ -442,7 +391,7 @@ Rectangle {
             border.color: Qt.rgba(1, 1, 1, 0.06)
             border.width: 1
 
-            // ─────────── Tab 0: MISSION HISTORY ─────────────
+            // ─────────── Tab 0: MISSION HISTORY (DB-backed) ─
             QGCFlickable {
                 anchors.fill: parent
                 anchors.margins: _pad
@@ -455,7 +404,7 @@ Rectangle {
                     width: parent.width
                     spacing: _pad * 0.6
 
-                    // Section header
+                    // Section header with filters
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: _pad * 0.5
@@ -469,7 +418,7 @@ Rectangle {
                         }
 
                         QGCLabel {
-                            text:               "Mission Log"
+                            text:               "Flight Log"
                             color:              _teal
                             font.pixelSize:     _fontSize * 0.85
                             font.bold:          true
@@ -478,8 +427,45 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
+                        // Date filter chips
+                        Row {
+                            spacing: _pad * 0.4
+                            Repeater {
+                                model: [
+                                    { label: "7D",  days: 7 },
+                                    { label: "30D", days: 30 },
+                                    { label: "ALL", days: 0 }
+                                ]
+                                Rectangle {
+                                    width: _chipLabel.implicitWidth + _pad * 1.5
+                                    height: _fontSize * 1.8
+                                    radius: _fontSize * 0.9
+                                    color: _filterDays === modelData.days ? _tealDim : "transparent"
+                                    border.color: _filterDays === modelData.days ? _teal : _tealBorder
+                                    border.width: 1
+
+                                    QGCLabel {
+                                        id: _chipLabel
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: _filterDays === modelData.days ? _teal : _dimText
+                                        font.pixelSize: _fontSize * 0.65
+                                        font.bold: true
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            _filterDays = modelData.days
+                                            _refreshDbData()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         QGCLabel {
-                            text:           _totalMissions + " entries"
+                            text:           (_flightDb && _flightDb.flightsModel ? _flightDb.flightsModel.count : 0) + " flights"
                             color:          _dimText
                             font.pixelSize: _fontSize * 0.725
                         }
@@ -498,18 +484,20 @@ Rectangle {
                             anchors.rightMargin: _pad
                             spacing: _pad
 
-                            QGCLabel { text: "MISSION";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.30 }
-                            QGCLabel { text: "VEHICLE";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "SIZE";     color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "DATE";     color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
-                            QGCLabel { text: "STATUS";   color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.fillWidth: true }
+                            QGCLabel { text: "FLIGHT";    color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.20 }
+                            QGCLabel { text: "VEHICLE";   color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "DURATION";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "DISTANCE";  color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "DATE";      color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.preferredWidth: parent.width * 0.15 }
+                            QGCLabel { text: "STATUS";    color: _dimText; font.pixelSize: _fontSize * 0.72; font.bold: true; font.letterSpacing: 1; Layout.fillWidth: true }
                         }
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
+                    // Flight rows from DB
                     Repeater {
-                        model: _missionHistoryModel
+                        model: _flightDb ? _flightDb.flightsModel : null
 
                         Rectangle {
                             Layout.fillWidth: true
@@ -521,6 +509,16 @@ Rectangle {
                                 id: _mhMa
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    var row = _flightDb.flightsModel.get(index)
+                                    if (row) {
+                                        _selectedFlightId = row.flightId
+                                        _showFlightDetail = true
+                                        _flightDb.queryTelemetry(row.flightId)
+                                        _flightDb.queryFlightEvents(row.flightId)
+                                    }
+                                }
                             }
 
                             RowLayout {
@@ -529,41 +527,43 @@ Rectangle {
                                 anchors.rightMargin: _pad
                                 spacing: _pad
 
-                                // Mission name
                                 QGCLabel {
-                                    Layout.preferredWidth: parent.width * 0.30
-                                    text: model.missionName
+                                    Layout.preferredWidth: parent.width * 0.20
+                                    text: "Flight #" + model.flightId
                                     color: "white"
                                     font.pixelSize: _fontSize * 0.8
                                     font.bold: true
                                     elide: Text.ElideRight
                                 }
 
-                                // Vehicle ID
                                 QGCLabel {
                                     Layout.preferredWidth: parent.width * 0.15
-                                    text:  model.vehicleId > 0 ? ("Drone #" + model.vehicleId) : "--"
+                                    text: model.vehicleName ? model.vehicleName : ("Drone #" + model.vehicleId)
                                     color: _dimText
                                     font.pixelSize: _fontSize * 0.75
                                 }
 
-                                // Size
                                 QGCLabel {
                                     Layout.preferredWidth: parent.width * 0.15
-                                    text:  model.duration
+                                    text: _formatDuration(model.durationSec)
                                     color: _dimText
                                     font.pixelSize: _fontSize * 0.75
                                 }
 
-                                // Date
                                 QGCLabel {
                                     Layout.preferredWidth: parent.width * 0.15
-                                    text:  model.date
+                                    text: _formatDistance(model.flightDistanceM)
                                     color: _dimText
                                     font.pixelSize: _fontSize * 0.75
                                 }
 
-                                // Status badge
+                                QGCLabel {
+                                    Layout.preferredWidth: parent.width * 0.15
+                                    text: model.armedAt ? model.armedAt.substring(0, 10) : "--"
+                                    color: _dimText
+                                    font.pixelSize: _fontSize * 0.75
+                                }
+
                                 Item {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: _fontSize * 1.4
@@ -571,25 +571,25 @@ Rectangle {
                                     Rectangle {
                                         anchors.left: parent.left
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width:  _mhStatusLabel.implicitWidth + _pad * 2
+                                        width:  _statusLbl.implicitWidth + _pad * 2
                                         height: _fontSize * 1.4
                                         radius: _fontSize * 0.7
                                         color: {
-                                            if (model.status === "UPLOADED" || model.status === "COMPLETED")
-                                                return Qt.rgba(0.298, 0.686, 0.314, 0.15)
-                                            if (model.status === "LOCAL") return _tealDim
-                                            return Qt.rgba(1,1,1,0.05)
+                                            if (model.status === "COMPLETED") return Qt.rgba(0.298, 0.686, 0.314, 0.15)
+                                            if (model.status === "IN_PROGRESS") return _tealDim
+                                            if (model.status === "ABORTED") return Qt.rgba(1, 0.596, 0, 0.15)
+                                            return Qt.rgba(1, 0.322, 0.322, 0.15)
                                         }
 
                                         QGCLabel {
-                                            id: _mhStatusLabel
+                                            id: _statusLbl
                                             anchors.centerIn: parent
                                             text: model.status
                                             color: {
-                                                if (model.status === "UPLOADED" || model.status === "COMPLETED")
-                                                    return _okColor
-                                                if (model.status === "LOCAL") return _teal
-                                                return _dimText
+                                                if (model.status === "COMPLETED") return _okColor
+                                                if (model.status === "IN_PROGRESS") return _teal
+                                                if (model.status === "ABORTED") return _warnColor
+                                                return _errColor
                                             }
                                             font.pixelSize: _fontSize * 0.55
                                             font.bold: true
@@ -607,6 +607,17 @@ Rectangle {
                                 color: Qt.rgba(1,1,1,0.04)
                             }
                         }
+                    }
+
+                    // Empty state
+                    QGCLabel {
+                        visible: !_flightDb || !_flightDb.flightsModel || _flightDb.flightsModel.count === 0
+                        Layout.fillWidth: true
+                        Layout.topMargin: _fontSize * 3
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "No flights recorded yet\nArm a vehicle to start recording flight data"
+                        color: _dimText
+                        font.pixelSize: _fontSize * 0.85
                     }
                 }
             }
@@ -647,7 +658,6 @@ Rectangle {
 
                         ColumnLayout {
                             spacing: 1
-
                             QGCLabel {
                                 text:               "System Alerts"
                                 color:              "white"
@@ -655,7 +665,6 @@ Rectangle {
                                 font.bold:          true
                                 font.letterSpacing: 0.5
                             }
-
                             QGCLabel {
                                 text:           "Real-time vehicle status and warnings"
                                 color:          _dimText
@@ -665,7 +674,6 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                        // Alert count badge
                         Rectangle {
                             width:  _alertCountText.implicitWidth + _pad * 1.5
                             height: _fontSize * 1.6
@@ -688,7 +696,7 @@ Rectangle {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
-                    // Alert items
+                    // Live alert items
                     Repeater {
                         model: _alertsModel
 
@@ -718,7 +726,6 @@ Rectangle {
                                 anchors.margins: _pad
                                 spacing: _pad
 
-                                // Warning triangle icon
                                 Rectangle {
                                     width:  _fontSize * 1.8
                                     height: _fontSize * 1.8
@@ -745,17 +752,14 @@ Rectangle {
                                     }
                                 }
 
-                                // Alert message
                                 QGCLabel {
                                     Layout.fillWidth: true
                                     text:  model.message
                                     color: "white"
                                     font.pixelSize: _fontSize * 0.8
                                     elide: Text.ElideRight
-                                    wrapMode: Text.NoWrap
                                 }
 
-                                // Timestamp
                                 QGCLabel {
                                     text:  model.timestamp
                                     color: _dimText
@@ -803,7 +807,6 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                        // Vehicle count badge
                         Rectangle {
                             width:  _vcText.implicitWidth + _pad * 1.5
                             height: _fontSize * 1.6
@@ -823,6 +826,91 @@ Rectangle {
 
                     Rectangle { width: parent.width; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
+                    // ── Flight Activity Chart ───────────────
+                    Rectangle {
+                        width: parent.width
+                        height: _fontSize * 16
+                        radius: _fontSize * 0.5
+                        color: Qt.rgba(1, 1, 1, 0.02)
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+                        visible: _flightDb && _flightDb.flightActivityData.length > 0
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: _pad
+
+                            QGCLabel {
+                                text: "Flight Activity (Last " + _filterDays + " Days)"
+                                color: _dimText
+                                font.pixelSize: _fontSize * 0.75
+                                font.bold: true
+                                font.letterSpacing: 0.5
+                            }
+
+                            ChartView {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                antialiasing: true
+                                backgroundColor: "transparent"
+                                legend.visible: false
+                                margins.top: 0
+                                margins.bottom: 0
+                                margins.left: 0
+                                margins.right: 0
+
+                                BarSeries {
+                                    id: _activitySeries
+                                    axisX: BarCategoryAxis {
+                                        id: _activityXAxis
+                                        labelsColor: _dimText
+                                        labelsFont.pixelSize: _fontSize * 0.5
+                                        gridVisible: false
+                                    }
+                                    axisY: ValueAxis {
+                                        id: _activityYAxis
+                                        labelsColor: _dimText
+                                        labelsFont.pixelSize: _fontSize * 0.5
+                                        gridLineColor: Qt.rgba(1,1,1,0.06)
+                                        min: 0
+                                    }
+                                }
+
+                                Connections {
+                                    target: _flightDb
+                                    function onFlightActivityChanged() {
+                                        _activitySeries.clear()
+                                        var data = _flightDb.flightActivityData
+                                        if (data.length === 0) return
+
+                                        var categories = []
+                                        var counts = []
+                                        var maxCount = 0
+                                        for (var i = 0; i < data.length; i++) {
+                                            var dateStr = data[i].date.substring(5)  // MM-DD
+                                            if (categories.indexOf(dateStr) === -1) {
+                                                categories.push(dateStr)
+                                                counts.push(data[i].flightCount)
+                                            } else {
+                                                var idx = categories.indexOf(dateStr)
+                                                counts[idx] += data[i].flightCount
+                                            }
+                                            if (counts[counts.length - 1] > maxCount)
+                                                maxCount = counts[counts.length - 1]
+                                        }
+
+                                        _activityXAxis.categories = categories
+                                        _activityYAxis.max = Math.max(5, maxCount + 1)
+
+                                        var barSet = _activitySeries.append("Flights", counts)
+                                        barSet.color = _teal
+                                        barSet.borderColor = "transparent"
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // No vehicles message
                     QGCLabel {
                         visible: !_vehicles || _vehicles.count === 0
@@ -834,7 +922,7 @@ Rectangle {
                         font.pixelSize: _fontSize * 0.85
                     }
 
-                    // 2-column grid of drone cards
+                    // ── Drone cards grid (live + historical) ─
                     Grid {
                         id: _droneGrid
                         visible: _vehicles && _vehicles.count > 0
@@ -845,7 +933,6 @@ Rectangle {
                         Repeater {
                             model: _vehicles
 
-                            // ── Individual drone card ──
                             Rectangle {
                                 width:  (_droneGrid.width - _pad) / 2
                                 height: _droneCardCol.height + _pad * 2
@@ -864,12 +951,11 @@ Rectangle {
                                     anchors.margins: _pad
                                     spacing: _pad * 0.6
 
-                                    // ── Card header: icon + name + status ──
+                                    // Card header
                                     Item {
                                         width:  parent.width
                                         height: _fontSize * 2.4
 
-                                        // Drone icon (left)
                                         Rectangle {
                                             id: _droneIcon
                                             anchors.left: parent.left
@@ -889,7 +975,6 @@ Rectangle {
                                             }
                                         }
 
-                                        // Name + type (center, fills)
                                         Column {
                                             anchors.left: _droneIcon.right
                                             anchors.leftMargin: _pad * 0.6
@@ -906,7 +991,6 @@ Rectangle {
                                                 elide: Text.ElideRight
                                                 width: parent.width
                                             }
-
                                             QGCLabel {
                                                 text:  _v.vehicleTypeString || "Multi-Rotor"
                                                 color: _dimText
@@ -916,7 +1000,6 @@ Rectangle {
                                             }
                                         }
 
-                                        // Status badge (right)
                                         Rectangle {
                                             id: _statusPill
                                             anchors.right: parent.right
@@ -930,7 +1013,6 @@ Rectangle {
                                                 if (_v.armed)            return Qt.rgba(1, 0.596, 0, 0.15)
                                                 return Qt.rgba(0.298, 0.686, 0.314, 0.15)
                                             }
-
                                             QGCLabel {
                                                 id: _spText
                                                 anchors.centerIn: parent
@@ -952,14 +1034,9 @@ Rectangle {
                                         }
                                     }
 
-                                    // Separator
-                                    Rectangle {
-                                        width:  parent.width
-                                        height: 1
-                                        color:  Qt.rgba(1, 1, 1, 0.06)
-                                    }
+                                    Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.06) }
 
-                                    // ── Status: Battery ──
+                                    // Live stats
                                     DroneStatRow {
                                         width: parent.width
                                         label: "Battery"
@@ -984,15 +1061,13 @@ Rectangle {
                                         }
                                     }
 
-                                    // ── Status: Link Quality ──
                                     DroneStatRow {
                                         width: parent.width
                                         label: "Link Quality"
                                         value: {
                                             var rssi = _v.rcRSSI
                                             if (isNaN(rssi) || rssi < 0) return "--"
-                                            var pct = Math.min(100, rssi)
-                                            return pct.toFixed(0) + "%"
+                                            return Math.min(100, rssi).toFixed(0) + "%"
                                         }
                                         barPct: {
                                             var rssi = _v.rcRSSI
@@ -1006,7 +1081,6 @@ Rectangle {
                                         }
                                     }
 
-                                    // ── Status: GPS Satellites ──
                                     Item {
                                         width:  parent.width
                                         height: _gpsLabel.height
@@ -1014,15 +1088,12 @@ Rectangle {
                                         QGCLabel {
                                             id: _gpsLabel
                                             anchors.left: parent.left
-                                            anchors.verticalCenter: parent.verticalCenter
                                             text:  "GPS Satellites"
                                             color: _dimText
                                             font.pixelSize: _fontSize * 0.7
                                         }
-
                                         QGCLabel {
                                             anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
                                             text: {
                                                 if (_v.gps && _v.gps.count) {
                                                     var s = _v.gps.count.value
@@ -1033,11 +1104,41 @@ Rectangle {
                                             color: {
                                                 if (!_v.gps || !_v.gps.count) return _dimText
                                                 var s = _v.gps.count.value
-                                                if (isNaN(s)) return _dimText
-                                                return s < 6 ? _warnColor : _okColor
+                                                return isNaN(s) ? _dimText : (s < 6 ? _warnColor : _okColor)
                                             }
                                             font.pixelSize: _fontSize * 0.8
                                             font.bold: true
+                                        }
+                                    }
+
+                                    // ── View History button ──
+                                    Rectangle {
+                                        width: parent.width
+                                        height: _fontSize * 2.2
+                                        radius: _fontSize * 0.35
+                                        color: _viewHistMa.containsMouse ? _tealDim : "transparent"
+                                        border.color: _tealBorder
+                                        border.width: 1
+
+                                        QGCLabel {
+                                            anchors.centerIn: parent
+                                            text: "View Flight History"
+                                            color: _teal
+                                            font.pixelSize: _fontSize * 0.7
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: _viewHistMa
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                // Switch to Mission History tab filtered to this vehicle
+                                                _activeTab = 0
+                                                // For now just refresh — full vehicle filter TBD
+                                                _refreshDbData()
+                                            }
                                         }
                                     }
                                 }
@@ -1050,10 +1151,249 @@ Rectangle {
     }
 
     // ════════════════════════════════════════════════════════
+    // FLIGHT DETAIL VIEW (drill-down)
+    // ════════════════════════════════════════════════════════
+    Rectangle {
+        anchors.fill: parent
+        color: "#0D1117"
+        visible: _showFlightDetail
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: _pad * 2
+            spacing: _pad * 1.5
+
+            // Back button
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: _pad
+
+                Rectangle {
+                    width:  _fontSize * 2.5
+                    height: _fontSize * 2.5
+                    radius: _fontSize * 0.4
+                    color: _backMa.containsMouse ? _tealDim : "transparent"
+                    border.color: _tealBorder
+                    border.width: 1
+
+                    QGCLabel {
+                        anchors.centerIn: parent
+                        text: "<"
+                        color: _teal
+                        font.pixelSize: _fontSize * 1.2
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        id: _backMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: _showFlightDetail = false
+                    }
+                }
+
+                QGCLabel {
+                    text: "Flight #" + _selectedFlightId + " — Detail View"
+                    color: "white"
+                    font.pixelSize: _fontSize * 1.3
+                    font.bold: true
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
+            // Telemetry chart
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: _fontSize * 20
+                radius: _fontSize * 0.5
+                color: Qt.rgba(1, 1, 1, 0.03)
+                border.color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: _pad
+
+                    QGCLabel {
+                        text: "Altitude & Speed Timeline"
+                        color: _dimText
+                        font.pixelSize: _fontSize * 0.8
+                        font.bold: true
+                    }
+
+                    ChartView {
+                        id: _detailChart
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        antialiasing: true
+                        backgroundColor: "transparent"
+                        legend.labelColor: _dimText
+
+                        LineSeries {
+                            id: _altSeries
+                            name: "Altitude (m)"
+                            color: _teal
+                            width: 2
+                            axisX: ValueAxis {
+                                id: _detailXAxis
+                                titleText: "Time (s)"
+                                titleBrush: _dimText
+                                labelsColor: _dimText
+                                labelsFont.pixelSize: _fontSize * 0.5
+                                gridLineColor: Qt.rgba(1,1,1,0.06)
+                            }
+                            axisY: ValueAxis {
+                                id: _detailYAxis
+                                titleText: "Altitude (m)"
+                                titleBrush: _dimText
+                                labelsColor: _dimText
+                                labelsFont.pixelSize: _fontSize * 0.5
+                                gridLineColor: Qt.rgba(1,1,1,0.06)
+                            }
+                        }
+
+                        LineSeries {
+                            id: _spdSeries
+                            name: "Speed (m/s)"
+                            color: _okColor
+                            width: 2
+                            axisX: _detailXAxis
+                            axisYRight: ValueAxis {
+                                id: _detailYRight
+                                titleText: "Speed (m/s)"
+                                titleBrush: _dimText
+                                labelsColor: _dimText
+                                labelsFont.pixelSize: _fontSize * 0.5
+                                gridLineColor: "transparent"
+                            }
+                        }
+
+                        Connections {
+                            target: _flightDb
+                            function onTelemetryDataChanged() {
+                                _altSeries.clear()
+                                _spdSeries.clear()
+                                var data = _flightDb.telemetryData
+                                if (data.length === 0) return
+
+                                var maxAlt = 10, maxSpd = 5, maxT = 1
+                                for (var i = 0; i < data.length; i++) {
+                                    var t = data[i].timestampMs / 1000.0
+                                    var alt = data[i].altRelM || 0
+                                    var spd = data[i].groundSpeedMps || 0
+                                    _altSeries.append(t, alt)
+                                    _spdSeries.append(t, spd)
+                                    if (alt > maxAlt) maxAlt = alt
+                                    if (spd > maxSpd) maxSpd = spd
+                                    if (t > maxT) maxT = t
+                                }
+                                _detailXAxis.min = 0
+                                _detailXAxis.max = maxT
+                                _detailYAxis.min = 0
+                                _detailYAxis.max = maxAlt * 1.1
+                                _detailYRight.min = 0
+                                _detailYRight.max = maxSpd * 1.1
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Events timeline
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: _fontSize * 0.5
+                color: Qt.rgba(1, 1, 1, 0.03)
+                border.color: Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: _pad
+                    spacing: _pad * 0.5
+
+                    QGCLabel {
+                        text: "Flight Events"
+                        color: _dimText
+                        font.pixelSize: _fontSize * 0.8
+                        font.bold: true
+                    }
+
+                    QGCFlickable {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentHeight: _eventsRepCol.height
+                        clip: true
+
+                        Column {
+                            id: _eventsRepCol
+                            width: parent.width
+                            spacing: _pad * 0.4
+
+                            Repeater {
+                                model: _flightDb ? _flightDb.eventsModel : null
+
+                                RowLayout {
+                                    width: _eventsRepCol.width
+                                    spacing: _pad
+
+                                    Rectangle {
+                                        width: _fontSize * 0.6
+                                        height: _fontSize * 0.6
+                                        radius: width / 2
+                                        color: {
+                                            if (model.severity === "ERROR")   return _errColor
+                                            if (model.severity === "WARNING") return _warnColor
+                                            if (model.severity === "CRITICAL") return _errColor
+                                            return _teal
+                                        }
+                                    }
+
+                                    QGCLabel {
+                                        text: _formatDuration(model.timestampMs / 1000)
+                                        color: _dimText
+                                        font.pixelSize: _fontSize * 0.7
+                                        Layout.preferredWidth: _fontSize * 5
+                                    }
+
+                                    QGCLabel {
+                                        text: model.eventType
+                                        color: _teal
+                                        font.pixelSize: _fontSize * 0.7
+                                        font.bold: true
+                                        Layout.preferredWidth: _fontSize * 8
+                                    }
+
+                                    QGCLabel {
+                                        Layout.fillWidth: true
+                                        text: model.details || ""
+                                        color: _dimText
+                                        font.pixelSize: _fontSize * 0.7
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+
+                            QGCLabel {
+                                visible: !_flightDb || !_flightDb.eventsModel || _flightDb.eventsModel.count === 0
+                                text: "No events recorded for this flight"
+                                color: _dimText
+                                font.pixelSize: _fontSize * 0.8
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
     // INLINE COMPONENTS
     // ════════════════════════════════════════════════════════
 
-    // Stats card (top row) — label+value on left, icon on right (matches Figma)
     component StatsCard: Rectangle {
         property string label
         property string value
@@ -1065,20 +1405,16 @@ Rectangle {
         border.color: Qt.rgba(1, 1, 1, 0.08)
         border.width: 1
 
-        // Label (top-left)
         QGCLabel {
-            id: _scLabel
             anchors.left:    parent.left
             anchors.top:     parent.top
             anchors.margins: _pad
             text:               label
             color:              _dimText
             font.pixelSize:     _fontSize * 0.75
-            font.bold:          false
             font.letterSpacing: 0.3
         }
 
-        // Value (below label)
         QGCLabel {
             anchors.left:       parent.left
             anchors.bottom:     parent.bottom
@@ -1090,7 +1426,6 @@ Rectangle {
             font.bold:      true
         }
 
-        // Icon (top-right)
         QGCColoredImage {
             visible: iconSrc !== ""
             anchors.right:   parent.right
@@ -1104,7 +1439,6 @@ Rectangle {
         }
     }
 
-    // Drone stat row with progress bar (for Battery, Link Quality)
     component DroneStatRow: Item {
         property string label
         property string value
@@ -1119,7 +1453,6 @@ Rectangle {
             anchors.right: parent.right
             spacing: _pad * 0.3
 
-            // Label + value row using anchors
             Item {
                 width:  parent.width
                 height: _dsrLabel.height
@@ -1127,15 +1460,12 @@ Rectangle {
                 QGCLabel {
                     id: _dsrLabel
                     anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
                     text:  label
                     color: _dimText
                     font.pixelSize: _fontSize * 0.7
                 }
-
                 QGCLabel {
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
                     text:  value
                     color: barColor
                     font.pixelSize: _fontSize * 0.8
@@ -1143,7 +1473,6 @@ Rectangle {
                 }
             }
 
-            // Mini progress bar
             Rectangle {
                 width:  parent.width
                 height: _fontSize * 0.25
@@ -1155,7 +1484,6 @@ Rectangle {
                     height: parent.height
                     radius: parent.radius
                     color:  barColor
-
                     Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 }
             }

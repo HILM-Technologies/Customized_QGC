@@ -49,6 +49,7 @@
 #include "VehicleComponent.h"
 #include "VideoManager.h"
 #include "SurveillanceManager.h"
+#include "FlightDatabase.h"
 
 #ifndef QGC_NO_SERIAL_LINK
 #include "SerialLink.h"
@@ -268,6 +269,7 @@ void QGCApplication::_initForNormalAppBoot()
     LinkManager::instance()->init();
     VideoManager::instance()->init(mainRootWindow());
     SurveillanceManager::instance();
+    FlightDatabase::instance()->init();
     // Image provider for Optical Flow
     _qmlAppEngine->addImageProvider(_qgcImageProviderId, new QGCImageProvider());
 
