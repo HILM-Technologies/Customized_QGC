@@ -16,6 +16,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QDebug>
+#include <QFile>
 
 Q_LOGGING_CATEGORY(FlightDatabaseLog, "FlightDatabaseLog")
 
@@ -327,6 +328,24 @@ void FlightDatabase::deleteOldFlights(int olderThanDays)
     task.type = FlightDataTaskType::DeleteOldData;
     task.params[QStringLiteral("olderThanDays")] = olderThanDays;
     _worker->enqueueTask(task);
+}
+
+bool FlightDatabase::writeTextFile(const QString &filePath, const QString &content)
+{
+    QString path = filePath;
+    if (path.startsWith(QStringLiteral("file:///"))) path = path.mid(8);
+    else if (path.startsWith(QStringLiteral("file://"))) path = path.mid(7);
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        qCWarning(FlightDatabaseLog) << "writeTextFile failed:" << path << ":" << f.errorString();
+        return false;
+    }
+    const QByteArray data = content.toUtf8();
+    const qint64 written = f.write(data);
+    f.close();
+    qCDebug(FlightDatabaseLog) << "writeTextFile: wrote" << written << "bytes to" << path;
+    return written == data.size();
 }
 
 // ── Enqueue helpers for TelemetryCollector ─────────────────────

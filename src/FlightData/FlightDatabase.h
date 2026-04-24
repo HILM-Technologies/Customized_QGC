@@ -87,6 +87,9 @@ public:
     Q_INVOKABLE void queryFlightActivity(int days = 30);
     Q_INVOKABLE void deleteOldFlights(int olderThanDays = 365);
 
+    // File write helper for CSV export — returns true on success
+    Q_INVOKABLE bool writeTextFile(const QString &filePath, const QString &content);
+
     // Called by TelemetryCollector
     void enqueueUpsertVehicle(const QVariantMap &params);
     void enqueueStartFlight(const QVariantMap &params);

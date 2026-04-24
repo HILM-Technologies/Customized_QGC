@@ -8,6 +8,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import QtCharts
 
 import QGroundControl
@@ -40,9 +41,40 @@ Rectangle {
     property int _activeTab: 0
 
     // ── Filter state ────────────────────────────────────────
-    property string _filterVehicleUid: ""
-    property int    _filterDays:       30
-    property string _filterStatus:     ""
+    property string _filterVehicleUid:   ""      // "" = all drones
+    property int    _filterDays:         30      // 0 = all time
+    property string _filterStatus:       ""      // "" = all, or "COMPLETED"/"IN_PROGRESS"/"ABORTED"/"FAILED"
+    property string _filterSearch:       ""      // free-text search
+    property int    _filterMinDurationSec: 0     // 0 = no min
+    property int    _filterMinBatteryPct:  0     // 0 = no filter
+    property int    _filterMaxBatteryPct:  100   // 100 = no filter
+    property real   _filterMinDistanceM:   0     // 0 = no filter
+    property real   _filterMinAltitudeM:   0     // 0 = no filter
+    property bool   _filterNightOnly:      false // only flights between sunset-sunrise
+    property bool   _filtersExpanded:      false // show/hide advanced filter row
+
+    // ── Alert filters
+    property string _alertSeverityFilter:  ""    // "", "ERROR", "WARNING", "INFO", "OK"
+    property string _alertSearch:          ""
+
+    function _alertPasses(row) {
+        if (!row) return false
+        if (_alertSeverityFilter !== "" && row.severity !== _alertSeverityFilter) return false
+        if (_alertSearch !== "") {
+            var q = _alertSearch.toLowerCase()
+            var haystack = (row.message + " " + row.severity + " " + row.timestamp).toLowerCase()
+            if (haystack.indexOf(q) < 0) return false
+        }
+        return true
+    }
+
+    function _filteredAlertCount() {
+        var n = 0
+        for (var i = 0; i < _alertsModel.count; i++) {
+            if (_alertPasses(_alertsModel.get(i))) n++
+        }
+        return n
+    }
 
     // ── Flight detail drill-down ────────────────────────────
     property int  _selectedFlightId: -1
@@ -195,6 +227,113 @@ Rectangle {
                 timestamp: timeStr, vehicleId: 0
             })
         }
+    }
+
+    // ── Client-side filter: returns true if a flight row passes all filters
+    function _rowPassesFilters(row) {
+        if (!row) return false
+
+        // Status filter (server-side also applies, but double-check)
+        if (_filterStatus !== "" && row.status !== _filterStatus) return false
+
+        // Duration minimum
+        if (_filterMinDurationSec > 0 && (row.durationSec || 0) < _filterMinDurationSec) return false
+
+        // Battery filter (flights with battery info)
+        var bat = row.batteryEndPct
+        if (bat !== undefined && bat !== null && !isNaN(bat)) {
+            if (bat < _filterMinBatteryPct) return false
+            if (bat > _filterMaxBatteryPct) return false
+        }
+
+        // Min distance
+        if (_filterMinDistanceM > 0 && (row.flightDistanceM || 0) < _filterMinDistanceM) return false
+
+        // Min altitude
+        if (_filterMinAltitudeM > 0 && (row.maxAltitudeRelM || 0) < _filterMinAltitudeM) return false
+
+        // Night flight (rough: hour between 19 and 5)
+        if (_filterNightOnly) {
+            var ts = row.armedAt
+            if (ts) {
+                var h = parseInt(ts.substring(11, 13))
+                if (!(h >= 19 || h < 5)) return false
+            }
+        }
+
+        // Free-text search
+        if (_filterSearch !== "") {
+            var q = _filterSearch.toLowerCase()
+            var haystack = ""
+            haystack += "flight #" + (row.flightId || "") + " "
+            haystack += (row.vehicleName || "") + " "
+            haystack += "drone #" + (row.vehicleId || "") + " "
+            haystack += (row.status || "") + " "
+            haystack += (row.armedAt || "") + " "
+            haystack += (row.flightModeAtStart || "")
+            if (haystack.toLowerCase().indexOf(q) < 0) return false
+        }
+        return true
+    }
+
+    // ── Count filtered flights
+    function _filteredFlightCount() {
+        if (!_flightDb || !_flightDb.flightsModel) return 0
+        var n = 0
+        for (var i = 0; i < _flightDb.flightsModel.count; i++) {
+            if (_rowPassesFilters(_flightDb.flightsModel.get(i))) n++
+        }
+        return n
+    }
+
+    // ── Build CSV string of current filtered flights
+    function _buildFlightsCSV() {
+        if (!_flightDb || !_flightDb.flightsModel) return ""
+        var lines = []
+        lines.push("Flight ID,Vehicle ID,Vehicle Name,Armed At,Disarmed At,Duration (s),Distance (m),Max Altitude (m),Max Speed (m/s),Battery Start %,Battery End %,Flight Mode,Status")
+        for (var i = 0; i < _flightDb.flightsModel.count; i++) {
+            var r = _flightDb.flightsModel.get(i)
+            if (!_rowPassesFilters(r)) continue
+            lines.push([
+                r.flightId, r.vehicleId, r.vehicleName || "",
+                r.armedAt || "", r.disarmedAt || "",
+                r.durationSec || 0, r.flightDistanceM || 0,
+                r.maxAltitudeRelM || 0, r.maxGroundSpeedMps || 0,
+                r.batteryStartPct !== undefined ? r.batteryStartPct : "",
+                r.batteryEndPct !== undefined ? r.batteryEndPct : "",
+                r.flightModeAtStart || "", r.status || ""
+            ].map(function(v){ return String(v).replace(/,/g, ";") }).join(","))
+        }
+        return lines.join("\r\n")
+    }
+
+    // ── Export current filtered flights to CSV file (opens save dialog)
+    function _exportCSV() {
+        var csv = _buildFlightsCSV()
+        if (csv === "") return
+        _pendingCSV = csv
+        var today = new Date()
+        var stamp = today.getFullYear() + "-" +
+                    String(today.getMonth()+1).padStart(2, '0') + "-" +
+                    String(today.getDate()).padStart(2, '0')
+        _csvSaveDialog.selectedFile = "flights_" + stamp + ".csv"
+        _csvSaveDialog.open()
+    }
+
+    property string _pendingCSV: ""
+
+    function _clearFilters() {
+        _filterVehicleUid     = ""
+        _filterDays           = 30
+        _filterStatus         = ""
+        _filterSearch         = ""
+        _filterMinDurationSec = 0
+        _filterMinBatteryPct  = 0
+        _filterMaxBatteryPct  = 100
+        _filterMinDistanceM   = 0
+        _filterMinAltitudeM   = 0
+        _filterNightOnly      = false
+        _refreshDbData()
     }
 
     function _formatDuration(sec) {
@@ -404,7 +543,7 @@ Rectangle {
                     width: parent.width
                     spacing: _pad * 0.6
 
-                    // Section header with filters
+                    // ── Section header ──
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: _pad * 0.5
@@ -427,47 +566,448 @@ Rectangle {
 
                         Item { Layout.fillWidth: true }
 
-                        // Date filter chips
-                        Row {
-                            spacing: _pad * 0.4
+                        QGCLabel {
+                            text:           _filteredFlightCount() + " of " + (_flightDb && _flightDb.flightsModel ? _flightDb.flightsModel.count : 0) + " flights"
+                            color:          _dimText
+                            font.pixelSize: _fontSize * 0.725
+                        }
+
+                        // Export CSV button
+                        Rectangle {
+                            width:  _csvLbl.implicitWidth + _pad * 1.5
+                            height: _fontSize * 1.8
+                            radius: _fontSize * 0.3
+                            color:  _csvMa.containsMouse ? _tealDim : "transparent"
+                            border.color: _tealBorder
+                            border.width: 1
+                            QGCLabel {
+                                id: _csvLbl
+                                anchors.centerIn: parent
+                                text: "EXPORT CSV"
+                                color: _teal
+                                font.pixelSize: _fontSize * 0.65
+                                font.bold: true
+                                font.letterSpacing: 0.5
+                            }
+                            MouseArea {
+                                id: _csvMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: _exportCSV()
+                            }
+                        }
+
+                        // Clear filters button
+                        Rectangle {
+                            width:  _clearLbl.implicitWidth + _pad * 1.5
+                            height: _fontSize * 1.8
+                            radius: _fontSize * 0.3
+                            color:  _clearMa.containsMouse ? Qt.rgba(1, 0.322, 0.322, 0.12) : "transparent"
+                            border.color: Qt.rgba(1, 0.322, 0.322, 0.3)
+                            border.width: 1
+                            QGCLabel {
+                                id: _clearLbl
+                                anchors.centerIn: parent
+                                text: "CLEAR"
+                                color: _errColor
+                                font.pixelSize: _fontSize * 0.65
+                                font.bold: true
+                                font.letterSpacing: 0.5
+                            }
+                            MouseArea {
+                                id: _clearMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: _clearFilters()
+                            }
+                        }
+                    }
+
+                    // ── FILTER BAR (row 1: primary filters) ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: _filterRow1.implicitHeight + _pad * 1.2
+                        radius: _fontSize * 0.3
+                        color: Qt.rgba(1, 1, 1, 0.02)
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+
+                        Flow {
+                            id: _filterRow1
+                            anchors.left:        parent.left
+                            anchors.right:       parent.right
+                            anchors.top:         parent.top
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            anchors.topMargin:   _pad * 0.6
+                            spacing: _pad * 0.6
+
+                            // Search box
+                            Rectangle {
+                                width:  _fontSize * 16
+                                height: _fontSize * 1.8
+                                radius: _fontSize * 0.3
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.color: _searchInput.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.1)
+                                border.width: 1
+
+                                QGCColoredImage {
+                                    id: _searchIcon
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: _pad * 0.4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: _fontSize * 0.9; height: _fontSize * 0.9
+                                    source: "/InstrumentValueIcons/search.svg"
+                                    color: _dimText
+                                    fillMode: Image.PreserveAspectFit
+                                }
+
+                                TextInput {
+                                    id: _searchInput
+                                    anchors.left:   _searchIcon.right
+                                    anchors.right:  parent.right
+                                    anchors.top:    parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin:  _pad * 0.3
+                                    anchors.rightMargin: _pad * 0.4
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: _filterSearch
+                                    color: "white"
+                                    font.pixelSize: _fontSize * 0.7
+                                    selectByMouse: true
+                                    clip: true
+                                    onTextChanged: _filterSearch = text
+                                }
+                                QGCLabel {
+                                    visible: _filterSearch === "" && !_searchInput.activeFocus
+                                    text: "Search flights..."
+                                    color: _dimText
+                                    font.pixelSize: _fontSize * 0.7
+                                    anchors.left: _searchIcon.right
+                                    anchors.leftMargin: _pad * 0.3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            // Date range chips
                             Repeater {
                                 model: [
-                                    { label: "7D",  days: 7 },
-                                    { label: "30D", days: 30 },
-                                    { label: "ALL", days: 0 }
+                                    { label: "TODAY", days: 1 },
+                                    { label: "7D",    days: 7 },
+                                    { label: "30D",   days: 30 },
+                                    { label: "90D",   days: 90 },
+                                    { label: "ALL",   days: 0 }
                                 ]
                                 Rectangle {
-                                    width: _chipLabel.implicitWidth + _pad * 1.5
+                                    width: _chipLabel.implicitWidth + _pad * 1.3
                                     height: _fontSize * 1.8
-                                    radius: _fontSize * 0.9
+                                    radius: _fontSize * 0.3
                                     color: _filterDays === modelData.days ? _tealDim : "transparent"
                                     border.color: _filterDays === modelData.days ? _teal : _tealBorder
                                     border.width: 1
-
                                     QGCLabel {
                                         id: _chipLabel
                                         anchors.centerIn: parent
                                         text: modelData.label
                                         color: _filterDays === modelData.days ? _teal : _dimText
-                                        font.pixelSize: _fontSize * 0.65
+                                        font.pixelSize: _fontSize * 0.62
                                         font.bold: true
                                     }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            _filterDays = modelData.days
-                                            _refreshDbData()
+                                        onClicked: { _filterDays = modelData.days; _refreshDbData() }
+                                    }
+                                }
+                            }
+
+                            // Divider
+                            Rectangle {
+                                width: 1; height: _fontSize * 1.5
+                                color: Qt.rgba(1, 1, 1, 0.1)
+                            }
+
+                            // Vehicle dropdown
+                            ComboBox {
+                                id: _vehicleCombo
+                                width: _fontSize * 9
+                                height: _fontSize * 1.8
+                                model: {
+                                    var arr = [{ text: "All Drones", uid: "" }]
+                                    if (_flightDb && _flightDb.vehiclesModel) {
+                                        for (var i = 0; i < _flightDb.vehiclesModel.count; i++) {
+                                            var v = _flightDb.vehiclesModel.get(i)
+                                            if (v) arr.push({
+                                                text: "Drone #" + (v.vehicleId || v.id || "?"),
+                                                uid: v.vehicleUid || ""
+                                            })
+                                        }
+                                    } else if (_vehicles) {
+                                        for (var j = 0; j < _vehicles.count; j++) {
+                                            var v2 = _vehicles.get(j)
+                                            if (v2) arr.push({ text: "Drone #" + v2.id, uid: String(v2.id) })
+                                        }
+                                    }
+                                    return arr
+                                }
+                                textRole: "text"
+                                onActivated: (idx) => {
+                                    _filterVehicleUid = model[idx].uid
+                                    _refreshDbData()
+                                }
+                                font.pixelSize: _fontSize * 0.7
+                                background: Rectangle {
+                                    color: Qt.rgba(1, 1, 1, 0.05)
+                                    border.color: _tealBorder
+                                    border.width: 1
+                                    radius: _fontSize * 0.3
+                                }
+                            }
+
+                            // Status chips
+                            Repeater {
+                                model: [
+                                    { label: "ALL",         value: "",          color: _dimText },
+                                    { label: "COMPLETED",   value: "COMPLETED", color: _okColor },
+                                    { label: "IN PROGRESS", value: "IN_PROGRESS", color: _teal },
+                                    { label: "ABORTED",     value: "ABORTED",   color: _warnColor },
+                                    { label: "FAILED",      value: "FAILED",    color: _errColor }
+                                ]
+                                Rectangle {
+                                    width: _stLabel.implicitWidth + _pad * 1.3
+                                    height: _fontSize * 1.8
+                                    radius: _fontSize * 0.3
+                                    color: _filterStatus === modelData.value ? Qt.rgba(modelData.color.r, modelData.color.g, modelData.color.b, 0.15) : "transparent"
+                                    border.color: _filterStatus === modelData.value ? modelData.color : Qt.rgba(1, 1, 1, 0.1)
+                                    border.width: 1
+                                    QGCLabel {
+                                        id: _stLabel
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: _filterStatus === modelData.value ? modelData.color : _dimText
+                                        font.pixelSize: _fontSize * 0.6
+                                        font.bold: _filterStatus === modelData.value
+                                        font.letterSpacing: 0.5
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: { _filterStatus = modelData.value; _refreshDbData() }
+                                    }
+                                }
+                            }
+
+                            // Expand advanced filters toggle
+                            Rectangle {
+                                width: _advLbl.implicitWidth + _pad * 1.5
+                                height: _fontSize * 1.8
+                                radius: _fontSize * 0.3
+                                color: _filtersExpanded ? _tealDim : "transparent"
+                                border.color: _tealBorder
+                                border.width: 1
+                                QGCLabel {
+                                    id: _advLbl
+                                    anchors.centerIn: parent
+                                    text: _filtersExpanded ? "ADVANCED ▲" : "ADVANCED ▼"
+                                    color: _teal
+                                    font.pixelSize: _fontSize * 0.6
+                                    font.bold: true
+                                    font.letterSpacing: 0.5
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: _filtersExpanded = !_filtersExpanded
+                                }
+                            }
+                        }
+                    }
+
+                    // ── FILTER BAR (row 2: advanced filters) ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: _filterRow2.implicitHeight + _pad * 1.2
+                        visible: _filtersExpanded
+                        radius: _fontSize * 0.3
+                        color: Qt.rgba(1, 1, 1, 0.02)
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+
+                        Flow {
+                            id: _filterRow2
+                            anchors.left:        parent.left
+                            anchors.right:       parent.right
+                            anchors.top:         parent.top
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            anchors.topMargin:   _pad * 0.6
+                            spacing: _pad * 0.8
+
+                            // Min duration
+                            RowLayout {
+                                spacing: _pad * 0.3
+                                QGCLabel { text: "Min duration:"; color: _dimText; font.pixelSize: _fontSize * 0.65 }
+                                Repeater {
+                                    model: [
+                                        { label: "ANY",   v: 0 },
+                                        { label: ">30s",  v: 30 },
+                                        { label: ">1m",   v: 60 },
+                                        { label: ">5m",   v: 300 },
+                                        { label: ">15m",  v: 900 }
+                                    ]
+                                    Rectangle {
+                                        width: _dLbl.implicitWidth + _pad
+                                        height: _fontSize * 1.6
+                                        radius: _fontSize * 0.25
+                                        color: _filterMinDurationSec === modelData.v ? _tealDim : "transparent"
+                                        border.color: _filterMinDurationSec === modelData.v ? _teal : _tealBorder
+                                        border.width: 1
+                                        QGCLabel {
+                                            id: _dLbl
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: _filterMinDurationSec === modelData.v ? _teal : _dimText
+                                            font.pixelSize: _fontSize * 0.58
+                                            font.bold: true
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: _filterMinDurationSec = modelData.v
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        QGCLabel {
-                            text:           (_flightDb && _flightDb.flightsModel ? _flightDb.flightsModel.count : 0) + " flights"
-                            color:          _dimText
-                            font.pixelSize: _fontSize * 0.725
+                            // Battery range
+                            RowLayout {
+                                spacing: _pad * 0.3
+                                QGCLabel { text: "Battery end:"; color: _dimText; font.pixelSize: _fontSize * 0.65 }
+                                Repeater {
+                                    model: [
+                                        { label: "ANY",    min: 0,  max: 100 },
+                                        { label: "< 20%",  min: 0,  max: 20  },
+                                        { label: "< 50%",  min: 0,  max: 50  },
+                                        { label: "> 50%",  min: 50, max: 100 }
+                                    ]
+                                    Rectangle {
+                                        width: _bLbl.implicitWidth + _pad
+                                        height: _fontSize * 1.6
+                                        radius: _fontSize * 0.25
+                                        color: (_filterMinBatteryPct === modelData.min && _filterMaxBatteryPct === modelData.max) ? _tealDim : "transparent"
+                                        border.color: (_filterMinBatteryPct === modelData.min && _filterMaxBatteryPct === modelData.max) ? _teal : _tealBorder
+                                        border.width: 1
+                                        QGCLabel {
+                                            id: _bLbl
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: (_filterMinBatteryPct === modelData.min && _filterMaxBatteryPct === modelData.max) ? _teal : _dimText
+                                            font.pixelSize: _fontSize * 0.58
+                                            font.bold: true
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                _filterMinBatteryPct = modelData.min
+                                                _filterMaxBatteryPct = modelData.max
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Min distance
+                            RowLayout {
+                                spacing: _pad * 0.3
+                                QGCLabel { text: "Min distance:"; color: _dimText; font.pixelSize: _fontSize * 0.65 }
+                                Repeater {
+                                    model: [
+                                        { label: "ANY",    v: 0 },
+                                        { label: ">100m",  v: 100 },
+                                        { label: ">500m",  v: 500 },
+                                        { label: ">1km",   v: 1000 },
+                                        { label: ">5km",   v: 5000 }
+                                    ]
+                                    Rectangle {
+                                        width: _diLbl.implicitWidth + _pad
+                                        height: _fontSize * 1.6
+                                        radius: _fontSize * 0.25
+                                        color: _filterMinDistanceM === modelData.v ? _tealDim : "transparent"
+                                        border.color: _filterMinDistanceM === modelData.v ? _teal : _tealBorder
+                                        border.width: 1
+                                        QGCLabel {
+                                            id: _diLbl
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: _filterMinDistanceM === modelData.v ? _teal : _dimText
+                                            font.pixelSize: _fontSize * 0.58
+                                            font.bold: true
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: _filterMinDistanceM = modelData.v
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Min altitude
+                            RowLayout {
+                                spacing: _pad * 0.3
+                                QGCLabel { text: "Min altitude:"; color: _dimText; font.pixelSize: _fontSize * 0.65 }
+                                Repeater {
+                                    model: [
+                                        { label: "ANY",   v: 0 },
+                                        { label: ">30m", v: 30 },
+                                        { label: ">50m", v: 50 },
+                                        { label: ">100m", v: 100 },
+                                        { label: ">120m", v: 120 }
+                                    ]
+                                    Rectangle {
+                                        width: _aLbl.implicitWidth + _pad
+                                        height: _fontSize * 1.6
+                                        radius: _fontSize * 0.25
+                                        color: _filterMinAltitudeM === modelData.v ? _tealDim : "transparent"
+                                        border.color: _filterMinAltitudeM === modelData.v ? _teal : _tealBorder
+                                        border.width: 1
+                                        QGCLabel {
+                                            id: _aLbl
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: _filterMinAltitudeM === modelData.v ? _teal : _dimText
+                                            font.pixelSize: _fontSize * 0.58
+                                            font.bold: true
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: _filterMinAltitudeM = modelData.v
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Night flights only
+                            Rectangle {
+                                width: _nightLbl.implicitWidth + _pad * 1.3
+                                height: _fontSize * 1.6
+                                radius: _fontSize * 0.25
+                                color: _filterNightOnly ? Qt.rgba(0.6, 0.4, 0.9, 0.15) : "transparent"
+                                border.color: _filterNightOnly ? "#9b59b6" : _tealBorder
+                                border.width: 1
+                                QGCLabel {
+                                    id: _nightLbl
+                                    anchors.centerIn: parent
+                                    text: "🌙 NIGHT ONLY"
+                                    color: _filterNightOnly ? "#c39bd3" : _dimText
+                                    font.pixelSize: _fontSize * 0.58
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                    onClicked: _filterNightOnly = !_filterNightOnly
+                                }
+                            }
                         }
                     }
 
@@ -495,15 +1035,27 @@ Rectangle {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
-                    // Flight rows from DB
+                    // Flight rows from DB (with client-side filtering)
                     Repeater {
                         model: _flightDb ? _flightDb.flightsModel : null
 
                         Rectangle {
                             Layout.fillWidth: true
-                            height: _fontSize * 3.2
+                            height: _rowVisible ? _fontSize * 3.2 : 0
+                            visible: _rowVisible
                             radius: _fontSize * 0.3
                             color:  _mhMa.containsMouse ? Qt.rgba(1,1,1,0.03) : "transparent"
+
+                            property bool _rowVisible: {
+                                void _filterSearch
+                                void _filterMinDurationSec
+                                void _filterMinBatteryPct
+                                void _filterMaxBatteryPct
+                                void _filterMinDistanceM
+                                void _filterMinAltitudeM
+                                void _filterNightOnly
+                                return _rowPassesFilters(model)
+                            }
 
                             MouseArea {
                                 id: _mhMa
@@ -609,7 +1161,7 @@ Rectangle {
                         }
                     }
 
-                    // Empty state
+                    // Empty states
                     QGCLabel {
                         visible: !_flightDb || !_flightDb.flightsModel || _flightDb.flightsModel.count === 0
                         Layout.fillWidth: true
@@ -617,6 +1169,16 @@ Rectangle {
                         horizontalAlignment: Text.AlignHCenter
                         text: "No flights recorded yet\nArm a vehicle to start recording flight data"
                         color: _dimText
+                        font.pixelSize: _fontSize * 0.85
+                    }
+
+                    QGCLabel {
+                        visible: _flightDb && _flightDb.flightsModel && _flightDb.flightsModel.count > 0 && _filteredFlightCount() === 0
+                        Layout.fillWidth: true
+                        Layout.topMargin: _fontSize * 3
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "No flights match the current filters\nClick CLEAR to reset filters"
+                        color: _warnColor
                         font.pixelSize: _fontSize * 0.85
                     }
                 }
@@ -696,13 +1258,133 @@ Rectangle {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1,1,1,0.06) }
 
+                    // ── Alert filter bar ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: _alertFilterFlow.implicitHeight + _pad * 1.2
+                        radius: _fontSize * 0.3
+                        color: Qt.rgba(1, 1, 1, 0.02)
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
+                        border.width: 1
+
+                        Flow {
+                            id: _alertFilterFlow
+                            anchors.left:        parent.left
+                            anchors.right:       parent.right
+                            anchors.top:         parent.top
+                            anchors.leftMargin:  _pad
+                            anchors.rightMargin: _pad
+                            anchors.topMargin:   _pad * 0.6
+                            spacing: _pad * 0.5
+
+                            // Search
+                            Rectangle {
+                                width:  _fontSize * 14
+                                height: _fontSize * 1.8
+                                radius: _fontSize * 0.3
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.color: _alertSearchInput.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.1)
+                                border.width: 1
+
+                                QGCColoredImage {
+                                    id: _alertSearchIcon
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: _pad * 0.4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: _fontSize * 0.9; height: _fontSize * 0.9
+                                    source: "/InstrumentValueIcons/search.svg"
+                                    color: _dimText
+                                    fillMode: Image.PreserveAspectFit
+                                }
+
+                                TextInput {
+                                    id: _alertSearchInput
+                                    anchors.left:   _alertSearchIcon.right
+                                    anchors.right:  parent.right
+                                    anchors.top:    parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin:  _pad * 0.3
+                                    anchors.rightMargin: _pad * 0.4
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: _alertSearch
+                                    color: "white"
+                                    font.pixelSize: _fontSize * 0.7
+                                    selectByMouse: true
+                                    clip: true
+                                    onTextChanged: _alertSearch = text
+                                }
+                                QGCLabel {
+                                    visible: _alertSearch === "" && !_alertSearchInput.activeFocus
+                                    text: "Search alerts..."
+                                    color: _dimText
+                                    font.pixelSize: _fontSize * 0.7
+                                    anchors.left: _alertSearchIcon.right
+                                    anchors.leftMargin: _pad * 0.3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            // Severity filter chips
+                            Repeater {
+                                model: [
+                                    { label: "ALL",      v: "",        color: _dimText },
+                                    { label: "CRITICAL", v: "ERROR",   color: _errColor },
+                                    { label: "WARNING",  v: "WARNING", color: _warnColor },
+                                    { label: "INFO",     v: "INFO",    color: _teal },
+                                    { label: "OK",       v: "OK",      color: _okColor }
+                                ]
+                                Rectangle {
+                                    width: _sevLbl.implicitWidth + _pad * 1.3
+                                    height: _fontSize * 1.8
+                                    radius: _fontSize * 0.3
+                                    color: _alertSeverityFilter === modelData.v ? Qt.rgba(modelData.color.r, modelData.color.g, modelData.color.b, 0.15) : "transparent"
+                                    border.color: _alertSeverityFilter === modelData.v ? modelData.color : Qt.rgba(1, 1, 1, 0.1)
+                                    border.width: 1
+                                    QGCLabel {
+                                        id: _sevLbl
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: _alertSeverityFilter === modelData.v ? modelData.color : _dimText
+                                        font.pixelSize: _fontSize * 0.6
+                                        font.bold: _alertSeverityFilter === modelData.v
+                                        font.letterSpacing: 0.5
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        onClicked: _alertSeverityFilter = modelData.v
+                                    }
+                                }
+                            }
+
+                            // Count badge
+                            Rectangle {
+                                width:  _countLbl.implicitWidth + _pad * 1.3
+                                height: _fontSize * 1.8
+                                radius: _fontSize * 0.3
+                                color:  Qt.rgba(1, 1, 1, 0.04)
+                                QGCLabel {
+                                    id: _countLbl
+                                    anchors.centerIn: parent
+                                    text: _filteredAlertCount() + " of " + _alertsModel.count
+                                    color: _dimText
+                                    font.pixelSize: _fontSize * 0.65
+                                }
+                            }
+                        }
+                    }
+
                     // Live alert items
                     Repeater {
                         model: _alertsModel
 
                         Rectangle {
                             Layout.fillWidth: true
-                            height: _alertRow.height + _pad * 1.6
+                            property bool _alertVisible: {
+                                void _alertSearch; void _alertSeverityFilter
+                                return _alertPasses(model)
+                            }
+                            visible: _alertVisible
+                            height: _alertVisible ? (_alertRow.height + _pad * 1.6) : 0
                             radius: _fontSize * 0.35
                             color: {
                                 if (model.severity === "ERROR")   return Qt.rgba(1, 0.322, 0.322, 0.06)
@@ -1436,6 +2118,76 @@ Rectangle {
             source:   iconSrc
             color:    accent
             fillMode: Image.PreserveAspectFit
+        }
+    }
+
+    // ── CSV Save Dialog ──
+    FileDialog {
+        id: _csvSaveDialog
+        title:           "Save CSV Export"
+        fileMode:        FileDialog.SaveFile
+        defaultSuffix:   "csv"
+        nameFilters:     ["CSV files (*.csv)", "All files (*)"]
+
+        onAccepted: {
+            var path = selectedFile.toString()
+            // Strip file:/// prefix
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            else if (path.indexOf("file://") === 0) path = path.substring(7)
+            // Ensure .csv extension
+            if (!path.toLowerCase().endsWith(".csv")) path += ".csv"
+
+            var success = _writeFileSync(path, _pendingCSV)
+            if (success) {
+                _csvSaveStatus = "Saved to: " + path
+                console.log("CSV saved to:", path)
+            } else {
+                _csvSaveStatus = "Failed to save CSV (see console)"
+            }
+            _csvSaveStatusTimer.restart()
+            _pendingCSV = ""
+        }
+
+        onRejected: { _pendingCSV = "" }
+    }
+
+    // Status message shown briefly after export
+    property string _csvSaveStatus: ""
+    Timer {
+        id: _csvSaveStatusTimer
+        interval: 5000
+        repeat: false
+        onTriggered: _csvSaveStatus = ""
+    }
+
+    Rectangle {
+        visible: _csvSaveStatus !== ""
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottomMargin: _pad * 2
+        width:  _saveStatusLbl.implicitWidth + _pad * 3
+        height: _fontSize * 2.2
+        radius: _fontSize * 0.4
+        color:  _csvSaveStatus.startsWith("Saved") ? Qt.rgba(0.298, 0.686, 0.314, 0.9) : Qt.rgba(1, 0.322, 0.322, 0.9)
+        z: 1000
+        QGCLabel {
+            id: _saveStatusLbl
+            anchors.centerIn: parent
+            text: _csvSaveStatus
+            color: "white"
+            font.pixelSize: _fontSize * 0.8
+            font.bold: true
+        }
+    }
+
+    // Helper to write file using FlightDatabase C++ helper
+    function _writeFileSync(path, content) {
+        if (!_flightDb) return false
+        try {
+            return _flightDb.writeTextFile(path, content)
+        } catch (e) {
+            console.warn("CSV write failed:", e)
+            return false
         }
     }
 

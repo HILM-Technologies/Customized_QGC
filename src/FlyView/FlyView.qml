@@ -185,9 +185,11 @@ Item {
         }
 
         //-- Guided value slider (e.g. altitude)
+        //  Anchored to left of the HILM right panel so it doesn't overlap
         GuidedValueSlider {
             id:                 guidedValueSlider
-            anchors.right:      parent.right
+            anchors.right:      hilmRightPanel.left
+            anchors.rightMargin: ScreenTools.defaultFontPixelWidth * 0.5
             anchors.top:        parent.top
             anchors.bottom:     parent.bottom
             anchors.topMargin:  0
