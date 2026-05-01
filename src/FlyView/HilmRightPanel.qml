@@ -1048,7 +1048,11 @@ Item {
                     }
                 }
 
-                // Phase 2: create new stream (after old one is removed)
+                // ── Debounced stream creator ─────────────────────
+                // C++ GStreamer pipeline teardown is async. Creating a new
+                // stream immediately after stopping the old one races with
+                // the cleanup and causes SEH crashes. This timer enforces a
+                // minimum delay between destroy and create.
                 Timer {
                     id: opsCreateTimer
                     interval: 500
@@ -1059,14 +1063,21 @@ Item {
 
                     onTriggered: {
                         if (pendingId < 0 || pendingUrl === "") return
-                        var sid = "ops_vehicle_" + pendingId
+                        if (!videoArea.opsViewVisible) return       // panel hid while we were waiting
+                        if (videoArea.opsStreamId !== "") return    // already running — don't double-add
+
+                        const sid = "ops_vehicle_" + pendingId
                         console.log("OPS Video: creating stream", sid, "URL:", pendingUrl)
+                        try {
+                            QGroundControl.videoManager.addCustomStream(sid, pendingUrl)
+                            QGroundControl.videoManager.setCustomStreamWidget(sid, opsVideoWidget)
+                        } catch (e) {
+                            console.warn("OPS Video: failed to create stream", sid, e)
+                            return
+                        }
                         videoArea.opsStreamId   = sid
                         videoArea.opsStreamName = pendingName
-                        videoArea.opsConnected  = false
-                        QGroundControl.videoManager.addCustomStream(sid, pendingUrl)
-                        QGroundControl.videoManager.setCustomStreamWidget(sid, opsVideoWidget)
-                        videoArea.opsConnected = QGroundControl.videoManager.isCustomStreamStreaming(sid)
+                        videoArea.opsConnected  = QGroundControl.videoManager.isCustomStreamStreaming(sid)
                     }
                 }
 
@@ -1083,27 +1094,41 @@ Item {
 
                 onOpsViewVisibleChanged: {
                     if (opsViewVisible) {
-                        // Panel became visible — start stream for current vehicle
                         if (opsCurrentVehicleId > 0 && videoArea.opsStreamId === "")
                             _createStream(opsCurrentVehicleId)
                     } else {
-                        // Panel hidden (switched to Video Wall etc.) — release the stream
                         _teardownStream()
                     }
                 }
 
+                // Explicit cleanup before destruction. Must fire while QML
+                // state is still valid so removeCustomStream() can release
+                // the GStreamer pipeline cleanly. Without this, the stream
+                // would be leaked when the right panel collapses or the app
+                // exits, causing a crash on the next create attempt.
+                Component.onDestruction: _teardownStream()
+
                 function _teardownStream() {
+                    opsCreateTimer.stop()
                     if (videoArea.opsStreamId !== "") {
-                        console.log("OPS Video: removing stream", videoArea.opsStreamId)
-                        QGroundControl.videoManager.removeCustomStream(videoArea.opsStreamId)
+                        const sid = videoArea.opsStreamId
+                        console.log("OPS Video: removing stream", sid)
+                        // Clear QML state FIRST so any queued signals referencing
+                        // the old ID become no-ops before we call into C++.
                         videoArea.opsStreamId  = ""
                         videoArea.opsConnected = false
+                        try {
+                            if (QGroundControl.videoManager)
+                                QGroundControl.videoManager.removeCustomStream(sid)
+                        } catch (e) {
+                            console.warn("OPS Video: failed to remove stream", sid, e)
+                        }
                     }
-                    opsCreateTimer.stop()
                 }
 
                 function _createStream(vehicleId) {
-                    var url = rightPanelRoot._streamUrl(vehicleId)
+                    if (vehicleId <= 0) return
+                    const url = rightPanelRoot._streamUrl(vehicleId)
                     if (url === "") return
                     opsCreateTimer.pendingId   = vehicleId
                     opsCreateTimer.pendingUrl  = url
@@ -1112,7 +1137,6 @@ Item {
                 }
 
                 function startVideoForCurrentVehicle() {
-                    if (opsCurrentVehicleId <= 0) return
                     _createStream(opsCurrentVehicleId)
                 }
 

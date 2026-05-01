@@ -20,19 +20,44 @@ Item {
     // When false the stream is torn down (saves resources when the parent view is hidden)
     property bool active: true
 
+    // ── Lifetime tracking ──────────────────────────────────
+    // Tracks the CURRENT stream ID the C++ side knows about. May differ from
+    // `streamId` property during transitions (old stream being torn down while
+    // new id has been set). We always stop the stream identified by
+    // _activeStreamId, never the current streamId, to avoid leaking pipelines.
+    property string _activeStreamId: ""
+
+    // Debounce timer — rapid streamId/url changes during vehicle switches
+    // cause GStreamer pipeline churn. Wait until changes settle before
+    // committing the new stream.
+    readonly property int _restartDebounceMs: 250
+
     signal fullscreenRequested()
 
     Connections {
         target: QGroundControl.videoManager
         function onCustomStreamStreamingChanged(name, act) {
-            if (name === streamId) {
+            if (name === root._activeStreamId) {
                 isConnected = act
             }
         }
     }
 
+    // Explicit, deterministic cleanup before object destruction.
+    // This ensures the C++ GStreamer pipeline is torn down while our QML
+    // state is still valid. If we left this to children (onDestruction fires
+    // child-first) the pipeline could try to render into a dying widget.
     Component.onDestruction: {
+        _restartTimer.stop()
         _videoBackground._stopStream()
+    }
+
+    // Debounce timer — fires once after the last streamId/url/active change.
+    Timer {
+        id: _restartTimer
+        interval: _restartDebounceMs
+        repeat: false
+        onTriggered: _videoBackground._applyStreamState()
     }
 
     // Main Container
@@ -59,50 +84,87 @@ Item {
             QGCVideoBackground {
                 id: _videoBackground
                 anchors.fill: parent
-                objectName: streamId
+                objectName: root.streamId
 
-                property bool _streamStarted: false
+                // ── State machine ────────────────────────────────
+                // "idle"     → no stream, nothing in C++
+                // "running"  → stream running, _activeStreamId matches
+                // "stopping" → waiting for C++ to finish teardown
+                property string _state: "idle"
+
+                function _isStreamable() {
+                    return root.active &&
+                           root.streamId && root.streamId !== "" &&
+                           root.rtspUrl  && root.rtspUrl  !== ""
+                }
 
                 function _startStream() {
-                    if (_streamStarted) return
-                    if (!root.active) return
-                    if (!root.rtspUrl || root.rtspUrl === "") return
-                    if (!root.streamId || root.streamId === "") return
+                    if (_state !== "idle") return
+                    if (!_isStreamable())  return
+                    if (!QGroundControl.videoManager) return
 
-                    console.log("VideoFeed starting stream:", root.streamId, "URL:", root.rtspUrl)
-                    QGroundControl.videoManager.addCustomStream(root.streamId, root.rtspUrl)
-                    QGroundControl.videoManager.setCustomStreamWidget(root.streamId, _videoBackground)
+                    console.log("VideoFeed ▶ start:", root.streamId, "→", root.rtspUrl)
+                    try {
+                        QGroundControl.videoManager.addCustomStream(root.streamId, root.rtspUrl)
+                        QGroundControl.videoManager.setCustomStreamWidget(root.streamId, _videoBackground)
+                    } catch (e) {
+                        console.warn("VideoFeed start failed:", e)
+                        return
+                    }
+                    root._activeStreamId = root.streamId
                     root.isConnected = QGroundControl.videoManager.isCustomStreamStreaming(root.streamId)
-                    _streamStarted = true
+                    _state = "running"
                 }
 
                 function _stopStream() {
-                    if (!_streamStarted) return
-                    console.log("VideoFeed stopping stream:", root.streamId)
-                    QGroundControl.videoManager.removeCustomStream(root.streamId)
-                    _streamStarted = false
+                    if (_state === "idle") return
+
+                    const idToStop = root._activeStreamId
+                    // Clear QML state FIRST so any queued signals referring to
+                    // this id become no-ops before the C++ call.
+                    root._activeStreamId = ""
                     root.isConnected = false
+                    _state = "idle"
+
+                    if (idToStop && idToStop !== "") {
+                        console.log("VideoFeed ■ stop:", idToStop)
+                        try {
+                            if (QGroundControl.videoManager)
+                                QGroundControl.videoManager.removeCustomStream(idToStop)
+                        } catch (e) {
+                            console.warn("VideoFeed stop failed:", e)
+                        }
+                    }
                 }
 
-                Component.onCompleted: _startStream()
+                // Called by debounce timer — brings actual state in line with desired state
+                function _applyStreamState() {
+                    const want = _isStreamable()
+                    const idChanged = (root._activeStreamId !== root.streamId)
 
-                // React to active (visibility) changes
+                    if (!want && _state !== "idle") {
+                        _stopStream()
+                        return
+                    }
+                    if (want && _state === "idle") {
+                        _startStream()
+                        return
+                    }
+                    if (want && _state === "running" && idChanged) {
+                        _stopStream()
+                        _startStream()
+                    }
+                }
+
+                Component.onCompleted: _applyStreamState()
+
+                // Any desired-state change → debounce then apply.
+                // Prevents pipeline churn during rapid vehicle switches.
                 Connections {
                     target: root
-                    function onActiveChanged() {
-                        if (root.active)
-                            _videoBackground._startStream()
-                        else
-                            _videoBackground._stopStream()
-                    }
-                    function onRtspUrlChanged() {
-                        _videoBackground._stopStream()
-                        _videoBackground._startStream()
-                    }
-                    function onStreamIdChanged() {
-                        _videoBackground._stopStream()
-                        _videoBackground._startStream()
-                    }
+                    function onActiveChanged()    { _restartTimer.restart() }
+                    function onRtspUrlChanged()   { _restartTimer.restart() }
+                    function onStreamIdChanged()  { _restartTimer.restart() }
                 }
             }
 
