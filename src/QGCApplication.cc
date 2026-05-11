@@ -274,14 +274,17 @@ void QGCApplication::_initForNormalAppBoot()
     _qmlAppEngine->addImageProvider(_qgcImageProviderId, new QGCImageProvider());
 
     // Set the window icon now that custom plugin has a chance to override it
+    // HILMOS: use hilm_logo_green_black.ico — black variant of the HILM mark
+    // because the title bar and Windows taskbar use a light background, so the
+    // all-teal logo (used inside the app over dark UI) would wash out.
 #ifdef Q_OS_LINUX
-    QUrl windowIcon = QUrl("qrc:/res/qgroundcontrol.ico");
+    QUrl windowIcon = QUrl("qrc:/res/hilm_logo_green_black.ico");
     windowIcon = _qmlAppEngine->interceptUrl(windowIcon, QQmlAbstractUrlInterceptor::UrlString);
     // The interceptor needs "qrc:/path" but QIcon expects ":/path"
     setWindowIcon(QIcon(":" + windowIcon.path()));
 #endif
 #ifdef Q_OS_WIN
-    QUrl windowIcon = QUrl("qrc:/res/qgroundcontrol.ico");
+    QUrl windowIcon = QUrl("qrc:/res/hilm_logo_green_black.ico");
     windowIcon = _qmlAppEngine->interceptUrl(windowIcon, QQmlAbstractUrlInterceptor::UrlString);
     // Convert qrc:/path → :/path
     setWindowIcon(QIcon(":" + windowIcon.path()));
