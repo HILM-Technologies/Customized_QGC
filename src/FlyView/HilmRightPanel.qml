@@ -1167,6 +1167,7 @@ Item {
 
                 // Placeholder when no video stream active
                 ColumnLayout {
+                    id:               noStreamPlaceholder
                     anchors.centerIn: parent
                     spacing:          _pad * 1.2
                     visible:          videoArea.opsStreamId === ""
@@ -1188,14 +1189,16 @@ Item {
                         color: Qt.rgba(1, 1, 1, 0.32)
                         font.pointSize: ScreenTools.defaultFontPointSize * 0.72
                     }
+                }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape:  _activeVehicle ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (_activeVehicle) {
-                                videoArea.startVideoForCurrentVehicle()
-                            }
+                MouseArea {
+                    anchors.fill: parent
+                    visible:      noStreamPlaceholder.visible
+                    enabled:      visible
+                    cursorShape:  _activeVehicle ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (_activeVehicle) {
+                            videoArea.startVideoForCurrentVehicle()
                         }
                     }
                 }

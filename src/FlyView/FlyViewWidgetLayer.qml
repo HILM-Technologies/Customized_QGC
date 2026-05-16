@@ -120,7 +120,12 @@ Item {
         anchors.left:               parent.left
         anchors.leftMargin:         ( y > toolStrip.y + toolStrip.height ? toolStrip.width / 2 : toolStrip.width * 1.05 + toolStrip.x)
         source:                     "qrc:/qml/QGroundControl/FlyView/VirtualJoystick.qml"
-        active:                     _virtualJoystickEnabled && !(_activeVehicle ? _activeVehicle.usingHighLatencyLink : false)
+        // Keep the loaded item alive across enable/disable toggles. Tearing
+        // it down and recreating it leaves the MultiPointTouchArea wired but
+        // unable to receive input until the app is relaunched. `visible`
+        // (bound to the setting) hides it; the in-component Timer already
+        // gates updates on the setting's value.
+        active:                     !(_activeVehicle ? _activeVehicle.usingHighLatencyLink : false)
 
         property real bottomEdgeLeftInset:     parent.height-y
         property bool autoCenterThrottle:      QGroundControl.settingsManager.appSettings.virtualJoystickAutoCenterThrottle.rawValue
