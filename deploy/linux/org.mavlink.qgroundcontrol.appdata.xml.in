@@ -42,7 +42,7 @@
     </screenshot>
   </screenshots>
 
-  <url type="homepage">https://@QGC_ORG_DOMAIN@</url>
+  <url type="homepage">https://www.@QGC_ORG_DOMAIN@</url>
   <url type="help">https://docs.qgroundcontrol.com/master/en/index.html</url>
   <url type="bugtracker">https://github.com/mavlink/qgroundcontrol/issues</url>
   <url type="contact">https://docs.qgroundcontrol.com/master/en/qgc-user-guide/support/support.html</url>
