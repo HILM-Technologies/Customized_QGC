@@ -111,6 +111,113 @@ Item {
     property bool _emergencyEngaged:    _emergencySelecting || _emergencyTargetSet || _emergencyActive
 
     // ══════════════════════════════════════════════
+    // Flight-mode classification + Quick Actions gating
+    //
+    // Each Quick Action button is enabled per the action/mode matrix
+    // (Manual/Altitude/Stabilized/Acro/Position/Hold/Mission/Takeoff/
+    // Land/Safe Recovery/Precision Landing/Follow Target/VTOL Takeoff/
+    // Offboard).
+    //
+    // PX4 and ArduPilot expose different mode strings via Vehicle.flightMode
+    // (see src/FirmwarePlugin/*). We deny-list autonomous / returning /
+    // externally-controlled modes; anything else is treated as a manual-
+    // control mode, so unknown pilot-stick modes from any firmware still
+    // enable TAKEOFF / START MISSION.
+    // ══════════════════════════════════════════════
+    property string _currentMode: _activeVehicle ? _activeVehicle.flightMode : ""
+    property bool   _armed:       _activeVehicle ? _activeVehicle.armed     : false
+    property bool   _flying:      _activeVehicle ? _activeVehicle.flying    : false
+
+    // Mode strings are the values that Vehicle.flightMode returns. They are
+    // defined per firmware in src/FirmwarePlugin/* — strings differ across
+    // PX4 / ArduCopter / ArduPlane / ArduSub / ArduRover.
+    //
+    // Gating uses a DENY list rather than an allow list so unfamiliar
+    // pilot-control modes from any firmware default to "manual" and don't
+    // accidentally lock the user out. Anything in `_autoModeNames`,
+    // `_rtlModeNames`, or `_externalModeNames` is treated as non-manual.
+
+    // Auto / autonomous / special-purpose modes — vehicle is doing
+    // something on its own, so manual takeoff / start-mission don't apply.
+    readonly property var _autoModeNames: [
+        "Acro",
+        // Mission / auto-flight
+        "Mission", "Auto",
+        // Auto takeoff
+        "Takeoff", "VTOL Takeoff", "QTakeoff", "QuadPlane Takeoff",
+        // Auto land / precision land
+        "Land", "Precision Land", "QLand", "QuadPlane Land",
+        "Loiter to QLand", "Autoland",
+        // Follow
+        "Follow Me", "Follow",
+        // Other ArduPilot special-purpose
+        "Circle", "Brake", "Throw", "Flip", "Autotune", "AutoTune",
+        "Avoid ADSB", "ZigZag", "SystemID", "AutoRotate", "Turtle",
+        "Thermal", "Learning", "Dock",
+        // Not-ready states
+        "Initializing", "Ready", "Unknown"
+    ]
+
+    // Returning-to-home modes — RTL is disabled here ("already returning").
+    readonly property var _rtlModeNames: [
+        "Return", "Return to Groundstation",
+        "RTL", "Smart RTL", "AutoRTL", "QuadPlane RTL",
+        "Safe Recovery"
+    ]
+
+    // External-control modes (PX4 Offboard / ArduPilot Guided). Pilot does
+    // not have stick control; takeoff is disabled, but START MISSION is
+    // allowed (e.g. after a QGC-issued takeoff in ArduPilot Guided, the
+    // natural next step is to transition to Auto).
+    readonly property var _externalModeNames: [
+        "Offboard",
+        "Guided", "Guided No GPS", "GuidedNoGPS"
+    ]
+
+    // PX4 chains the auto Takeoff mode straight into a mission, so START
+    // MISSION is allowed there too (per the action-mode table).
+    readonly property var _takeoffOrGuidedNames: [
+        "Takeoff",
+        "Guided", "Guided No GPS", "GuidedNoGPS"
+    ]
+
+    // Case-insensitive lookup — ArduPilot SITL has been observed reporting
+    // mode strings in UPPERCASE (e.g. "STABILIZE", "GUIDED") through some
+    // telemetry paths, even though the firmware-plugin tables use mixed
+    // case ("Stabilize", "Guided"). Compare normalized to avoid mismatches.
+    function _modeMatches(list, modeStr) {
+        if (!modeStr) return false
+        var m = modeStr.toUpperCase()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].toUpperCase() === m) return true
+        }
+        return false
+    }
+    property bool _isAutoMode:        _modeMatches(_autoModeNames,        _currentMode)
+    property bool _isRtlMode:         _modeMatches(_rtlModeNames,         _currentMode)
+    property bool _isExternalMode:    _modeMatches(_externalModeNames,    _currentMode)
+    property bool _isTakeoffOrGuided: _modeMatches(_takeoffOrGuidedNames, _currentMode)
+    // Manual-control mode = anything that isn't autonomous, returning, or
+    // externally controlled. Robust to unknown / new firmware mode strings.
+    property bool _isManualMode:      !!_activeVehicle &&
+                                      !_isAutoMode && !_isRtlMode && !_isExternalMode
+
+    // Per the action-mode table:
+    //   ARM           — only on ground while disarmed
+    //   DISARM        — only on ground while armed
+    //   RTL           — only while flying and not already returning
+    //   TAKEOFF       — armed on ground in a manual-control mode
+    //   START MISSION — armed on ground in a manual mode, or while in PX4
+    //                   "Takeoff" / ArduPilot "Guided" (chain into Auto)
+    property bool _canArm:          !!_activeVehicle && !_armed && !_flying
+    property bool _canDisarm:       !!_activeVehicle &&  _armed && !_flying
+    property bool _canRtl:          !!_activeVehicle &&  _flying && !_isRtlMode
+    property bool _canStartMission: !!_activeVehicle &&  _armed && (
+                                        (!_flying && _isManualMode) ||
+                                        _isTakeoffOrGuided
+                                    )
+
+    // ══════════════════════════════════════════════
     // Toggle arrow tab (always visible on left edge)
     // ══════════════════════════════════════════════
     Rectangle {
@@ -219,7 +326,7 @@ Item {
                         color:        armArea.containsMouse ? "#1A3D1A" : "#0D2010"
                         border.width: 1.5
                         border.color: armArea.containsMouse ? "#4CAF50" : "#2E7D32"
-                        opacity:      _activeVehicle ? 1.0 : 0.45
+                        opacity:      _canArm ? 1.0 : 0.45
 
                         ColumnLayout {
                             anchors.centerIn: parent
@@ -246,6 +353,7 @@ Item {
                         MouseArea {
                             id: armArea
                             anchors.fill: parent
+                            enabled:      _canArm
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
@@ -269,7 +377,7 @@ Item {
                         color:        disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.04)
                         border.width: 1
                         border.color: disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.40) : Qt.rgba(1, 1, 1, 0.14)
-                        opacity:      _activeVehicle ? 1.0 : 0.45
+                        opacity:      _canDisarm ? 1.0 : 0.45
 
                         ColumnLayout {
                             anchors.centerIn: parent
@@ -296,6 +404,7 @@ Item {
                         MouseArea {
                             id: disarmArea
                             anchors.fill: parent
+                            enabled:      _canDisarm
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
@@ -319,7 +428,7 @@ Item {
                         color:        rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : Qt.rgba(1, 1, 1, 0.04)
                         border.width: 1
                         border.color: rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.55) : Qt.rgba(1, 1, 1, 0.14)
-                        opacity:      _activeVehicle ? 1.0 : 0.45
+                        opacity:      _canRtl ? 1.0 : 0.45
 
                         ColumnLayout {
                             anchors.centerIn: parent
@@ -346,6 +455,7 @@ Item {
                         MouseArea {
                             id: rtlArea
                             anchors.fill: parent
+                            enabled:      _canRtl
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
                             onClicked: {
@@ -461,7 +571,12 @@ Item {
                     Layout.columnSpan:      2
                     Layout.preferredHeight: _actionBtnHeight
 
+                    // Per the action-mode table: TAKEOFF is only allowed from
+                    // a manual-control flight mode (Manual / Altitude /
+                    // Stabilized / Position / Hold). Acro and any auto/Offboard
+                    // mode disable it even on the ground.
                     property bool _canTakeoff: {
+                        if (!_isManualMode) return false
                         var targets = targetVehicles()
                         for (var i = 0; i < targets.length; i++) {
                             if (targets[i].armed && !targets[i].flying)
@@ -838,6 +953,7 @@ Item {
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.4
                 color:                  patrolArea.containsMouse ? Qt.lighter(_teal, 1.12) : _teal
                 visible:                !_emergencyEngaged
+                opacity:                _canStartMission ? 1.0 : 0.45
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -854,6 +970,7 @@ Item {
                 }
                 MouseArea {
                     id: patrolArea; anchors.fill: parent; hoverEnabled: true
+                    enabled:     _canStartMission
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (_activeVehicle)
