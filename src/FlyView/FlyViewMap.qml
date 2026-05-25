@@ -531,6 +531,18 @@ FlightMap {
         }
     }
 
+    // Teal line drone → goto target while gotoLocationItem is visible.
+    MapPolyline {
+        id: hilmGotoLine
+        visible: gotoLocationItem.visible &&
+                 _activeVehicle &&
+                 _activeVehicleCoordinate.isValid
+        z: QGroundControl.zOrderMapItems - 1
+        line.color: "#00BFFF"
+        line.width: 3
+        path: visible ? [_activeVehicleCoordinate, gotoLocationItem.coordinate] : []
+    }
+
     // Orbit editing visuals
     QGCMapCircleVisuals {
         id:             orbitMapCircle
@@ -802,6 +814,30 @@ FlightMap {
                           // Right panel updates via property bindings — no dialog needed
 
                           return   // stop here, do not trigger guided/orbit menu
+                      }
+
+                      // OPS waypoint pick: consume the click as a guided goto.
+                      if (mainWindow.hilmWaypointPickActive) {
+                          mainWindow.hilmWaypointPickActive = false
+
+                          if (!_activeVehicle ||
+                              !globals.guidedControllerFlyView ||
+                              !globals.guidedControllerFlyView.showGotoLocation) {
+                              return
+                          }
+
+                          position = Qt.point(position.x, position.y)
+                          var wpCoord = _root.toCoordinate(position, false)
+                          wpCoord.latitude  = wpCoord.latitude.toFixed(8)
+                          wpCoord.longitude = wpCoord.longitude.toFixed(8)
+                          wpCoord.altitude  = wpCoord.altitude.toFixed(8)
+
+                          gotoLocationItem.show(wpCoord)
+                          globals.guidedControllerFlyView.confirmAction(
+                              globals.guidedControllerFlyView.actionGoto,
+                              wpCoord,
+                              gotoLocationItem)
+                          return
                       }
 
         if (!globals.guidedControllerFlyView.guidedUIVisible &&

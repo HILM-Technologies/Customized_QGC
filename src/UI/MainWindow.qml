@@ -29,6 +29,9 @@ ApplicationWindow {
 
     property bool   _utmspSendActTrigger
 
+    // OPS waypoint-pick handshake: set true by right panel, consumed by FlyViewMap.
+    property bool hilmWaypointPickActive: false
+
     Component.onCompleted: {
         // Start the sequence of first run prompt(s)
         firstRunPromptManager.nextPrompt()

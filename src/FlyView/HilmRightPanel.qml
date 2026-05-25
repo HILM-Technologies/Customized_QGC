@@ -266,389 +266,727 @@ Item {
         opacity:        expanded ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 200 } }
 
-        ColumnLayout {
+        // Scrollable column: FLIGHT CONTROLS → telemetry → LIVE VIDEO → GIMBAL.
+        Flickable {
+            id: panelFlick
             anchors.fill:       parent
             anchors.margins:    _pad * 1.4
-            spacing:            0   // We control all spacing via topMargin
+            clip:               true
+            contentWidth:       width
+            contentHeight:      panelColumn.implicitHeight
+            boundsBehavior:     Flickable.StopAtBounds
+            interactive:        contentHeight > height
 
-            // ══════════════════════════════════
-            // QUICK ACTIONS header
-            // ══════════════════════════════════
-            QGCLabel {
-                text:               "QUICK ACTIONS"
-                color:              _teal
-                font.pointSize:     ScreenTools.defaultFontPointSize * 0.9
-                font.bold:          true
-                font.letterSpacing: 1.5
-                Layout.topMargin:   _pad * 0.4
+            ScrollBar.vertical: ScrollBar {
+                id: panelScrollBar
+                policy:        contentHeight > parent.height ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
+                width:         ScreenTools.defaultFontPixelWidth * 0.7
+
+                contentItem: Rectangle {
+                    implicitWidth: ScreenTools.defaultFontPixelWidth * 0.4
+                    radius:        width / 2
+                    color:         panelScrollBar.pressed ? "#00BFFF" : Qt.rgba(0, 0.749, 1.0, 0.40)
+                }
+                background: Rectangle {
+                    implicitWidth: ScreenTools.defaultFontPixelWidth * 0.7
+                    color:         Qt.rgba(1, 1, 1, 0.04)
+                    radius:        width / 2
+                }
             }
 
-            // 2x2 Action Grid
-            GridLayout {
+        ColumnLayout {
+            id: panelColumn
+            width:              parent.width
+            spacing:            0   // We control all spacing via topMargin
+
+            // ── FLIGHT CONTROLS header (title + status pill)
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: _pad * 0.8
-                columns:          2
-                rowSpacing:       _pad * 0.7
-                columnSpacing:    _pad * 0.7
+                Layout.topMargin: _pad * 0.4
+                spacing: _pad * 0.5
 
-                // ── ARM  (green power-button glow)
-                Item {
-                    Layout.fillWidth:       true
-                    Layout.preferredHeight: _actionBtnHeight
-
-                    // outer glow ring
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width:   parent.width  + ScreenTools.defaultFontPixelHeight * 0.9
-                        height:  parent.height + ScreenTools.defaultFontPixelHeight * 0.9
-                        radius:  ScreenTools.defaultFontPixelHeight * 0.7
-                        color:   "transparent"
-                        border.width: 2
-                        border.color: Qt.rgba(0.30, 0.87, 0.30, 0.18)
-                        visible: _activeVehicle ? true : false
-                    }
-                    // inner glow ring
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width:   parent.width  + ScreenTools.defaultFontPixelHeight * 0.35
-                        height:  parent.height + ScreenTools.defaultFontPixelHeight * 0.35
-                        radius:  ScreenTools.defaultFontPixelHeight * 0.55
-                        color:   "transparent"
-                        border.width: 1.5
-                        border.color: Qt.rgba(0.30, 0.87, 0.30, 0.35)
-                        visible: _activeVehicle ? true : false
-                    }
-
-                    Rectangle {
-                        id: armBtn
-                        anchors.fill: parent
-                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
-                        color:        armArea.containsMouse ? "#1A3D1A" : "#0D2010"
-                        border.width: 1.5
-                        border.color: armArea.containsMouse ? "#4CAF50" : "#2E7D32"
-                        opacity:      _canArm ? 1.0 : 0.45
-
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing:          _pad * 0.5
-
-                            QGCColoredImage {
-                                Layout.alignment:   Qt.AlignHCenter
-                                width:              ScreenTools.defaultFontPixelHeight * 2.0
-                                height:             width
-                                source:             "/res/power-button.svg"
-                                color:              armArea.containsMouse ? "#66BB6A" : "#4CAF50"
-                                fillMode:           Image.PreserveAspectFit
-                            }
-                            QGCLabel {
-                                Layout.alignment:   Qt.AlignHCenter
-                                text:               "ARM"
-                                color:              armArea.containsMouse ? "#66BB6A" : "#4CAF50"
-                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                                font.bold:          true
-                                font.letterSpacing: 0.8
-                            }
-                        }
-
-                        MouseArea {
-                            id: armArea
-                            anchors.fill: parent
-                            enabled:      _canArm
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            onClicked: {
-                                var targets = targetVehicles()
-                                for (var i = 0; i < targets.length; i++)
-                                    targets[i].armed = true
-                            }
-                        }
-                    }
+                QGCLabel {
+                    text:               "FLIGHT CONTROLS"
+                    color:              _teal
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.9
+                    font.bold:          true
+                    font.letterSpacing: 1.5
+                    Layout.fillWidth:   true
+                    elide:              Text.ElideRight
                 }
 
-                // ── DISARM  (neutral power-button)
-                Item {
-                    Layout.fillWidth:       true
-                    Layout.preferredHeight: _actionBtnHeight
+                // Status pill — uses Layout.preferredWidth so RowLayout honours sizing.
+                Rectangle {
+                    id: statusPill
+                    Layout.alignment:       Qt.AlignVCenter
+                    Layout.preferredWidth:  statusLabel.implicitWidth + _pad * 1.4
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
+                    radius:                 Layout.preferredHeight / 2
 
-                    Rectangle {
-                        id: disarmBtn
-                        anchors.fill: parent
-                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
-                        color:        disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.04)
-                        border.width: 1
-                        border.color: disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.40) : Qt.rgba(1, 1, 1, 0.14)
-                        opacity:      _canDisarm ? 1.0 : 0.45
-
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing:          _pad * 0.5
-
-                            QGCColoredImage {
-                                Layout.alignment:   Qt.AlignHCenter
-                                width:              ScreenTools.defaultFontPixelHeight * 2.0
-                                height:             width
-                                source:             "/res/power-button.svg"
-                                color:              disarmArea.containsMouse ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.70)
-                                fillMode:           Image.PreserveAspectFit
-                            }
-                            QGCLabel {
-                                Layout.alignment:   Qt.AlignHCenter
-                                text:               "DISARM"
-                                color:              disarmArea.containsMouse ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.70)
-                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                                font.bold:          true
-                                font.letterSpacing: 0.8
-                            }
-                        }
-
-                        MouseArea {
-                            id: disarmArea
-                            anchors.fill: parent
-                            enabled:      _canDisarm
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            onClicked: {
-                                var targets = targetVehicles()
-                                for (var i = 0; i < targets.length; i++)
-                                    targets[i].armed = false
-                            }
-                        }
-                    }
-                }
-
-                // ── RTL  (home icon, teal accent on hover)
-                Item {
-                    Layout.fillWidth:       true
-                    Layout.preferredHeight: _actionBtnHeight
-
-                    Rectangle {
-                        id: rtlBtn
-                        anchors.fill: parent
-                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
-                        color:        rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.10) : Qt.rgba(1, 1, 1, 0.04)
-                        border.width: 1
-                        border.color: rtlArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.55) : Qt.rgba(1, 1, 1, 0.14)
-                        opacity:      _canRtl ? 1.0 : 0.45
-
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing:          _pad * 0.5
-
-                            QGCColoredImage {
-                                Layout.alignment:   Qt.AlignHCenter
-                                width:              ScreenTools.defaultFontPixelHeight * 2.0
-                                height:             width
-                                source:             "/InstrumentValueIcons/home.svg"
-                                color:              rtlArea.containsMouse ? _teal : Qt.rgba(1,1,1,0.80)
-                                fillMode:           Image.PreserveAspectFit
-                            }
-                            QGCLabel {
-                                Layout.alignment:   Qt.AlignHCenter
-                                text:               "RTL"
-                                color:              rtlArea.containsMouse ? _teal : Qt.rgba(1,1,1,0.80)
-                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                                font.bold:          true
-                                font.letterSpacing: 0.8
-                            }
-                        }
-
-                        MouseArea {
-                            id: rtlArea
-                            anchors.fill: parent
-                            enabled:      _canRtl
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            onClicked: {
-                                var targets = targetVehicles()
-                                for (var i = 0; i < targets.length; i++)
-                                    targets[i].guidedModeRTL(false)
-                            }
-                        }
-                    }
-                }
-
-                // ── EMERGENCY  (pulsing red glow)
-                Item {
-                    Layout.fillWidth:       true
-                    Layout.preferredHeight: _actionBtnHeight
-
-                    property real _glowPulse: 0.0
-
-                    SequentialAnimation on _glowPulse {
-                        running: true
-                        loops:   Animation.Infinite
-                        NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 0.0; duration: 900; easing.type: Easing.InOutSine }
+                    property string statusText: {
+                        if (!_activeVehicle)          return "OFFLINE"
+                        if (_flying && _isRtlMode)    return "RETURNING"
+                        if (_flying)                  return _isManualMode ? "FLYING" : "MISSION"
+                        if (_armed)                   return "ARMED"
+                        return "IDLE"
                     }
 
-                    // outer glow ring (pulsing)
-                    Rectangle {
+                    color: {
+                        switch (statusPill.statusText) {
+                        case "FLYING":
+                        case "HOVERING":
+                        case "MISSION":     return Qt.rgba(0, 0.749, 1.0, 0.18)
+                        case "RETURNING":   return Qt.rgba(1, 0.596, 0, 0.18)
+                        case "ARMED":       return Qt.rgba(0.298, 0.686, 0.314, 0.18)
+                        default:            return Qt.rgba(1, 1, 1, 0.06)
+                        }
+                    }
+                    border.width: 1
+                    border.color: {
+                        switch (statusPill.statusText) {
+                        case "FLYING":
+                        case "HOVERING":
+                        case "MISSION":     return _tealBorder
+                        case "RETURNING":   return Qt.rgba(1, 0.596, 0, 0.40)
+                        case "ARMED":       return Qt.rgba(0.298, 0.686, 0.314, 0.40)
+                        default:            return Qt.rgba(1, 1, 1, 0.15)
+                        }
+                    }
+
+                    QGCLabel {
+                        id: statusLabel
                         anchors.centerIn: parent
-                        width:   parent.width  + ScreenTools.defaultFontPixelHeight * 1.0
-                        height:  parent.height + ScreenTools.defaultFontPixelHeight * 1.0
-                        radius:  ScreenTools.defaultFontPixelHeight * 0.7
-                        color:   "transparent"
-                        border.width: 2
-                        border.color: Qt.rgba(1, 0.15, 0.15, parent._glowPulse * 0.22)
-                    }
-                    // inner glow ring (pulsing)
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width:   parent.width  + ScreenTools.defaultFontPixelHeight * 0.4
-                        height:  parent.height + ScreenTools.defaultFontPixelHeight * 0.4
-                        radius:  ScreenTools.defaultFontPixelHeight * 0.55
-                        color:   "transparent"
-                        border.width: 1.5
-                        border.color: Qt.rgba(1, 0.15, 0.15, 0.22 + parent._glowPulse * 0.32)
-                    }
-
-                    Rectangle {
-                        id: emergencyBtn
-                        anchors.fill: parent
-                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
-                        border.width: 1.5
-                        border.color: emergencyArea.containsMouse ? Qt.lighter(_errColor, 1.2) : _errColor
-                        opacity:      _activeVehicle ? 1.0 : 0.45
-
+                        text: statusPill.statusText
                         color: {
-                            if (_emergencyActive)    return Qt.rgba(1, 0, 0, 0.28)
-                            if (_emergencySelecting) return Qt.rgba(1, 0.6, 0, 0.18)
-                            if (_emergencyTargetSet) return Qt.rgba(1, 0, 0, 0.18)
-                            return emergencyArea.containsMouse ? Qt.rgba(1, 0, 0, 0.18) : "#1A0808"
-                        }
-
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing:          _pad * 0.5
-
-                            QGCColoredImage {
-                                Layout.alignment:   Qt.AlignHCenter
-                                width:              ScreenTools.defaultFontPixelHeight * 2.0
-                                height:             width
-                                source:             "/InstrumentValueIcons/exclamation-outline.svg"
-                                color:              _emergencySelecting ? "#FF9800" : _errColor
-                                fillMode:           Image.PreserveAspectFit
-
-                                SequentialAnimation on opacity {
-                                    running: _emergencySelecting
-                                    loops:   Animation.Infinite
-                                    NumberAnimation { to: 0.4; duration: 600 }
-                                    NumberAnimation { to: 1.0; duration: 600 }
-                                }
-                            }
-                            QGCLabel {
-                                Layout.alignment:   Qt.AlignHCenter
-                                text: {
-                                    if (_emergencyActive)    return "ACTIVE"
-                                    if (_emergencySelecting) return "TAP MAP"
-                                    if (_emergencyTargetSet) return "READY"
-                                    return "EMERGENCY"
-                                }
-                                color:              _emergencySelecting ? "#FF9800" : _errColor
-                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                                font.bold:          true
-                                font.letterSpacing: 0.8
+                            switch (statusPill.statusText) {
+                            case "FLYING":
+                            case "HOVERING":
+                            case "MISSION":     return _teal
+                            case "RETURNING":   return "#FFB74D"
+                            case "ARMED":       return "#81C784"
+                            default:            return _dimText
                             }
                         }
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.65
+                        font.bold:          true
+                        font.letterSpacing: 0.8
+                    }
+                }
+            }
 
-                        MouseArea {
-                            id: emergencyArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            onClicked: {
-                                if (!_activeVehicle || !_emergency) return
-                                if (_emergencyActive || _emergencySelecting || _emergencyTargetSet) return
-                                _emergency.startEmergencySelect()
-                            }
+            // ── PLAN MISSION — switches to Missions tab
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.topMargin:       _pad * 0.8
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color:                  planMissionArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.14)
+                                                                       : Qt.rgba(0, 0.749, 1.0, 0.06)
+                border.width: 1
+                border.color: planMissionArea.containsMouse ? _teal : _tealBorder
+                opacity:      _activeVehicle ? 1.0 : 0.45
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: _pad * 0.6
+
+                    QGCColoredImage {
+                        width:    ScreenTools.defaultFontPixelHeight * 1.1
+                        height:   width
+                        source:   "/qmlimages/PaperPlane.svg"
+                        color:    _teal
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        text:               "PLAN MISSION"
+                        color:              _teal
+                        font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
+                        font.bold:          true
+                        font.letterSpacing: 0.8
+                    }
+                }
+
+                MouseArea {
+                    id: planMissionArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape:  _activeVehicle ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    enabled:      !!_activeVehicle
+                    onClicked: {
+                        if (!_activeVehicle) return
+                        // Make sure the active vehicle is set, then navigate
+                        QGroundControl.multiVehicleManager.activeVehicle = _activeVehicle
+                        mainWindow.showPlanView()
+                    }
+                }
+            }
+
+            // ── ARM | DISARM
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: _pad * 0.6
+                spacing:          _pad * 0.6
+
+                // ARM
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                    color:                  armArea.containsMouse && _canArm
+                                                ? "#1A3D1A"
+                                                : (_canArm ? "#0D2010" : "#101010")
+                    border.width: 1.5
+                    border.color: _canArm
+                                    ? (armArea.containsMouse ? "#4CAF50" : "#2E7D32")
+                                    : Qt.rgba(1, 1, 1, 0.10)
+                    opacity:      _canArm ? 1.0 : 0.55
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.3
+
+                        QGCColoredImage {
+                            Layout.alignment: Qt.AlignHCenter
+                            width:    ScreenTools.defaultFontPixelHeight * 1.4
+                            height:   width
+                            source:   "/res/power-button.svg"
+                            color:    _canArm ? "#4CAF50" : Qt.rgba(1, 1, 1, 0.35)
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               "ARM"
+                            color:              _canArm ? "#4CAF50" : Qt.rgba(1, 1, 1, 0.35)
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.78
+                            font.bold:          true
+                            font.letterSpacing: 0.8
+                        }
+                    }
+
+                    MouseArea {
+                        id: armArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  _canArm ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        enabled:      _canArm
+                        onClicked: {
+                            var targets = targetVehicles()
+                            for (var i = 0; i < targets.length; i++) targets[i].armed = true
                         }
                     }
                 }
 
-                // ── TAKEOFF  (full-width, teal accent — active when armed & on ground)
-                Item {
+                // DISARM
+                Rectangle {
                     Layout.fillWidth:       true
-                    Layout.columnSpan:      2
-                    Layout.preferredHeight: _actionBtnHeight
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                    color:                  disarmArea.containsMouse && _canDisarm
+                                                ? Qt.rgba(1, 1, 1, 0.09)
+                                                : Qt.rgba(1, 1, 1, 0.04)
+                    border.width: 1
+                    border.color: _canDisarm
+                                    ? (disarmArea.containsMouse ? Qt.rgba(1, 1, 1, 0.40) : Qt.rgba(1, 1, 1, 0.20))
+                                    : Qt.rgba(1, 1, 1, 0.10)
+                    opacity:      _canDisarm ? 1.0 : 0.55
 
-                    // Per the action-mode table: TAKEOFF is only allowed from
-                    // a manual-control flight mode (Manual / Altitude /
-                    // Stabilized / Position / Hold). Acro and any auto/Offboard
-                    // mode disable it even on the ground.
-                    property bool _canTakeoff: {
-                        if (!_isManualMode) return false
-                        var targets = targetVehicles()
-                        for (var i = 0; i < targets.length; i++) {
-                            if (targets[i].armed && !targets[i].flying)
-                                return true
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.3
+
+                        QGCColoredImage {
+                            Layout.alignment: Qt.AlignHCenter
+                            width:    ScreenTools.defaultFontPixelHeight * 1.4
+                            height:   width
+                            source:   "/res/power-button.svg"
+                            color:    _canDisarm ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.30)
+                            fillMode: Image.PreserveAspectFit
                         }
-                        return false
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               "DISARM"
+                            color:              _canDisarm ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.30)
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.78
+                            font.bold:          true
+                            font.letterSpacing: 0.8
+                        }
                     }
 
-                    Rectangle {
-                        id: takeoffBtn
+                    MouseArea {
+                        id: disarmArea
                         anchors.fill: parent
-                        radius:       ScreenTools.defaultFontPixelHeight * 0.35
-                        color:        takeoffArea.containsMouse && parent._canTakeoff
-                                        ? Qt.rgba(0, 0.749, 1.0, 0.20)
-                                        : Qt.rgba(0, 0.749, 1.0, 0.07)
-                        border.width: 1.5
-                        border.color: parent._canTakeoff
-                                        ? (takeoffArea.containsMouse ? _teal : Qt.rgba(0, 0.749, 1.0, 0.55))
-                                        : Qt.rgba(1, 1, 1, 0.12)
-                        opacity:      _activeVehicle ? 1.0 : 0.45
+                        hoverEnabled: true
+                        cursorShape:  _canDisarm ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        enabled:      _canDisarm
+                        onClicked: {
+                            var targets = targetVehicles()
+                            for (var i = 0; i < targets.length; i++) targets[i].armed = false
+                        }
+                    }
+                }
+            }
 
-                        RowLayout {
-                            anchors.centerIn: parent
-                            spacing:          _pad * 0.7
+            // ── Altitude + TAKEOFF (default = minimumTakeoffAltitudeMeters, user-editable)
+            RowLayout {
+                id: takeoffRow
+                Layout.fillWidth: true
+                Layout.topMargin: _pad * 0.6
+                spacing:          _pad * 0.6
 
-                            QGCColoredImage {
-                                width:    ScreenTools.defaultFontPixelHeight * 1.6
-                                height:   width
-                                source:   "/qmlimages/takeoff.svg"
-                                color:    parent.parent.parent._canTakeoff
+                // Default altitude seeded from the vehicle's minimum takeoff
+                // altitude (or 30m fallback). The user can override by editing
+                // the text field below.
+                property real _defaultTakeoffAlt: {
+                    if (_activeVehicle && _activeVehicle.minimumTakeoffAltitudeMeters)
+                        return _activeVehicle.minimumTakeoffAltitudeMeters()
+                    return 30.0
+                }
+
+                // Takeoff gating same as the action/mode matrix:
+                //   Armed, on ground, in a manual-control flight mode.
+                property bool _canTakeoff: {
+                    if (!_isManualMode) return false
+                    var targets = targetVehicles()
+                    for (var i = 0; i < targets.length; i++) {
+                        if (targets[i].armed && !targets[i].flying) return true
+                    }
+                    return false
+                }
+
+                // Altitude input
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                    color:                  Qt.rgba(1, 1, 1, 0.04)
+                    border.width:           1
+                    border.color:           altField.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.15)
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin:  _pad * 0.6
+                        anchors.rightMargin: _pad * 0.6
+                        spacing: _pad * 0.4
+
+                        // Up arrow icon decorating the field
+                        QGCColoredImage {
+                            width:    ScreenTools.defaultFontPixelHeight * 1.0
+                            height:   width
+                            source:   "/InstrumentValueIcons/arrow-thin-up.svg"
+                            color:    altField.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.55)
+                            fillMode: Image.PreserveAspectFit
+                        }
+
+                        TextField {
+                            id: altField
+                            Layout.fillWidth: true
+                            // Show 0 decimals when integer, 1 otherwise
+                            text: {
+                                var v = takeoffRow._defaultTakeoffAlt
+                                return (v % 1 === 0) ? v.toFixed(0) : v.toFixed(1)
+                            }
+                            color: "white"
+                            font.pointSize: ScreenTools.defaultFontPointSize * 1.0
+                            font.bold: true
+                            selectByMouse: true
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            validator: DoubleValidator { bottom: 1.0; top: 1000.0; decimals: 1; notation: DoubleValidator.StandardNotation }
+                            background: Rectangle { color: "transparent" }
+                            horizontalAlignment: Text.AlignLeft
+                        }
+
+                        QGCLabel {
+                            text: "m"
+                            color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                        }
+                    }
+                }
+
+                // TAKEOFF
+                Rectangle {
+                    Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 7
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius: ScreenTools.defaultFontPixelHeight * 0.35
+                    color: takeoffArea.containsMouse && takeoffRow._canTakeoff
+                                ? Qt.rgba(0, 0.749, 1.0, 0.20)
+                                : Qt.rgba(0, 0.749, 1.0, 0.07)
+                    border.width: 1.5
+                    border.color: takeoffRow._canTakeoff
+                                ? (takeoffArea.containsMouse ? _teal : _tealBorder)
+                                : Qt.rgba(1, 1, 1, 0.12)
+                    opacity: takeoffRow._canTakeoff ? 1.0 : 0.45
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.5
+
+                        QGCColoredImage {
+                            width:    ScreenTools.defaultFontPixelHeight * 1.2
+                            height:   width
+                            source:   "/InstrumentValueIcons/arrow-thin-up.svg"
+                            color:    takeoffRow._canTakeoff
                                             ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
                                             : Qt.rgba(1, 1, 1, 0.35)
-                                fillMode: Image.PreserveAspectFit
-                            }
-                            QGCLabel {
-                                text:               "TAKEOFF"
-                                color:              parent.parent.parent._canTakeoff
-                                                        ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
-                                                        : Qt.rgba(1, 1, 1, 0.35)
-                                font.pointSize:     ScreenTools.defaultFontPointSize * 0.85
-                                font.bold:          true
-                                font.letterSpacing: 0.8
-                            }
+                            fillMode: Image.PreserveAspectFit
                         }
+                        QGCLabel {
+                            text: "TAKEOFF"
+                            color: takeoffRow._canTakeoff
+                                            ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
+                                            : Qt.rgba(1, 1, 1, 0.35)
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                            font.bold: true
+                            font.letterSpacing: 0.8
+                        }
+                    }
 
-                        MouseArea {
-                            id:          takeoffArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape:  Qt.PointingHandCursor
-                            enabled:      takeoffBtn.parent._canTakeoff
-                            onClicked: {
-                                var targets = targetVehicles()
-                                for (var i = 0; i < targets.length; i++) {
-                                    if (targets[i].armed && !targets[i].flying) {
-                                        QGroundControl.multiVehicleManager.activeVehicle = targets[i]
-                                        _guidedController.confirmAction(_guidedController.actionTakeoff)
-                                    }
+                    MouseArea {
+                        id: takeoffArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  takeoffRow._canTakeoff ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        enabled:      takeoffRow._canTakeoff
+                        onClicked: {
+                            // Read the user's chosen altitude; fall back to default if invalid.
+                            var altMeters = parseFloat(altField.text)
+                            if (!altMeters || altMeters <= 0) altMeters = takeoffRow._defaultTakeoffAlt
+
+                            var targets = targetVehicles()
+                            for (var i = 0; i < targets.length; i++) {
+                                if (targets[i].armed && !targets[i].flying) {
+                                    QGroundControl.multiVehicleManager.activeVehicle = targets[i]
+                                    // guidedModeTakeoff accepts altitude (relative meters)
+                                    targets[i].guidedModeTakeoff(altMeters)
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // ── LAND | RTL
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: _pad * 0.6
+                spacing: _pad * 0.6
+
+                // LAND
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                    color:                  landArea.containsMouse && _flying
+                                                ? Qt.rgba(1, 0.596, 0, 0.18)
+                                                : Qt.rgba(1, 0.596, 0, 0.06)
+                    border.width: 1
+                    border.color: _flying
+                                    ? (landArea.containsMouse ? "#FFB74D" : "#FF9800")
+                                    : Qt.rgba(1, 1, 1, 0.12)
+                    opacity:      _flying ? 1.0 : 0.45
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.5
+
+                        QGCColoredImage {
+                            width:    ScreenTools.defaultFontPixelHeight * 1.2
+                            height:   width
+                            source:   "/res/land.svg"
+                            color:    _flying ? "#FFB74D" : Qt.rgba(1, 1, 1, 0.35)
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        QGCLabel {
+                            text: "LAND"
+                            color: _flying ? "#FFB74D" : Qt.rgba(1, 1, 1, 0.35)
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                            font.bold: true
+                            font.letterSpacing: 0.8
+                        }
+                    }
+
+                    MouseArea {
+                        id: landArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled:      _flying
+                        cursorShape:  _flying ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: {
+                            var targets = targetVehicles()
+                            for (var i = 0; i < targets.length; i++)
+                                if (targets[i].flying) targets[i].guidedModeLand()
+                        }
+                    }
+                }
+
+                // RTL
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                    color:                  rtlArea.containsMouse && _canRtl
+                                                ? Qt.rgba(0, 0.749, 1.0, 0.14)
+                                                : Qt.rgba(0, 0.749, 1.0, 0.06)
+                    border.width: 1
+                    border.color: _canRtl
+                                    ? (rtlArea.containsMouse ? _teal : _tealBorder)
+                                    : Qt.rgba(1, 1, 1, 0.12)
+                    opacity:      _canRtl ? 1.0 : 0.45
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: _pad * 0.5
+
+                        QGCColoredImage {
+                            width:    ScreenTools.defaultFontPixelHeight * 1.2
+                            height:   width
+                            source:   "/InstrumentValueIcons/home.svg"
+                            color:    _canRtl ? _teal : Qt.rgba(1, 1, 1, 0.35)
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        QGCLabel {
+                            text: "RTL"
+                            color: _canRtl ? _teal : Qt.rgba(1, 1, 1, 0.35)
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                            font.bold: true
+                            font.letterSpacing: 0.8
+                        }
+                    }
+
+                    MouseArea {
+                        id: rtlArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled:      _canRtl
+                        cursorShape:  _canRtl ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: {
+                            var targets = targetVehicles()
+                            for (var i = 0; i < targets.length; i++) targets[i].guidedModeRTL(false)
+                        }
+                    }
+                }
+            }
+
+            // ── WAYPOINT NAVIGATION — tap, then click map to send a guided goto
+            QGCLabel {
+                Layout.fillWidth: true
+                Layout.topMargin: _pad * 1.0
+                text:               "WAYPOINT NAVIGATION"
+                color:              _teal
+                font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
+                font.bold:          true
+                font.letterSpacing: 1.2
+            }
+
+            Rectangle {
+                id: waypointPickCard
+
+                property bool _picking: mainWindow.hilmWaypointPickActive
+                property bool _canPick: _flying && _activeVehicle
+
+                Layout.fillWidth:       true
+                Layout.topMargin:       _pad * 0.4
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color: {
+                    if (!_canPick) return Qt.rgba(0, 0.749, 1.0, 0.05)
+                    if (_picking)  return Qt.rgba(0, 0.749, 1.0, 0.26)
+                    return setWaypointArea.containsMouse
+                        ? Qt.rgba(0, 0.749, 1.0, 0.14)
+                        : Qt.rgba(0, 0.749, 1.0, 0.05)
+                }
+                border.width: _picking ? 2 : 1
+                border.color: {
+                    if (!_canPick) return Qt.rgba(1, 1, 1, 0.10)
+                    if (_picking)  return _teal
+                    return setWaypointArea.containsMouse ? _teal : _tealBorder
+                }
+                opacity: _canPick ? 1.0 : 0.45
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: _pad * 0.6
+
+                    QGCColoredImage {
+                        width:    ScreenTools.defaultFontPixelHeight * 1.1
+                        height:   width
+                        source:   "/InstrumentValueIcons/pin.svg"
+                        color:    waypointPickCard._canPick ? _teal : Qt.rgba(1, 1, 1, 0.35)
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        text: waypointPickCard._picking ? "TAP MAP TO PICK • CANCEL"
+                                                        : "SET WAYPOINT ON MAP"
+                        color: waypointPickCard._canPick ? _teal : Qt.rgba(1, 1, 1, 0.35)
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                        font.bold: true
+                        font.letterSpacing: 0.8
+                    }
+                }
+
+                MouseArea {
+                    id: setWaypointArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled:      waypointPickCard._canPick
+                    cursorShape:  waypointPickCard._canPick ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        mainWindow.hilmWaypointPickActive = !mainWindow.hilmWaypointPickActive
+                    }
+                }
+            }
+
+            // ── EMERGENCY STOP — enters target-select mode (EMERGENCY DEPLOYMENT PANEL below takes over)
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.topMargin:       _pad * 0.8
+                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                visible:                !_emergencyEngaged
+
+                color: {
+                    if (emergencyStopArea.containsMouse) return Qt.rgba(1, 0.20, 0.20, 0.20)
+                    return Qt.rgba(1, 0.20, 0.20, 0.10)
+                }
+                border.width: 1.5
+                border.color: emergencyStopArea.containsMouse ? Qt.lighter(_errColor, 1.2) : _errColor
+                opacity:      _activeVehicle ? 1.0 : 0.45
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: _pad * 0.5
+
+                    QGCColoredImage {
+                        width:    ScreenTools.defaultFontPixelHeight * 1.3
+                        height:   width
+                        source:   "/InstrumentValueIcons/exclamation-outline.svg"
+                        color:    _errColor
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        text: "EMERGENCY STOP"
+                        color: _errColor
+                        font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                        font.bold: true
+                        font.letterSpacing: 1.0
+                    }
+                }
+
+                MouseArea {
+                    id: emergencyStopArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: _activeVehicle ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    enabled: !!_activeVehicle && !!_emergency
+                    onClicked: {
+                        if (!_activeVehicle || !_emergency) return
+                        if (_emergencyActive || _emergencySelecting || _emergencyTargetSet) return
+                        // Same flow as before: enter target-select mode, then the
+                        // operator taps the map → DEPLOY/RTH/CANCEL panel below.
+                        _emergency.startEmergencySelect()
+                    }
+                }
+            }
+
+            // ── TELEMETRY (3x2: ALT / SPD / HDG / BAT / GPS / LNK)
+            GridLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: _pad * 1.0
+                columns:          3
+                rowSpacing:       _pad * 0.5
+                columnSpacing:    _pad * 0.5
+
+                // ALT (relative altitude in meters)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "ALT"
+                    value: {
+                        if (!_activeVehicle || !_activeVehicle.altitudeRelative) return "--"
+                        var v = _activeVehicle.altitudeRelative.rawValue
+                        return isNaN(v) ? "--" : v.toFixed(0) + "m"
+                    }
+                }
+
+                // SPD (ground speed m/s)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "SPD"
+                    value: {
+                        if (!_activeVehicle || !_activeVehicle.groundSpeed) return "--"
+                        var v = _activeVehicle.groundSpeed.rawValue
+                        return isNaN(v) ? "--" : v.toFixed(1) + "m/s"
+                    }
+                }
+
+                // HDG (compass heading)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "HDG"
+                    value: {
+                        if (!_activeVehicle || !_activeVehicle.heading) return "--"
+                        var v = _activeVehicle.heading.rawValue
+                        return isNaN(v) ? "--" : v.toFixed(0) + "°"
+                    }
+                }
+
+                // BAT (battery %)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "BAT"
+                    value: {
+                        if (!_activeVehicle || !_activeVehicle.batteries || _activeVehicle.batteries.count === 0) return "--"
+                        var bat = _activeVehicle.batteries.get(0)
+                        if (!bat || !bat.percentRemaining) return "--"
+                        var v = bat.percentRemaining.rawValue
+                        return (isNaN(v) || v < 0) ? "--" : v.toFixed(0) + "%"
+                    }
+                    accent: {
+                        if (!_activeVehicle || !_activeVehicle.batteries || _activeVehicle.batteries.count === 0) return _dimText
+                        var bat = _activeVehicle.batteries.get(0)
+                        if (!bat || !bat.percentRemaining) return _dimText
+                        var v = bat.percentRemaining.rawValue
+                        if (isNaN(v) || v < 0) return _dimText
+                        if (v < 20) return _errColor
+                        if (v < 50) return "#FF9800"
+                        return "#4CAF50"
+                    }
+                }
+
+                // GPS (satellite count)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "GPS"
+                    value: {
+                        if (!_activeVehicle || !_activeVehicle.gps || !_activeVehicle.gps.count) return "--"
+                        var v = _activeVehicle.gps.count.rawValue
+                        return isNaN(v) ? "--" : v.toFixed(0)
+                    }
+                }
+
+                // LNK (RC signal / link quality %)
+                TelemetryCell {
+                    Layout.fillWidth: true
+                    label: "LNK"
+                    value: {
+                        if (!_activeVehicle) return "--"
+                        var rssi = _activeVehicle.rcRSSI
+                        if (isNaN(rssi) || rssi < 0) return "--"
+                        return Math.min(100, rssi).toFixed(0) + "%"
                     }
                 }
             }
 
             // ══════════════════════════════════
             // CHANGE MODE — toggle panel with mode chips
+            //   HIDDEN per HILMOS UX redesign (modes are managed elsewhere).
+            //   Code kept intact so the feature can be re-enabled by simply
+            //   flipping `visible: false` to `visible: true` below.
             // ══════════════════════════════════
             Rectangle {
+                visible:                false
+                Layout.preferredHeight: 0
                 Layout.fillWidth:       true
-                Layout.topMargin:       _pad * 0.8
-                Layout.preferredHeight: changeModeBtn.height
+                Layout.topMargin:       0
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.35
                 color:                  changeModeArea.containsMouse
                                             ? Qt.rgba(0, 0.749, 1.0, 0.14)
@@ -727,10 +1065,13 @@ Item {
             }
 
             // Flight mode chips panel (expandable)
+            //   HIDDEN per HILMOS UX redesign. Already had visible:false but
+            //   we also zero out the preferred height so it can never claim
+            //   space even if some other binding flips visibility.
             Rectangle {
                 id:                     modePanel
                 Layout.fillWidth:       true
-                Layout.preferredHeight: modePanelContent.implicitHeight + _pad * 1.6
+                Layout.preferredHeight: visible ? (modePanelContent.implicitHeight + _pad * 1.6) : 0
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.35
                 color:                  Qt.rgba(0, 0.04, 0.08, 0.90)
                 border.width:           1
@@ -943,16 +1284,15 @@ Item {
                 }
             }
 
-            // ── Gap before START PATROL
-            Item { Layout.preferredHeight: _sectionGap }
-
             // ── START PATROL
+            //   HIDDEN per HILMOS UX redesign — patrols are now started from
+            //   the MISSIONS tab. Keep code around in case we want it back.
             Rectangle {
+                visible:                false
+                Layout.preferredHeight: 0
                 Layout.fillWidth:       true
-                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.2
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.4
                 color:                  patrolArea.containsMouse ? Qt.lighter(_teal, 1.12) : _teal
-                visible:                !_emergencyEngaged
                 opacity:                _canStartMission ? 1.0 : 0.45
 
                 RowLayout {
@@ -1082,12 +1422,12 @@ Item {
             // ── Gap before video
             Item { Layout.preferredHeight: _sectionGap * 0.6 }
 
-            // ── Video area (fills remaining vertical space)
+            // ── Video area (fixed-aspect; Flickable scrolls everything else)
             Rectangle {
                 id: videoArea
-                Layout.fillWidth:   true
-                Layout.fillHeight:  true
-                Layout.minimumHeight: ScreenTools.defaultFontPixelHeight * 8
+                Layout.fillWidth:       true
+                Layout.preferredHeight: Math.max(ScreenTools.defaultFontPixelHeight * 12,
+                                                 rightPanelRoot.width * 0.62)
                 radius:             ScreenTools.defaultFontPixelHeight * 0.5
                 color:              Qt.rgba(0, 0.04, 0.07, 0.70)
                 border.width:       1
@@ -1321,13 +1661,15 @@ Item {
                 }
             }
 
-            // ── Gap before controls
-            Item { Layout.preferredHeight: _sectionGap * 0.6 }
-
             // ══════════════════════════════════
             // TRACK | RECORD | SNAPSHOT
+            //   HIDDEN per HILMOS UX redesign — recording & snapshot will be
+            //   moved into the gimbal control card in a follow-up commit.
+            //   Code is preserved (visible:false) so it can be reinstated.
             // ══════════════════════════════════
             RowLayout {
+                visible:          false
+                Layout.preferredHeight: 0
                 Layout.fillWidth: true
                 spacing:          _pad * 0.7
 
@@ -1472,8 +1814,404 @@ Item {
                 }
             }
 
+            // ── GIMBAL CONTROL — joystick + zoom + RE-CENTER
+            Rectangle {
+                id: gimbalDock
+
+                property var  _gimbalCtl:       _activeVehicle ? _activeVehicle.gimbalController : null
+                property var  _activeGimbal:    _gimbalCtl ? _gimbalCtl.activeGimbal : null
+                property bool _gimbalAvailable: _activeGimbal !== null && _activeGimbal !== undefined
+                property var  _cameraMgr:       _activeVehicle ? _activeVehicle.cameraManager : null
+                property var  _camera:          _cameraMgr ? _cameraMgr.currentCameraInstance : null
+
+                property real _pitch: _activeGimbal && _activeGimbal.absolutePitch
+                                        ? _activeGimbal.absolutePitch.rawValue : 0
+                property real _yaw:   _activeGimbal && _activeGimbal.absoluteYaw
+                                        ? _activeGimbal.absoluteYaw.rawValue : 0
+
+                Layout.fillWidth:       true
+                Layout.topMargin:       _sectionGap
+                Layout.preferredHeight: gimbalDockCol.implicitHeight + _pad * 1.6
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.45
+                color:                  Qt.rgba(0, 0.06, 0.10, 0.65)
+                border.width:           1
+                border.color:           _tealBorder
+
+                // 10Hz throttle: send click-and-point samples (absolute, sticky) while pressed.
+                Timer {
+                    id: gimbalJoyTimer
+                    interval: 100
+                    repeat: true
+                    running: false
+                    onTriggered: {
+                        if (gimbalDock._gimbalCtl) {
+                            gimbalDock._gimbalCtl.gimbalOnScreenControl(
+                                joyHandle.normPan,
+                                joyHandle.normTilt,
+                                true  /*clickAndPoint*/,
+                                false /*clickAndDrag*/,
+                                false /*rateControl*/)
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    id: gimbalDockCol
+                    anchors.left:        parent.left
+                    anchors.right:       parent.right
+                    anchors.top:         parent.top
+                    anchors.leftMargin:  _pad
+                    anchors.rightMargin: _pad
+                    anchors.topMargin:   _pad * 0.7
+                    spacing:             _pad * 0.4
+
+                    // ── Header: GIMBAL  •  P: +x°  Y: +y°
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.4
+
+                        QGCLabel {
+                            text:               "GIMBAL"
+                            color:              _teal
+                            font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
+                            font.bold:          true
+                            font.letterSpacing: 1.2
+                        }
+                        Item { Layout.fillWidth: true }
+                        QGCLabel {
+                            text:           "P: " + (gimbalDock._pitch >= 0 ? "+" : "") + gimbalDock._pitch.toFixed(0) +
+                                            "°  ·  Y: " + (gimbalDock._yaw >= 0 ? "+" : "") + gimbalDock._yaw.toFixed(0) + "°"
+                            color:          _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.75
+                            font.bold:      true
+                        }
+                    }
+
+                    // ── Joystick — circular drag pad with click-to-jump support
+                    Item {
+                        id: joyArea
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: _pad * 0.2
+
+                        readonly property real _size: Math.min(rightPanelRoot.width * 0.45,
+                                                               ScreenTools.defaultFontPixelHeight * 8.5)
+                        Layout.preferredWidth:  _size
+                        Layout.preferredHeight: _size
+
+                        // ── Visual rings + crosshair + edge labels
+                        Rectangle {
+                            anchors.fill: parent
+                            radius:       width / 2
+                            color:        "transparent"
+                            border.width: 1.5
+                            border.color: _tealBorder
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width:  parent.width * 0.40
+                            height: width
+                            radius: width / 2
+                            color:  "transparent"
+                            border.width: 1
+                            border.color: Qt.rgba(0, 0.749, 1.0, 0.22)
+                        }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.verticalCenter:   parent.verticalCenter
+                            width:  1
+                            height: parent.height * 0.88
+                            color:  Qt.rgba(0, 0.749, 1.0, 0.18)
+                        }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.verticalCenter:   parent.verticalCenter
+                            width:  parent.width * 0.88
+                            height: 1
+                            color:  Qt.rgba(0, 0.749, 1.0, 0.18)
+                        }
+                        QGCLabel {
+                            anchors.top: parent.top
+                            anchors.topMargin: parent.height * 0.10
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "UP"; color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
+                        }
+                        QGCLabel {
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: parent.height * 0.10
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "DN"; color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
+                        }
+                        QGCLabel {
+                            anchors.left: parent.left
+                            anchors.leftMargin: parent.width * 0.10
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "L"; color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
+                        }
+                        QGCLabel {
+                            anchors.right: parent.right
+                            anchors.rightMargin: parent.width * 0.10
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "R"; color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
+                        }
+
+                        // ── Draggable handle (no MouseArea inside — outer one handles input)
+                        Rectangle {
+                            id: joyHandle
+
+                            readonly property real _radius:    joyArea.width / 2
+                            readonly property real _maxOffset: _radius * 0.62
+                            readonly property real _diameter:  joyArea.width * 0.22
+
+                            // Normalised pan (-1..+1, right = +) and tilt (+1 = up)
+                            property real normPan:  ((x + width / 2) - _radius) / _maxOffset
+                            property real normTilt: -(((y + height / 2) - _radius) / _maxOffset)
+
+                            width:  _diameter
+                            height: _diameter
+                            radius: width / 2
+                            color:  joyMouseArea.pressed ? Qt.lighter(_teal, 1.15) : _teal
+                            border.width: 2
+                            border.color: Qt.rgba(0, 0.749, 1.0, 0.45)
+
+                            // Default centred
+                            x: _radius - width / 2
+                            y: _radius - height / 2
+
+                            // Snap back to centre with an ease when released
+                            Behavior on x { enabled: !joyMouseArea.pressed; NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+                            Behavior on y { enabled: !joyMouseArea.pressed; NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width:  parent.width * 0.30
+                                height: width
+                                radius: width / 2
+                                color:  Qt.rgba(1, 1, 1, 0.65)
+                            }
+                        }
+
+                        // Click/drag anywhere on the pad; handle clamped to a circle.
+                        MouseArea {
+                            id: joyMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.OpenHandCursor
+                            preventStealing: true   // keep events from the Flickable scroll
+
+                            function _placeHandleAt(mx, my) {
+                                var cx  = joyArea.width  / 2
+                                var cy  = joyArea.height / 2
+                                var dx  = mx - cx
+                                var dy  = my - cy
+                                var d   = Math.sqrt(dx * dx + dy * dy)
+                                var max = joyHandle._maxOffset
+                                if (d > max && d > 0) {
+                                    dx = dx / d * max
+                                    dy = dy / d * max
+                                }
+                                joyHandle.x = cx + dx - joyHandle.width  / 2
+                                joyHandle.y = cy + dy - joyHandle.height / 2
+                            }
+
+                            onPressed: function(mouse) {
+                                _placeHandleAt(mouse.x, mouse.y)
+                                if (gimbalDock._gimbalCtl) {
+                                    gimbalDock._gimbalCtl.acquireGimbalControl()
+                                    gimbalDock._gimbalCtl.gimbalOnScreenControl(
+                                        joyHandle.normPan, joyHandle.normTilt,
+                                        true, false, false)
+                                }
+                                gimbalJoyTimer.start()
+                            }
+                            onPositionChanged: function(mouse) {
+                                if (!pressed) return
+                                _placeHandleAt(mouse.x, mouse.y)
+                            }
+                            onReleased:  _release()
+                            onCanceled:  _release()
+
+                            // Sticky: handle stays where released; only RE-CENTER resets.
+                            function _release() {
+                                gimbalJoyTimer.stop()
+                            }
+                        }
+                    }
+
+                    // ── Zoom row: [−] ZOOM 1.0x [+]
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: _pad * 0.3
+                        spacing: _pad * 0.3
+
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.9
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                            radius:       width / 2
+                            color:        zoomOutArea.containsMouse ? _tealDim : "transparent"
+                            border.width: 1
+                            border.color: _tealBorder
+                            opacity:      gimbalDock._camera ? 1.0 : 0.45
+                            QGCLabel {
+                                anchors.centerIn: parent
+                                text: "−"; color: _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 1.2; font.bold: true
+                            }
+                            MouseArea {
+                                id: zoomOutArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled:      gimbalDock._camera !== null
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked: {
+                                    if (gimbalDock._camera && gimbalDock._camera.stepZoom)
+                                        gimbalDock._camera.stepZoom(-1)
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        ColumnLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 0
+                            QGCLabel {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "ZOOM"; color: _dimText
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.62; font.bold: true
+                                font.letterSpacing: 1.0
+                            }
+                            QGCLabel {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: gimbalDock._camera && gimbalDock._camera.zoomLevel !== undefined
+                                        ? gimbalDock._camera.zoomLevel.toFixed(1) + "x"
+                                        : "1.0x"
+                                color: "white"
+                                font.pointSize: ScreenTools.defaultFontPointSize * 1.15; font.bold: true
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.9
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                            radius:       width / 2
+                            color:        zoomInArea.containsMouse ? _tealDim : "transparent"
+                            border.width: 1
+                            border.color: _tealBorder
+                            opacity:      gimbalDock._camera ? 1.0 : 0.45
+                            QGCLabel {
+                                anchors.centerIn: parent
+                                text: "+"; color: _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 1.2; font.bold: true
+                            }
+                            MouseArea {
+                                id: zoomInArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled:      gimbalDock._camera !== null
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked: {
+                                    if (gimbalDock._camera && gimbalDock._camera.stepZoom)
+                                        gimbalDock._camera.stepZoom(1)
+                                }
+                            }
+                        }
+                    }
+
+                    // ── RE-CENTER GIMBAL — full-width
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.topMargin:       _pad * 0.3
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                        radius:       ScreenTools.defaultFontPixelHeight * 0.3
+                        color:        recenterArea.containsMouse ? _tealDim : Qt.rgba(0, 0, 0, 0.30)
+                        border.width: 1
+                        border.color: recenterArea.containsMouse ? _teal : _tealBorder
+                        opacity:      gimbalDock._gimbalAvailable ? 1.0 : 0.5
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: _pad * 0.45
+
+                            QGCLabel {
+                                text: "↺"; color: _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 1.05; font.bold: true
+                            }
+                            QGCLabel {
+                                text:           "RE-CENTER GIMBAL"
+                                color:          _teal
+                                font.pointSize: ScreenTools.defaultFontPointSize * 0.82
+                                font.bold:      true
+                                font.letterSpacing: 1.0
+                            }
+                        }
+
+                        MouseArea {
+                            id: recenterArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled:      gimbalDock._gimbalAvailable
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                if (gimbalDock._gimbalCtl) {
+                                    gimbalDock._gimbalCtl.acquireGimbalControl()
+                                    gimbalDock._gimbalCtl.centerGimbal()
+                                }
+                                // Snap handle back to centre (animated via Behavior).
+                                joyHandle.x = joyArea.width  / 2 - joyHandle.width  / 2
+                                joyHandle.y = joyArea.height / 2 - joyHandle.height / 2
+                            }
+                        }
+                    }
+                }
+            }
+
             // Small bottom padding
             Item { Layout.preferredHeight: _pad * 0.8 }
+        }
+        } // end Flickable panelFlick
+    }
+
+    // ── Inline components
+
+    // Telemetry cell for the 3x2 grid.
+    component TelemetryCell: Rectangle {
+        property string label: ""
+        property string value: "--"
+        property color  accent: "white"
+
+        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.6
+        radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+        color:                  Qt.rgba(1, 1, 1, 0.04)
+        border.width:           1
+        border.color:           Qt.rgba(1, 1, 1, 0.08)
+
+        QGCLabel {
+            anchors.left:       parent.left
+            anchors.top:        parent.top
+            anchors.leftMargin: _pad * 0.5
+            anchors.topMargin:  _pad * 0.2
+            text:               parent.label
+            color:              _dimText
+            font.pointSize:     ScreenTools.defaultFontPointSize * 0.55
+            font.letterSpacing: 0.5
+            font.bold:          true
+        }
+
+        QGCLabel {
+            anchors.bottom:       parent.bottom
+            anchors.right:        parent.right
+            anchors.rightMargin:  _pad * 0.5
+            anchors.bottomMargin: _pad * 0.25
+            text:                 parent.value
+            color:                parent.accent
+            font.pointSize:       ScreenTools.defaultFontPointSize * 0.85
+            font.bold:            true
         }
     }
 }
