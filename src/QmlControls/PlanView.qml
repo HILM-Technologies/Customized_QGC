@@ -648,7 +648,9 @@ Item {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.right: parent.right
-            width: Math.min(parent.width * 0.38, ScreenTools.defaultFontPixelWidth * 38)
+            // Wider than the old 38-width cap so altitude/speed/hover preset
+            // rows and the ± altitude stepper all fit inside expanded WP rows.
+            width: Math.min(parent.width * 0.45, ScreenTools.defaultFontPixelWidth * 56)
             planMasterController: _planMasterController
             editorMap: editorMap
         }
