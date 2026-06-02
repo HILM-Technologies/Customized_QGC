@@ -1,12 +1,13 @@
 /****************************************************************************
  *
- * HILM Ground Control — Vehicle Setup & Calibration
+ * HILM Ground Control — Setup & Calibration
  *
  ****************************************************************************/
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCore
 
 import QGroundControl
 import QGroundControl.Controls
@@ -24,21 +25,67 @@ Rectangle {
     readonly property color _okColor:    "#4CAF50"
     readonly property color _warnColor:  "#FF9800"
     readonly property color _errColor:   "#FF5252"
+    readonly property color _idleColor:  Qt.rgba(0.3, 0.5, 0.9, 1.0)
 
-    readonly property real  _pad:        ScreenTools.defaultFontPixelWidth * 1.2
-    readonly property real  _fontSize:   ScreenTools.defaultFontPixelHeight
+    readonly property real  _pad:             ScreenTools.defaultFontPixelWidth * 1.2
+    readonly property real  _fontSize:        ScreenTools.defaultFontPixelHeight * 0.9   // sized to match HILM UI
+    readonly property real  _maxContentWidth: ScreenTools.defaultFontPixelWidth * 175     // cap so content doesn't stretch full width
 
     // ── Data sources ────────────────────────────────────────
     property var  _activeVehicle:  QGroundControl.multiVehicleManager.activeVehicle
     property bool _vehicleAvail:   QGroundControl.multiVehicleManager.parameterReadyVehicleAvailable
     property var  _autopilot:      _activeVehicle ? _activeVehicle.autopilotPlugin : null
     property var  _components:     (_autopilot && _vehicleAvail) ? _autopilot.vehicleComponents : []
+    property var  _vehicleModel:   QGroundControl.multiVehicleManager.vehicles
 
-    // ── Tabs: 0=FLEET MANAGEMENT, 1=GENERAL, 2=RADIO, 3=SENSORS, 4=ANALYZE TOOLS, 5=COMPANION COMPUTER
-    property int _activeTab: 1
+    // ── Tabs: 0=IDENTITY, 1=SENSORS, 2=RADIO, 3=FLIGHT MODES, 4=ANALYZE TOOLS, 5=GENERAL
+    property int _activeTab: 0
 
     // ── Which section is expanded (empty = none) ────────────
     property string _expandedSection: ""
+
+    // Per-vehicle display names (QGC has none) — stored by system id.
+    Settings {
+        id: _nameStore
+        category: "HilmVehicleNames"
+        property string namesJson: "{}"
+    }
+
+    function _nameMap() {
+        try { return JSON.parse(_nameStore.namesJson) } catch (e) { return ({}) }
+    }
+    function _nameFor(v) {
+        if (!v) return "--"
+        var m = _nameMap()
+        var key = "" + v.id
+        return (m[key] && m[key].length > 0) ? m[key] : (qsTr("Vehicle") + " " + v.id)
+    }
+    function _setNameFor(v, name) {
+        if (!v) return
+        var m = _nameMap()
+        var trimmed = ("" + name).trim()
+        if (trimmed.length > 0)
+            m["" + v.id] = trimmed
+        else
+            delete m["" + v.id]
+        _nameStore.namesJson = JSON.stringify(m)
+    }
+
+    // ── Read-only field helpers ─────────────────────────────
+    function _maxSpeedText(v) {
+        if (!v) return "--"
+        try {
+            var pm = v.parameterManager
+            if (pm && pm.parameterExists(-1, "MPC_XY_VEL_MAX"))
+                return pm.getParameter(-1, "MPC_XY_VEL_MAX").valueString + " m/s"
+        } catch (e) {}
+        return "--"
+    }
+    function _homeText(v) {
+        if (!v || !v.homePosition || !v.homePosition.isValid)
+            return qsTr("Not set")
+        return v.homePosition.latitude.toFixed(4) + ", " + v.homePosition.longitude.toFixed(4)
+    }
 
     // ── Component helpers ───────────────────────────────────
     function _findComponent(name) {
@@ -72,28 +119,30 @@ Rectangle {
 
     Connections {
         target: QGroundControl.multiVehicleManager
-        function onActiveVehicleChanged()                    { _refreshComponents() }
+        function onActiveVehicleChanged()                    { _refreshComponents(); _nameField.text = _nameFor(_activeVehicle) }
         function onParameterReadyVehicleAvailableChanged()   { _refreshComponents() }
     }
 
     // ── Public API for MainWindow ───────────────────────────
-    function showParametersPanel()  { _activeTab = 1; _expandedSection = "parameters" }
+    function showParametersPanel()  { _activeTab = 5; _expandedSection = "parameters" }
     function showVehicleComponentPanel(vehicleComponent) {
         var n = vehicleComponent.name.toLowerCase()
-        if (n.indexOf("sensor") >= 0)       _activeTab = 3
-        else if (n.indexOf("radio") >= 0)   _activeTab = 2
-        else                                 _activeTab = 1
+        if (n.indexOf("sensor") >= 0)            _activeTab = 1
+        else if (n.indexOf("radio") >= 0)        _activeTab = 2
+        else if (n.indexOf("flight mode") >= 0)  _activeTab = 3
+        else                                      _activeTab = 5
     }
 
     DeadMouseArea { anchors.fill: parent }
 
-    // ════════════════════════════════════════════════════════
-    // MAIN LAYOUT
-    // ════════════════════════════════════════════════════════
-
+    // Main layout
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: _pad * 2
+        anchors.top:              parent.top
+        anchors.bottom:           parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin:        _pad * 2
+        anchors.bottomMargin:     _pad * 2
+        width:                    Math.min(parent.width - _pad * 4, _maxContentWidth)
         spacing: _pad * 1.2
 
         // ── HEADER ──────────────────────────────────────────
@@ -102,7 +151,7 @@ Rectangle {
             spacing: _pad * 0.3
 
             QGCLabel {
-                text:               "Vehicle Setup & Calibration"
+                text:               "Setup & Calibration"
                 color:              "white"
                 font.pixelSize:     _fontSize * 1.4
                 font.bold:          true
@@ -110,9 +159,140 @@ Rectangle {
             }
 
             QGCLabel {
-                text:           "Configure drone parameters and perform calibrations"
+                text:           "Configure your drone and prepare it for flight"
                 color:          _dimText
                 font.pixelSize: _fontSize * 0.75
+            }
+        }
+
+        // ── DRONE SELECTOR CARD ─────────────────────────────
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight:   _droneCol.implicitHeight + _pad * 3
+            radius:           _fontSize * 0.4
+            color:            _cardBg
+            border.color:     Qt.rgba(1, 1, 1, 0.06)
+            border.width:     1
+
+            ColumnLayout {
+                id: _droneCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: _pad * 1.5 }
+                spacing: _pad
+
+                // Section header
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        text:               "DRONE"
+                        color:              _teal
+                        font.pixelSize:     _fontSize * 0.85
+                        font.bold:          true
+                        font.letterSpacing: 1
+                    }
+
+                    QGCLabel {
+                        text:           "Settings below apply to this drone"
+                        color:          _dimText
+                        font.pixelSize: _fontSize * 0.7
+                    }
+                }
+
+                // Drone grid
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns:       2
+                    columnSpacing: _pad
+                    rowSpacing:    _pad
+                    visible:       _vehicleModel && _vehicleModel.count > 0
+
+                    Repeater {
+                        model: _vehicleModel
+
+                        delegate: Rectangle {
+                            id: _dCard
+
+                            property var  v:        object
+                            property bool _active:  v && _activeVehicle === v
+                            property bool _isFlying: v ? (v.armed && v.flying) : false
+                            property bool _isArmed:  v ? v.armed : false
+                            property string _status: _isFlying ? "ACTIVE" : (_isArmed ? "ARMED" : "IDLE")
+                            property color  _statusColor: _isFlying ? _okColor : (_isArmed ? _warnColor : _idleColor)
+
+                            Layout.fillWidth:       true
+                            Layout.preferredHeight: _cardRow.implicitHeight + _pad * 2.4
+                            radius:       _fontSize * 0.35
+                            color:        _active ? _tealDim : Qt.rgba(1, 1, 1, 0.03)
+                            border.width: _active ? 1.5 : 1
+                            border.color: _active ? _teal : Qt.rgba(1, 1, 1, 0.10)
+
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            RowLayout {
+                                id: _cardRow
+                                anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                                          leftMargin: _pad * 1.4; rightMargin: _pad * 1.4 }
+                                spacing: _pad
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: _pad * 0.25
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: _pad * 0.5
+
+                                        Rectangle {
+                                            width:  _fontSize * 0.5; height: width; radius: width / 2
+                                            color:  _dCard._statusColor
+                                        }
+                                        QGCLabel {
+                                            Layout.fillWidth: true
+                                            text:           _nameFor(_dCard.v)
+                                            color:          "white"
+                                            font.pixelSize: _fontSize * 0.9
+                                            font.bold:      true
+                                            elide:          Text.ElideRight
+                                        }
+                                    }
+                                    QGCLabel {
+                                        text:           _dCard.v ? _dCard.v.vehicleTypeString : ""
+                                        color:          _dimText
+                                        font.pixelSize: _fontSize * 0.7
+                                        font.letterSpacing: 0.3
+                                    }
+                                }
+
+                                QGCLabel {
+                                    text:           _dCard._status
+                                    color:          _dCard._statusColor
+                                    font.pixelSize: _fontSize * 0.7
+                                    font.bold:      true
+                                    font.letterSpacing: 0.8
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    if (_dCard.v) QGroundControl.multiVehicleManager.activeVehicle = _dCard.v
+                            }
+                        }
+                    }
+                }
+
+                // Empty state
+                QGCLabel {
+                    Layout.fillWidth: true
+                    Layout.topMargin: _pad
+                    Layout.bottomMargin: _pad
+                    horizontalAlignment: Text.AlignHCenter
+                    visible:        !_vehicleModel || _vehicleModel.count === 0
+                    text:           "No drones connected"
+                    color:          _dimText
+                    font.pixelSize: _fontSize * 0.85
+                }
             }
         }
 
@@ -122,7 +302,7 @@ Rectangle {
             spacing: _pad * 0.5
 
             Repeater {
-                model: ["FLEET MANAGEMENT", "GENERAL", "RADIO", "SENSORS", "ANALYZE TOOLS", "COMPANION COMPUTER"]
+                model: ["IDENTITY", "SENSORS", "RADIO", "FLIGHT MODES", "ANALYZE TOOLS", "GENERAL"]
 
                 Rectangle {
                     Layout.fillWidth: true
@@ -157,38 +337,260 @@ Rectangle {
             color:  "transparent"
             clip:   true
 
-            // ─── TAB 0: FLEET MANAGEMENT (placeholder) ─────
+            // ─── TAB 0: IDENTITY ───────────────────────────
             Item {
                 anchors.fill: parent
                 visible: _activeTab === 0
 
+                // No vehicle
                 ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: _fontSize
+                    anchors.centerIn: parent; spacing: _fontSize
+                    visible: !_vehicleAvail
 
                     QGCColoredImage {
                         Layout.alignment: Qt.AlignHCenter
-                        width:  _fontSize * 4; height: width
+                        width: _fontSize * 4; height: width
                         source: "/qmlimages/Quad.svg"; color: _teal
                         fillMode: Image.PreserveAspectFit
                     }
                     QGCLabel {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "FLEET MANAGEMENT"; color: "white"
-                        font.pixelSize: _fontSize * 1.2; font.bold: true; font.letterSpacing: 1.5
+                        text: "Connect a vehicle to configure its identity"
+                        color: _dimText; font.pixelSize: _fontSize * 0.9
                     }
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "Fleet management configuration coming soon"
-                        color: _dimText; font.pixelSize: _fontSize * 0.8
+                }
+
+                // Vehicle connected
+                QGCFlickable {
+                    anchors.fill: parent
+                    contentHeight: _identityCol.height + _pad * 2
+                    clip: true
+                    visible: _vehicleAvail
+
+                    ColumnLayout {
+                        id: _identityCol
+                        width: parent.width
+                        spacing: _pad
+
+                        // ── NAME & MODEL card ────────────────
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: _nmCol.implicitHeight + _pad * 3
+                            radius: _fontSize * 0.4
+                            color:  _cardBg
+                            border.color: Qt.rgba(1,1,1,0.06); border.width: 1
+
+                            ColumnLayout {
+                                id: _nmCol
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: _pad * 1.5 }
+                                spacing: _pad
+
+                                QGCLabel {
+                                    text:               "NAME & MODEL"
+                                    color:              _teal
+                                    font.pixelSize:     _fontSize * 0.85
+                                    font.bold:          true
+                                    font.letterSpacing: 1
+                                }
+
+                                // Display name + RENAME
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: _pad * 0.4
+                                    QGCLabel { text: "Display name"; color: _dimText; font.pixelSize: _fontSize * 0.75 }
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: _pad
+
+                                        QGCTextField {
+                                            id: _nameField
+                                            Layout.fillWidth: true
+                                            text: _nameFor(_activeVehicle)
+                                            Component.onCompleted: text = _nameFor(_activeVehicle)
+                                            onAccepted: { _setNameFor(_activeVehicle, text) }
+                                        }
+
+                                        Rectangle {
+                                            Layout.preferredWidth:  _renameLabel.implicitWidth + _pad * 3
+                                            Layout.preferredHeight: _fontSize * 2.6
+                                            radius: _fontSize * 0.3
+                                            color:  _renameArea.containsMouse ? Qt.rgba(0, 0.749, 1.0, 0.20) : "transparent"
+                                            border.color: _teal; border.width: 1
+
+                                            RowLayout {
+                                                anchors.centerIn: parent
+                                                spacing: _pad * 0.4
+                                                QGCColoredImage {
+                                                    width: _fontSize * 0.9; height: width
+                                                    source: "/InstrumentValueIcons/edit-pencil.svg"
+                                                    color: _teal; fillMode: Image.PreserveAspectFit
+                                                }
+                                                QGCLabel {
+                                                    id: _renameLabel
+                                                    text: "RENAME"; color: _teal
+                                                    font.pixelSize: _fontSize * 0.7; font.bold: true; font.letterSpacing: 0.8
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: _renameArea
+                                                anchors.fill: parent; hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: _setNameFor(_activeVehicle, _nameField.text)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Model (read-only)
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: _pad * 0.4
+                                    QGCLabel { text: "Model"; color: _dimText; font.pixelSize: _fontSize * 0.75 }
+                                    ReadOnlyField {
+                                        Layout.fillWidth: true
+                                        value: _activeVehicle ? _activeVehicle.vehicleTypeString : "--"
+                                    }
+                                }
+
+                                // Drone ID + Max speed + Home set (read-only row)
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: _pad
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; spacing: _pad * 0.4
+                                        QGCLabel { text: "Drone ID"; color: _dimText; font.pixelSize: _fontSize * 0.75 }
+                                        ReadOnlyField {
+                                            Layout.fillWidth: true
+                                            value: _activeVehicle ? ("" + _activeVehicle.id) : "--"
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; spacing: _pad * 0.4
+                                        QGCLabel { text: "Max speed"; color: _dimText; font.pixelSize: _fontSize * 0.75 }
+                                        ReadOnlyField {
+                                            Layout.fillWidth: true
+                                            value: _maxSpeedText(_activeVehicle)
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; spacing: _pad * 0.4
+                                        QGCLabel { text: "Home set"; color: _dimText; font.pixelSize: _fontSize * 0.75 }
+                                        ReadOnlyField {
+                                            Layout.fillWidth: true
+                                            value: _homeText(_activeVehicle)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Item { height: _pad * 2 }
                     }
                 }
             }
 
-            // ─── TAB 1: GENERAL ─────────────────────────────
+            // ─── TAB 1: SENSORS ─────────────────────────────
             Item {
                 anchors.fill: parent
                 visible: _activeTab === 1
+
+                ColumnLayout {
+                    anchors.centerIn: parent; spacing: _fontSize
+                    visible: !_vehicleAvail || !_sensorsComp
+
+                    QGCColoredImage {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: _fontSize * 4; height: width
+                        source: "/qmlimages/Gears.svg"; color: _teal
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: _vehicleAvail ? "Sensor component not available for this vehicle" : "Connect a vehicle to calibrate sensors"
+                        color: _dimText; font.pixelSize: _fontSize * 0.9
+                    }
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: _vehicleAvail && _sensorsComp !== null
+                    source: (_activeTab === 1 && _sensorsComp) ? _sensorsComp.setupSource : ""
+                    property var vehicleComponent: _sensorsComp
+                }
+            }
+
+            // ─── TAB 2: RADIO ───────────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: _activeTab === 2
+
+                ColumnLayout {
+                    anchors.centerIn: parent; spacing: _fontSize
+                    visible: !_vehicleAvail || !_radioComp
+
+                    QGCColoredImage {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: _fontSize * 4; height: width
+                        source: "/qmlimages/Gears.svg"; color: _teal
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: _vehicleAvail ? "Radio component not available for this vehicle" : "Connect a vehicle to configure radio"
+                        color: _dimText; font.pixelSize: _fontSize * 0.9
+                    }
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: _vehicleAvail && _radioComp !== null
+                    source: (_activeTab === 2 && _radioComp) ? _radioComp.setupSource : ""
+                    property var vehicleComponent: _radioComp
+                }
+            }
+
+            // ─── TAB 3: FLIGHT MODES ────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: _activeTab === 3
+
+                ColumnLayout {
+                    anchors.centerIn: parent; spacing: _fontSize
+                    visible: !_vehicleAvail || !_flightModesComp
+
+                    QGCColoredImage {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: _fontSize * 4; height: width
+                        source: "/qmlimages/Gears.svg"; color: _teal
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    QGCLabel {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: _vehicleAvail ? "Flight Modes component not available for this vehicle" : "Connect a vehicle to configure flight modes"
+                        color: _dimText; font.pixelSize: _fontSize * 0.9
+                    }
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    visible: _vehicleAvail && _flightModesComp !== null
+                    source: (_activeTab === 3 && _flightModesComp) ? _flightModesComp.setupSource : ""
+                    property var vehicleComponent: _flightModesComp
+                }
+            }
+
+            // ─── TAB 4: ANALYZE TOOLS ──────────────────────
+            Item {
+                anchors.fill: parent
+                visible: _activeTab === 4
+
+                Loader {
+                    anchors.fill: parent
+                    source: _activeTab === 4 ? "qrc:/qml/QGroundControl/AnalyzeView/AnalyzeView.qml" : ""
+                }
+            }
+
+            // ─── TAB 5: GENERAL ─────────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: _activeTab === 5
 
                 // No vehicle
                 ColumnLayout {
@@ -248,7 +650,7 @@ Rectangle {
                                         QGCLabel {
                                             anchors { fill: parent; margins: _pad }
                                             verticalAlignment: Text.AlignVCenter
-                                            text: _activeVehicle ? (_activeVehicle.defaultName || ("Vehicle " + _activeVehicle.id)) : "--"
+                                            text: _nameFor(_activeVehicle)
                                             color: "white"; font.pixelSize: _fontSize * 0.85; elide: Text.ElideRight
                                         }
                                     }
@@ -500,117 +902,30 @@ Rectangle {
                             }
                         }
 
-
-
                         Item { height: _pad * 2 }
-                    }
-                }
-            }
-
-            // ─── TAB 2: RADIO ───────────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: _activeTab === 2
-
-                ColumnLayout {
-                    anchors.centerIn: parent; spacing: _fontSize
-                    visible: !_vehicleAvail || !_radioComp
-
-                    QGCColoredImage {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: _fontSize * 4; height: width
-                        source: "/qmlimages/Gears.svg"; color: _teal
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: _vehicleAvail ? "Radio component not available for this vehicle" : "Connect a vehicle to configure radio"
-                        color: _dimText; font.pixelSize: _fontSize * 0.9
-                    }
-                }
-
-                Loader {
-                    anchors.fill: parent
-                    visible: _vehicleAvail && _radioComp !== null
-                    source: (_activeTab === 2 && _radioComp) ? _radioComp.setupSource : ""
-                    property var vehicleComponent: _radioComp
-                }
-            }
-
-            // ─── TAB 3: SENSORS ─────────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: _activeTab === 3
-
-                ColumnLayout {
-                    anchors.centerIn: parent; spacing: _fontSize
-                    visible: !_vehicleAvail || !_sensorsComp
-
-                    QGCColoredImage {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: _fontSize * 4; height: width
-                        source: "/qmlimages/Gears.svg"; color: _teal
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: _vehicleAvail ? "Sensor component not available for this vehicle" : "Connect a vehicle to calibrate sensors"
-                        color: _dimText; font.pixelSize: _fontSize * 0.9
-                    }
-                }
-
-                Loader {
-                    anchors.fill: parent
-                    visible: _vehicleAvail && _sensorsComp !== null
-                    source: (_activeTab === 3 && _sensorsComp) ? _sensorsComp.setupSource : ""
-                    property var vehicleComponent: _sensorsComp
-                }
-            }
-
-            // ─── TAB 4: ANALYZE TOOLS ──────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: _activeTab === 4
-
-                Loader {
-                    anchors.fill: parent
-                    source: _activeTab === 4 ? "qrc:/qml/QGroundControl/AnalyzeView/AnalyzeView.qml" : ""
-                }
-            }
-
-            // ─── TAB 5: COMPANION COMPUTER (placeholder) ────
-            Item {
-                anchors.fill: parent
-                visible: _activeTab === 5
-
-                ColumnLayout {
-                    anchors.centerIn: parent; spacing: _fontSize
-
-                    QGCColoredImage {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: _fontSize * 4; height: width
-                        source: "/qmlimages/Gears.svg"; color: _teal
-                        fillMode: Image.PreserveAspectFit
-                    }
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "COMPANION COMPUTER"; color: "white"
-                        font.pixelSize: _fontSize * 1.2; font.bold: true; font.letterSpacing: 1.5
-                    }
-                    QGCLabel {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "Companion computer configuration coming soon"
-                        color: _dimText; font.pixelSize: _fontSize * 0.8
                     }
                 }
             }
         }
     }
 
-    // ════════════════════════════════════════════════════════
-    // INLINE COMPONENT: SetupCard — collapsible card
-    // ════════════════════════════════════════════════════════
+    // ReadOnlyField — non-editable value box
+    component ReadOnlyField: Rectangle {
+        property string value: "--"
+        implicitHeight: _fontSize * 2.8
+        radius: _fontSize * 0.3
+        color: Qt.rgba(1,1,1,0.06)
+        border.color: Qt.rgba(1,1,1,0.1); border.width: 1
 
+        QGCLabel {
+            anchors { fill: parent; margins: _pad }
+            verticalAlignment: Text.AlignVCenter
+            text: parent.value
+            color: "white"; font.pixelSize: _fontSize * 0.85; elide: Text.ElideRight
+        }
+    }
+
+    // SetupCard — collapsible card
     component SetupCard: ColumnLayout {
         required property string sectionKey
         required property string title
