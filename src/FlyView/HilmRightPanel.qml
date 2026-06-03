@@ -258,7 +258,7 @@ Item {
         anchors.top:    parent.top
         anchors.bottom: parent.bottom
         radius:         ScreenTools.defaultFontPixelHeight * 0.4
-        color:          Qt.rgba(0, 0, 0, 0.80)
+        color:          Qt.rgba(0.04, 0.05, 0.07, 0.94)
         border.width:   1
         border.color:   Qt.rgba(1, 1, 1, 0.06)
         clip:           true
@@ -384,7 +384,7 @@ Item {
                                                                        : Qt.rgba(0, 0.749, 1.0, 0.06)
                 border.width: 1
                 border.color: planMissionArea.containsMouse ? _teal : _tealBorder
-                opacity:      _activeVehicle ? 1.0 : 0.45
+                opacity:      _activeVehicle ? 1.0 : 0.55
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -542,9 +542,8 @@ Item {
                     return 30.0
                 }
 
-                // Takeoff gating same as the action/mode matrix:
-                //   Armed, on ground, in a manual-control flight mode.
-                property bool _canTakeoff: {
+                // ground takeoff: armed, on ground, manual mode
+                property bool _canGroundTakeoff: {
                     if (!_isManualMode) return false
                     var targets = targetVehicles()
                     for (var i = 0; i < targets.length; i++) {
@@ -552,6 +551,18 @@ Item {
                     }
                     return false
                 }
+                // in flight: change to the entered altitude
+                property bool _canChangeAlt: {
+                    if (_isRtlMode) return false
+                    var targets = targetVehicles()
+                    for (var i = 0; i < targets.length; i++) {
+                        if (targets[i].flying) return true
+                    }
+                    return false
+                }
+                // enabled for either action
+                property bool _canTakeoff:    _canGroundTakeoff || _canChangeAlt
+                property bool _changeAltMode: _canChangeAlt && !_canGroundTakeoff
 
                 // Altitude input
                 Rectangle {
@@ -615,7 +626,7 @@ Item {
                     border.color: takeoffRow._canTakeoff
                                 ? (takeoffArea.containsMouse ? _teal : _tealBorder)
                                 : Qt.rgba(1, 1, 1, 0.12)
-                    opacity: takeoffRow._canTakeoff ? 1.0 : 0.45
+                    opacity: takeoffRow._canTakeoff ? 1.0 : 0.55
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -631,7 +642,7 @@ Item {
                             fillMode: Image.PreserveAspectFit
                         }
                         QGCLabel {
-                            text: "TAKEOFF"
+                            text: takeoffRow._changeAltMode ? "GO TO ALT" : "TAKEOFF"
                             color: takeoffRow._canTakeoff
                                             ? (takeoffArea.containsMouse ? Qt.lighter(_teal, 1.15) : _teal)
                                             : Qt.rgba(1, 1, 1, 0.35)
@@ -654,10 +665,17 @@ Item {
 
                             var targets = targetVehicles()
                             for (var i = 0; i < targets.length; i++) {
-                                if (targets[i].armed && !targets[i].flying) {
-                                    QGroundControl.multiVehicleManager.activeVehicle = targets[i]
-                                    // guidedModeTakeoff accepts altitude (relative meters)
-                                    targets[i].guidedModeTakeoff(altMeters)
+                                var v = targets[i]
+                                if (v.armed && !v.flying) {
+                                    // on ground: take off to entered altitude
+                                    QGroundControl.multiVehicleManager.activeVehicle = v
+                                    v.guidedModeTakeoff(altMeters)
+                                } else if (v.flying) {
+                                    // in flight: convert entered target to a delta
+                                    QGroundControl.multiVehicleManager.activeVehicle = v
+                                    var cur = (v.altitudeRelative && !isNaN(v.altitudeRelative.rawValue))
+                                                ? v.altitudeRelative.rawValue : 0
+                                    v.guidedModeChangeAltitude(altMeters - cur, false)
                                 }
                             }
                         }
@@ -683,7 +701,7 @@ Item {
                     border.color: _flying
                                     ? (landArea.containsMouse ? "#FFB74D" : "#FF9800")
                                     : Qt.rgba(1, 1, 1, 0.12)
-                    opacity:      _flying ? 1.0 : 0.45
+                    opacity:      _flying ? 1.0 : 0.55
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -731,7 +749,7 @@ Item {
                     border.color: _canRtl
                                     ? (rtlArea.containsMouse ? _teal : _tealBorder)
                                     : Qt.rgba(1, 1, 1, 0.12)
-                    opacity:      _canRtl ? 1.0 : 0.45
+                    opacity:      _canRtl ? 1.0 : 0.55
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -768,14 +786,26 @@ Item {
             }
 
             // ── WAYPOINT NAVIGATION — tap, then click map to send a guided goto
-            QGCLabel {
+            RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: _pad * 1.0
-                text:               "WAYPOINT NAVIGATION"
-                color:              _teal
-                font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
-                font.bold:          true
-                font.letterSpacing: 1.2
+                spacing:          _pad * 0.4
+
+                QGCColoredImage {
+                    width:    ScreenTools.defaultFontPixelHeight * 0.85
+                    height:   width
+                    source:   "/InstrumentValueIcons/pin.svg"
+                    color:    _teal
+                    fillMode: Image.PreserveAspectFit
+                }
+                QGCLabel {
+                    Layout.fillWidth:   true
+                    text:               "WAYPOINT NAVIGATION"
+                    color:              _teal
+                    font.pointSize:     ScreenTools.defaultFontPointSize * 0.72
+                    font.bold:          true
+                    font.letterSpacing: 1.2
+                }
             }
 
             Rectangle {
@@ -801,7 +831,7 @@ Item {
                     if (_picking)  return _teal
                     return setWaypointArea.containsMouse ? _teal : _tealBorder
                 }
-                opacity: _canPick ? 1.0 : 0.45
+                opacity: _canPick ? 1.0 : 0.55
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -850,7 +880,7 @@ Item {
                 }
                 border.width: 1.5
                 border.color: emergencyStopArea.containsMouse ? Qt.lighter(_errColor, 1.2) : _errColor
-                opacity:      _activeVehicle ? 1.0 : 0.45
+                opacity:      _activeVehicle ? 1.0 : 0.55
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -997,7 +1027,7 @@ Item {
                                             : (changeModeArea.containsMouse
                                                 ? Qt.rgba(0, 0.749, 1.0, 0.55)
                                                 : Qt.rgba(0, 0.749, 1.0, 0.30))
-                opacity:                _activeVehicle ? 1.0 : 0.45
+                opacity:                _activeVehicle ? 1.0 : 0.55
 
                 RowLayout {
                     id: changeModeBtn
@@ -1293,7 +1323,7 @@ Item {
                 Layout.fillWidth:       true
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.4
                 color:                  patrolArea.containsMouse ? Qt.lighter(_teal, 1.12) : _teal
-                opacity:                _canStartMission ? 1.0 : 0.45
+                opacity:                _canStartMission ? 1.0 : 0.55
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -2054,7 +2084,7 @@ Item {
                             color:        zoomOutArea.containsMouse ? _tealDim : "transparent"
                             border.width: 1
                             border.color: _tealBorder
-                            opacity:      gimbalDock._camera ? 1.0 : 0.45
+                            opacity:      gimbalDock._camera ? 1.0 : 0.55
                             QGCLabel {
                                 anchors.centerIn: parent
                                 text: "−"; color: _teal
@@ -2103,7 +2133,7 @@ Item {
                             color:        zoomInArea.containsMouse ? _tealDim : "transparent"
                             border.width: 1
                             border.color: _tealBorder
-                            opacity:      gimbalDock._camera ? 1.0 : 0.45
+                            opacity:      gimbalDock._camera ? 1.0 : 0.55
                             QGCLabel {
                                 anchors.centerIn: parent
                                 text: "+"; color: _teal

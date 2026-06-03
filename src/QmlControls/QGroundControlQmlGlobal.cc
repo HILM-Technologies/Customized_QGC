@@ -26,6 +26,11 @@
 #include "VideoManager.h"
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
+#include <QtCore/QDir>
+#include <QtCore/QFileInfo>
+#include <QtCore/QStorageInfo>
+#include <QtCore/QUrl>
+#include <QtCore/QDateTime>
 #ifndef QGC_NO_SERIAL_LINK
 #include "GPSManager.h"
 #include "GPSRtk.h"
@@ -133,6 +138,64 @@ bool QGroundControlQmlGlobal::loadBoolGlobalSetting (const QString& key, bool de
     QSettings settings;
     settings.beginGroup(kQmlGlobalKeyName);
     return settings.value(key, defaultValue).toBool();
+}
+
+QVariantMap QGroundControlQmlGlobal::mediaInfo() const
+{
+    QVariantMap result;
+    AppSettings* app = SettingsManager::instance()->appSettings();
+
+    static const QStringList videoExts = { "*.mp4", "*.mkv", "*.mov", "*.avi", "*.ts", "*.webm" };
+    static const QStringList photoExts = { "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff" };
+
+    QVariantList items;
+    int videoCount = 0;
+    int photoCount = 0;
+
+    const auto scanDir = [&](const QString& dirPath, const QStringList& filters, bool isVideo) {
+        QDir dir(dirPath);
+        if (!dir.exists()) {
+            return;
+        }
+        const QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time);
+        for (const QFileInfo& fi : files) {
+            QVariantMap item;
+            item[QStringLiteral("name")]      = fi.fileName();
+            item[QStringLiteral("url")]       = QUrl::fromLocalFile(fi.absoluteFilePath()).toString();
+            item[QStringLiteral("isVideo")]   = isVideo;
+            item[QStringLiteral("sizeBytes")] = static_cast<double>(fi.size());
+            item[QStringLiteral("modified")]  = fi.lastModified().toString(QStringLiteral("yyyy-MM-dd hh:mm"));
+            items.append(item);
+            if (isVideo) {
+                ++videoCount;
+            } else {
+                ++photoCount;
+            }
+        }
+    };
+
+    if (app) {
+        scanDir(app->videoSavePath(), videoExts, true);
+        scanDir(app->photoSavePath(), photoExts, false);
+    }
+
+    result[QStringLiteral("videoCount")] = videoCount;
+    result[QStringLiteral("photoCount")] = photoCount;
+    result[QStringLiteral("items")]      = items;
+
+    // root volume: C: on Windows, / on Linux/macOS
+    QStorageInfo storage = QStorageInfo::root();
+    if (!storage.isValid() || !storage.isReady()) {
+        storage = QStorageInfo(app ? app->savePath()->rawValue().toString() : QString());
+    }
+    const double total = static_cast<double>(storage.bytesTotal());
+    const double avail = static_cast<double>(storage.bytesAvailable());
+    result[QStringLiteral("diskTotalBytes")] = total;
+    result[QStringLiteral("diskFreeBytes")]  = avail;
+    result[QStringLiteral("diskUsedBytes")]  = (total > 0.0) ? (total - avail) : 0.0;
+    result[QStringLiteral("diskRoot")]       = storage.rootPath();
+
+    return result;
 }
 
 void QGroundControlQmlGlobal::startPX4MockLink(bool sendStatusText)

@@ -193,6 +193,16 @@ void MockLink::run10HzTasks()
 
     if (_mavlinkStarted && _connected) {
         _sendHeartBeat();
+
+        // move ~3 m/s toward target (climb on takeoff, descend on land)
+        const double _altStep = 0.3;
+        const double _altDiff = _vehicleTargetAltitudeAMSL - _vehicleAltitudeAMSL;
+        if (qAbs(_altDiff) <= _altStep) {
+            _vehicleAltitudeAMSL = _vehicleTargetAltitudeAMSL;
+        } else {
+            _vehicleAltitudeAMSL += (_altDiff > 0 ? _altStep : -_altStep);
+        }
+
         if (_sendGPSPositionDelayCount > 0) {
             // We delay gps position for better testing
             _sendGPSPositionDelayCount--;
@@ -728,6 +738,14 @@ void MockLink::_handleSetMode(const mavlink_message_t &msg)
 
     _mavBaseMode = request.base_mode;
     _mavCustomMode = request.custom_mode;
+
+    // PX4 auto Land mode: descend to the ground
+    union px4_custom_mode px4_cm{};
+    px4_cm.data = _mavCustomMode;
+    if (px4_cm.main_mode == PX4_CUSTOM_MAIN_MODE_AUTO &&
+        px4_cm.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LAND) {
+        _vehicleTargetAltitudeAMSL = _defaultVehicleHomeAltitude;
+    }
 }
 
 void MockLink::_handleManualControl(const mavlink_message_t &msg)
@@ -1636,7 +1654,8 @@ void MockLink::_handlePreFlightCalibration(const mavlink_command_long_t& request
 
 void MockLink::_handleTakeoff(const mavlink_command_long_t &request)
 {
-    _vehicleAltitudeAMSL = request.param7 + _defaultVehicleHomeAltitude;
+    // climb to requested altitude (animated in run10HzTasks)
+    _vehicleTargetAltitudeAMSL = request.param7 + _defaultVehicleHomeAltitude;
     _mavBaseMode |= MAV_MODE_FLAG_SAFETY_ARMED;
 }
 

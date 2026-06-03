@@ -307,7 +307,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: _pad * 0.5
 
-            // SAT count
+            // Altitude (relative, meters)
             Row {
                 Layout.fillWidth: true
                 spacing: _pad * 0.4
@@ -316,13 +316,14 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width:      ScreenTools.defaultFontPixelHeight * 0.9
                     height:     width
-                    source:     "/qmlimages/Gps.svg"
+                    source:     "/InstrumentValueIcons/arrow-thin-up.svg"
                     color:      _dimText
                     fillMode:   Image.PreserveAspectFit
                 }
                 QGCLabel {
                     anchors.verticalCenter: parent.verticalCenter
-                    text:       vehicle && vehicle.gps ? vehicle.gps.count.rawValue + " SAT" : "-- SAT"
+                    text:       (vehicle && vehicle.altitudeRelative && !isNaN(vehicle.altitudeRelative.rawValue))
+                                    ? vehicle.altitudeRelative.rawValue.toFixed(0) + "m" : "--m"
                     color:      "white"
                     font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                     font.bold:  true

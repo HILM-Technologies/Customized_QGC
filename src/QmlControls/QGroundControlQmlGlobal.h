@@ -12,6 +12,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QPointF>
 #include <QtCore/QTimer>
+#include <QtCore/QVariantMap>
 #include <QtPositioning/QGeoCoordinate>
 #include <QtQmlIntegration/QtQmlIntegration>
 
@@ -140,6 +141,9 @@ public:
     Q_INVOKABLE QString loadGlobalSetting       (const QString& key, const QString& defaultValue);
     Q_INVOKABLE void    saveBoolGlobalSetting   (const QString& key, bool value);
     Q_INVOKABLE bool    loadBoolGlobalSetting   (const QString& key, bool defaultValue);
+
+    /// video/photo counts, file list, and disk storage (bytes)
+    Q_INVOKABLE QVariantMap mediaInfo() const;
 
     Q_INVOKABLE static void deleteAllSettingsNextBoot();
     Q_INVOKABLE static void clearDeleteAllSettingsNextBoot();

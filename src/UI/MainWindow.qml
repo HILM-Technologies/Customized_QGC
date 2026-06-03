@@ -155,18 +155,19 @@ ApplicationWindow {
         activeTabIndex = tabIndex
 
         // Close the tool drawer when switching away from SETTINGS
-        if (tabIndex !== 6 && toolDrawer.visible) {
+        if (tabIndex !== 7 && toolDrawer.visible) {
             toolDrawer.visible = false
         }
 
         // Hide all views
-        flyView.visible         = (tabIndex === 0)
-        planView.visible        = (tabIndex === 1)
-        fleetView.visible       = (tabIndex === 2)
-        videoWallView.visible   = (tabIndex === 3)
-        cameraRollView.visible  = (tabIndex === 4)
-        hilmSetupView.visible   = (tabIndex === 5)
-        hilmSettingsView.visible = (tabIndex === 6)
+        flyView.visible          = (tabIndex === 0)
+        planView.visible         = (tabIndex === 1)
+        fleetView.visible        = (tabIndex === 2)
+        videoWallView.visible    = (tabIndex === 3)
+        cameraRollView.visible   = (tabIndex === 4)
+        networkView.visible      = (tabIndex === 5)
+        hilmSetupView.visible    = (tabIndex === 6)
+        hilmSettingsView.visible = (tabIndex === 7)
     }
 
     function showTool(toolTitle, toolSource, toolIcon) {
@@ -182,8 +183,8 @@ ApplicationWindow {
     }
 
     function showVehicleConfig() {
-        hilmNavBar.activeTab = 5
-        _switchToTab(5)
+        hilmNavBar.activeTab = 6
+        _switchToTab(6)
     }
 
     function showVehicleConfigParametersPage() {
@@ -366,6 +367,15 @@ ApplicationWindow {
         visible:        false
     }
 
+    NetworkView {
+        id:             networkView
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.top:    hilmNavBar.bottom
+        anchors.bottom: parent.bottom
+        visible:        false
+    }
+
     HilmSetupView {
         id:             hilmSetupView
         anchors.left:   parent.left
@@ -511,8 +521,8 @@ ApplicationWindow {
                         onClicked: {
                             if (mainWindow.allowViewSwitch()) {
                                 mainWindow.closeIndicatorDrawer()
-                                hilmNavBar.activeTab = 5
-                                mainWindow._switchToTab(5)
+                                hilmNavBar.activeTab = 6
+                                mainWindow._switchToTab(6)
                                 hilmSetupView._activeTab = 4
                             }
                         }

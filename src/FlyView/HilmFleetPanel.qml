@@ -96,7 +96,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.right:  collapseHandle.left
         radius:         ScreenTools.defaultFontPixelHeight * 0.4
-        color:          Qt.rgba(0, 0, 0, 0.80)
+        color:          Qt.rgba(0.04, 0.05, 0.07, 0.94)
         border.width:   1
         border.color:   Qt.rgba(1, 1, 1, 0.06)
         clip:           true
@@ -124,28 +124,29 @@ Item {
                     font.letterSpacing: 0.8
                 }
 
-                // Drone count: bullet + number
-                Row {
+                // Airborne counter: "N/M airborne"
+                QGCLabel {
+                    id:                     airborneLabel
                     anchors.right:          parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing:                _pad * 0.4
+                    color:                  _teal
+                    font.pointSize:         ScreenTools.defaultFontPointSize * 0.7
+                    font.bold:              true
+                    font.letterSpacing:     0.5
 
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width:   ScreenTools.defaultFontPixelHeight * 0.75
-                        height:  width
-                        radius:  width / 2
-                        color:   "transparent"
-                        border.width: 0.5
-                        border.color: _teal
-                    }
+                    // refresh so the airborne count tracks flying state
+                    property int _rev: 0
+                    Timer { interval: 1000; running: true; repeat: true; onTriggered: airborneLabel._rev++ }
 
-                    QGCLabel {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text:           _vehicleModel ? _vehicleModel.count : "0"
-                        color:          _teal
-                        font.pointSize: ScreenTools.defaultFontPointSize * 0.85
-                        font.bold:      true
+                    text: {
+                        void _rev
+                        var total = _vehicleModel ? _vehicleModel.count : 0
+                        var air = 0
+                        for (var i = 0; i < total; i++) {
+                            var v = _vehicleModel.get(i)
+                            if (v && v.flying) air++
+                        }
+                        return air + "/" + total + " airborne"
                     }
                 }
             }

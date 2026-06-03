@@ -16,7 +16,7 @@ Item {
     width:  parent.width
     height: ScreenTools.toolbarHeight
 
-    // Active tab index: 0=OPS, 1=MISSIONS, 2=FLEET, 3=VIDEO WALL, 4=CAMERA ROLL, 5=SETUP, 6=SETTINGS
+    // Active tab index: 0=FLY, 1=MISSIONS, 2=FLEET, 3=VIDEO WALL, 4=MEDIA, 5=NETWORK, 6=SETUP, 7=SETTINGS
     property int    activeTab:  0
     signal tabClicked(int index)
 
@@ -36,11 +36,12 @@ Item {
     // Tab model
     ListModel {
         id: tabModel
-        ListElement { label: "OPS";          iconSource: "/res/broadcast.svg" }
+        ListElement { label: "FLY";          iconSource: "/res/broadcast.svg" }
         ListElement { label: "MISSIONS";    iconSource: "/InstrumentValueIcons/target.svg" }
         ListElement { label: "FLEET";       iconSource: "/qmlimages/Quad.svg" }
         ListElement { label: "VIDEO WALL";  iconSource: "/InstrumentValueIcons/view-tile.svg" }
-        ListElement { label: "CAMERA ROLL"; iconSource: "/qmlimages/CameraIcon.svg" }
+        ListElement { label: "MEDIA";       iconSource: "/qmlimages/CameraIcon.svg" }
+        ListElement { label: "NETWORK";     iconSource: "/InstrumentValueIcons/sitemap.svg" }
         ListElement { label: "SETUP";       iconSource: "/res/wrench-right.svg" }
         ListElement { label: "SETTINGS";    iconSource: "/res/gear-white.svg" }
     }

@@ -27,6 +27,10 @@ set_source_files_properties(UI/CameraRollView.qml
     PROPERTIES
         QT_RESOURCE_ALIAS CameraRollView.qml
 )
+set_source_files_properties(UI/NetworkView.qml
+    PROPERTIES
+        QT_RESOURCE_ALIAS NetworkView.qml
+)
 set_source_files_properties(UI/HilmSetupView.qml
     PROPERTIES
         QT_RESOURCE_ALIAS HilmSetupView.qml
@@ -46,6 +50,7 @@ qt_add_qml_module(QGroundControlModule
         UI/FleetView.qml
         UI/VideoWallView.qml
         UI/CameraRollView.qml
+        UI/NetworkView.qml
         UI/HilmSetupView.qml
         UI/HilmSettingsView.qml
     IMPORTS

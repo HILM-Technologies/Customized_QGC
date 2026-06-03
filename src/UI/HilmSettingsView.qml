@@ -2166,7 +2166,8 @@ Rectangle {
             property var editingConfig
 
             onAccepted: {
-                _linkSettingsLoader.item.saveSettings()
+                if (_linkSettingsLoader.item)
+                    _linkSettingsLoader.item.saveSettings()
                 editingConfig.name = _linkNameField.text
                 if (originalConfig) {
                     QGroundControl.linkManager.endConfigurationEditing(originalConfig, editingConfig)
@@ -2198,7 +2199,9 @@ Rectangle {
                 }
 
                 Loader {
-                    id: _linkSettingsLoader; source: subEditConfig.settingsURL
+                    id: _linkSettingsLoader
+                    // settingsURL is a bare filename; qualify the path since this view isn't in AppSettings/
+                    source: subEditConfig ? "qrc:/qml/QGroundControl/AppSettings/" + subEditConfig.settingsURL : ""
                     property var subEditConfig:      editingConfig
                     property int _firstColumnWidth:  ScreenTools.defaultFontPixelWidth * 12
                     property int _secondColumnWidth: ScreenTools.defaultFontPixelWidth * 30

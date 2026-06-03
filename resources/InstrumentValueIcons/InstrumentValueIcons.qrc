@@ -56,6 +56,11 @@
 		<file alias="zoom-out.svg">zoom-out.svg</file>
 		<file alias="fast-forward.svg">fast-forward.svg</file>
 		<file alias="network.svg">network.svg</file>
+		<file alias="sitemap.svg">sitemap.svg</file>
+		<file alias="plan-starter.svg">plan-starter.svg</file>
+		<file alias="plan-standard.svg">plan-standard.svg</file>
+		<file alias="plan-pro.svg">plan-pro.svg</file>
+		<file alias="plan-enterprise.svg">plan-enterprise.svg</file>
 		<file alias="light-bulb.svg">light-bulb.svg</file>
 		<file alias="text-decoration.svg">text-decoration.svg</file>
 		<file alias="user-group.svg">user-group.svg</file>

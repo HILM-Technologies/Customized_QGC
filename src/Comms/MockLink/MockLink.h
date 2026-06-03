@@ -264,6 +264,7 @@ private:
     MAV_BATTERY_CHARGE_STATE _battery2ChargeState = MAV_BATTERY_CHARGE_STATE_OK;
 
     double _vehicleAltitudeAMSL = _defaultVehicleHomeAltitude;
+    double _vehicleTargetAltitudeAMSL = _defaultVehicleHomeAltitude;    ///< altitude animates toward this
     bool _commLost = false;
     bool _highLatencyTransmissionEnabled = true;
 
