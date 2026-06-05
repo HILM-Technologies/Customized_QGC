@@ -199,6 +199,14 @@ void MockLink::run10HzTasks()
         const double _altDiff = _vehicleTargetAltitudeAMSL - _vehicleAltitudeAMSL;
         if (qAbs(_altDiff) <= _altStep) {
             _vehicleAltitudeAMSL = _vehicleTargetAltitudeAMSL;
+            if (_landing) {
+                // touched down: auto-disarm and drop back to a manual mode
+                _landing = false;
+                _mavBaseMode &= ~MAV_MODE_FLAG_SAFETY_ARMED;
+                union px4_custom_mode pm{};
+                pm.main_mode = PX4_CUSTOM_MAIN_MODE_POSCTL;
+                _mavCustomMode = pm.data;
+            }
         } else {
             _vehicleAltitudeAMSL += (_altDiff > 0 ? _altStep : -_altStep);
         }
@@ -745,6 +753,7 @@ void MockLink::_handleSetMode(const mavlink_message_t &msg)
     if (px4_cm.main_mode == PX4_CUSTOM_MAIN_MODE_AUTO &&
         px4_cm.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LAND) {
         _vehicleTargetAltitudeAMSL = _defaultVehicleHomeAltitude;
+        _landing = true;
     }
 }
 
@@ -1654,8 +1663,9 @@ void MockLink::_handlePreFlightCalibration(const mavlink_command_long_t& request
 
 void MockLink::_handleTakeoff(const mavlink_command_long_t &request)
 {
-    // climb to requested altitude (animated in run10HzTasks)
-    _vehicleTargetAltitudeAMSL = request.param7 + _defaultVehicleHomeAltitude;
+    // param7 is already the target AMSL altitude (climb animated in run10HzTasks)
+    _vehicleTargetAltitudeAMSL = request.param7;
+    _landing = false;
     _mavBaseMode |= MAV_MODE_FLAG_SAFETY_ARMED;
 }
 

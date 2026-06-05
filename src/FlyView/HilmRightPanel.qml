@@ -60,6 +60,12 @@ Item {
     }
 
     property var _activeVehicle:    QGroundControl.multiVehicleManager.activeVehicle
+    // drone the panel (telemetry + altitude field) reflects: first selected, else active
+    property var _repVehicle: {
+        void selectionRevision
+        var t = targetVehicles()
+        return (t && t.length > 0) ? t[0] : _activeVehicle
+    }
     property var _guidedController: globals.guidedControllerFlyView
     property var _emergency:        _activeVehicle ? _activeVehicle.emergencyController : null
 
@@ -193,6 +199,12 @@ Item {
         }
         return false
     }
+    // manual-control mode for a specific vehicle (not just the active one)
+    function _isManualVehicle(v) {
+        if (!v) return false
+        var m = v.flightMode
+        return !_modeMatches(_autoModeNames, m) && !_modeMatches(_rtlModeNames, m) && !_modeMatches(_externalModeNames, m)
+    }
     property bool _isAutoMode:        _modeMatches(_autoModeNames,        _currentMode)
     property bool _isRtlMode:         _modeMatches(_rtlModeNames,         _currentMode)
     property bool _isExternalMode:    _modeMatches(_externalModeNames,    _currentMode)
@@ -209,9 +221,25 @@ Item {
     //   TAKEOFF       — armed on ground in a manual-control mode
     //   START MISSION — armed on ground in a manual mode, or while in PX4
     //                   "Takeoff" / ArduPilot "Guided" (chain into Auto)
-    property bool _canArm:          !!_activeVehicle && !_armed && !_flying
-    property bool _canDisarm:       !!_activeVehicle &&  _armed && !_flying
-    property bool _canRtl:          !!_activeVehicle &&  _flying && !_isRtlMode
+    // ARM/DISARM/RTL gate on every target drone (selection is same-state)
+    property bool _canArm: {
+        void selectionRevision
+        var t = targetVehicles(); if (!t.length) return false
+        for (var i = 0; i < t.length; i++) if (t[i].armed || t[i].flying) return false
+        return true
+    }
+    property bool _canDisarm: {
+        void selectionRevision
+        var t = targetVehicles(); if (!t.length) return false
+        for (var i = 0; i < t.length; i++) if (!t[i].armed || t[i].flying) return false
+        return true
+    }
+    property bool _canRtl: {
+        void selectionRevision
+        var t = targetVehicles(); if (!t.length) return false
+        for (var i = 0; i < t.length; i++) if (!t[i].flying || _modeMatches(_rtlModeNames, t[i].flightMode)) return false
+        return true
+    }
     property bool _canStartMission: !!_activeVehicle &&  _armed && (
                                         (!_flying && _isManualMode) ||
                                         _isTakeoffOrGuided
@@ -542,27 +570,63 @@ Item {
                     return 30.0
                 }
 
-                // ground takeoff: armed, on ground, manual mode
+                // ground takeoff: every target armed, on ground, manual mode
                 property bool _canGroundTakeoff: {
-                    if (!_isManualMode) return false
-                    var targets = targetVehicles()
+                    void selectionRevision
+                    var targets = targetVehicles(); if (!targets.length) return false
                     for (var i = 0; i < targets.length; i++) {
-                        if (targets[i].armed && !targets[i].flying) return true
+                        if (!targets[i].armed || targets[i].flying || !_isManualVehicle(targets[i])) return false
                     }
-                    return false
+                    return true
                 }
-                // in flight: change to the entered altitude
+                // in flight: every target flying and not returning
                 property bool _canChangeAlt: {
-                    if (_isRtlMode) return false
+                    void selectionRevision
+                    var targets = targetVehicles(); if (!targets.length) return false
+                    for (var i = 0; i < targets.length; i++) {
+                        if (!targets[i].flying || _modeMatches(_rtlModeNames, targets[i].flightMode)) return false
+                    }
+                    return true
+                }
+                // last commanded altitude per vehicle id
+                property var _lastCmdAlt: ({})
+                // typed altitude differs from this drone's last command
+                property bool _altDiffers: {
+                    var entered = parseFloat(altField.text)
+                    if (!entered || entered <= 0) return false
                     var targets = targetVehicles()
                     for (var i = 0; i < targets.length; i++) {
-                        if (targets[i].flying) return true
+                        var key = "" + targets[i].id
+                        if (!(key in _lastCmdAlt) || Math.abs(_lastCmdAlt[key] - entered) > 0.001) return true
                     }
                     return false
                 }
-                // enabled for either action
-                property bool _canTakeoff:    _canGroundTakeoff || _canChangeAlt
+                // enabled for either action, only if the altitude changed
+                property bool _canTakeoff:    (_canGroundTakeoff || _canChangeAlt) && _altDiffers
                 property bool _changeAltMode: _canChangeAlt && !_canGroundTakeoff
+
+                // show the selected drone's altitude in the field
+                function _fmtAlt(v) { return (v % 1 === 0) ? v.toFixed(0) : v.toFixed(1) }
+                function _altForVehicle(v) {
+                    if (!v) return _defaultTakeoffAlt
+                    var key = "" + v.id
+                    if (key in _lastCmdAlt) return _lastCmdAlt[key]                 // last commanded
+                    if (v.flying && v.altitudeRelative && !isNaN(v.altitudeRelative.rawValue))
+                        return v.altitudeRelative.rawValue                          // current, if flying
+                    return _defaultTakeoffAlt                                       // ground default
+                }
+                function _syncAlt() {
+                    if (altField.activeFocus) return   // don't interrupt typing
+                    altField.text = _fmtAlt(_altForVehicle(_repVehicle))
+                }
+                Connections {
+                    target: QGroundControl.multiVehicleManager
+                    function onActiveVehicleChanged() { takeoffRow._syncAlt() }
+                }
+                Connections {
+                    target: rightPanelRoot
+                    function onSelectionRevisionChanged() { takeoffRow._syncAlt() }
+                }
 
                 // Altitude input
                 Rectangle {
@@ -591,11 +655,8 @@ Item {
                         TextField {
                             id: altField
                             Layout.fillWidth: true
-                            // Show 0 decimals when integer, 1 otherwise
-                            text: {
-                                var v = takeoffRow._defaultTakeoffAlt
-                                return (v % 1 === 0) ? v.toFixed(0) : v.toFixed(1)
-                            }
+                            // set per selected drone via takeoffRow._syncAlt()
+                            Component.onCompleted: takeoffRow._syncAlt()
                             color: "white"
                             font.pointSize: ScreenTools.defaultFontPointSize * 1.0
                             font.bold: true
@@ -663,6 +724,10 @@ Item {
                             var altMeters = parseFloat(altField.text)
                             if (!altMeters || altMeters <= 0) altMeters = takeoffRow._defaultTakeoffAlt
 
+                            // copy the per-drone map so reassigning re-evaluates bindings
+                            var newMap = {}
+                            for (var k in takeoffRow._lastCmdAlt) newMap[k] = takeoffRow._lastCmdAlt[k]
+
                             var targets = targetVehicles()
                             for (var i = 0; i < targets.length; i++) {
                                 var v = targets[i]
@@ -670,14 +735,17 @@ Item {
                                     // on ground: take off to entered altitude
                                     QGroundControl.multiVehicleManager.activeVehicle = v
                                     v.guidedModeTakeoff(altMeters)
+                                    newMap["" + v.id] = altMeters
                                 } else if (v.flying) {
                                     // in flight: convert entered target to a delta
                                     QGroundControl.multiVehicleManager.activeVehicle = v
                                     var cur = (v.altitudeRelative && !isNaN(v.altitudeRelative.rawValue))
                                                 ? v.altitudeRelative.rawValue : 0
                                     v.guidedModeChangeAltitude(altMeters - cur, false)
+                                    newMap["" + v.id] = altMeters
                                 }
                             }
+                            takeoffRow._lastCmdAlt = newMap   // disables button until altitude changes
                         }
                     }
                 }
@@ -931,9 +999,9 @@ Item {
                     Layout.fillWidth: true
                     label: "ALT"
                     value: {
-                        if (!_activeVehicle || !_activeVehicle.altitudeRelative) return "--"
-                        var v = _activeVehicle.altitudeRelative.rawValue
-                        return isNaN(v) ? "--" : v.toFixed(0) + "m"
+                        if (!_repVehicle || !_repVehicle.altitudeRelative) return "--"
+                        var v = _repVehicle.altitudeRelative.rawValue
+                        return isNaN(v) ? "--" : v.toFixed(1) + "m"
                     }
                 }
 
@@ -942,8 +1010,8 @@ Item {
                     Layout.fillWidth: true
                     label: "SPD"
                     value: {
-                        if (!_activeVehicle || !_activeVehicle.groundSpeed) return "--"
-                        var v = _activeVehicle.groundSpeed.rawValue
+                        if (!_repVehicle || !_repVehicle.groundSpeed) return "--"
+                        var v = _repVehicle.groundSpeed.rawValue
                         return isNaN(v) ? "--" : v.toFixed(1) + "m/s"
                     }
                 }
@@ -953,8 +1021,8 @@ Item {
                     Layout.fillWidth: true
                     label: "HDG"
                     value: {
-                        if (!_activeVehicle || !_activeVehicle.heading) return "--"
-                        var v = _activeVehicle.heading.rawValue
+                        if (!_repVehicle || !_repVehicle.heading) return "--"
+                        var v = _repVehicle.heading.rawValue
                         return isNaN(v) ? "--" : v.toFixed(0) + "°"
                     }
                 }
@@ -964,15 +1032,15 @@ Item {
                     Layout.fillWidth: true
                     label: "BAT"
                     value: {
-                        if (!_activeVehicle || !_activeVehicle.batteries || _activeVehicle.batteries.count === 0) return "--"
-                        var bat = _activeVehicle.batteries.get(0)
+                        if (!_repVehicle || !_repVehicle.batteries || _repVehicle.batteries.count === 0) return "--"
+                        var bat = _repVehicle.batteries.get(0)
                         if (!bat || !bat.percentRemaining) return "--"
                         var v = bat.percentRemaining.rawValue
                         return (isNaN(v) || v < 0) ? "--" : v.toFixed(0) + "%"
                     }
                     accent: {
-                        if (!_activeVehicle || !_activeVehicle.batteries || _activeVehicle.batteries.count === 0) return _dimText
-                        var bat = _activeVehicle.batteries.get(0)
+                        if (!_repVehicle || !_repVehicle.batteries || _repVehicle.batteries.count === 0) return _dimText
+                        var bat = _repVehicle.batteries.get(0)
                         if (!bat || !bat.percentRemaining) return _dimText
                         var v = bat.percentRemaining.rawValue
                         if (isNaN(v) || v < 0) return _dimText
@@ -987,8 +1055,8 @@ Item {
                     Layout.fillWidth: true
                     label: "GPS"
                     value: {
-                        if (!_activeVehicle || !_activeVehicle.gps || !_activeVehicle.gps.count) return "--"
-                        var v = _activeVehicle.gps.count.rawValue
+                        if (!_repVehicle || !_repVehicle.gps || !_repVehicle.gps.count) return "--"
+                        var v = _repVehicle.gps.count.rawValue
                         return isNaN(v) ? "--" : v.toFixed(0)
                     }
                 }
@@ -998,8 +1066,8 @@ Item {
                     Layout.fillWidth: true
                     label: "LNK"
                     value: {
-                        if (!_activeVehicle) return "--"
-                        var rssi = _activeVehicle.rcRSSI
+                        if (!_repVehicle) return "--"
+                        var rssi = _repVehicle.rcRSSI
                         if (isNaN(rssi) || rssi < 0) return "--"
                         return Math.min(100, rssi).toFixed(0) + "%"
                     }

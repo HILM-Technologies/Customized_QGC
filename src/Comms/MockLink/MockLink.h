@@ -265,6 +265,7 @@ private:
 
     double _vehicleAltitudeAMSL = _defaultVehicleHomeAltitude;
     double _vehicleTargetAltitudeAMSL = _defaultVehicleHomeAltitude;    ///< altitude animates toward this
+    bool   _landing = false;                                           ///< auto-disarm once we touch down
     bool _commLost = false;
     bool _highLatencyTransmissionEnabled = true;
 

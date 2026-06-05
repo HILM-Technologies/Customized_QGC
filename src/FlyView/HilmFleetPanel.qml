@@ -46,25 +46,52 @@ Item {
         return false
     }
 
+    // grouping rules for multi-select
+    function _baseState(v) {
+        if (!v) return ""
+        if (v.flying) return "flying"
+        return v.armed ? "armed" : "disarmed"
+    }
+    function _relAlt(v) {
+        return (v && v.altitudeRelative && !isNaN(v.altitudeRelative.rawValue)) ? v.altitudeRelative.rawValue : 0
+    }
+    // two drones group together: same state, and (if flying) same altitude (±1 m)
+    function _compatible(a, b) {
+        if (_baseState(a) !== _baseState(b)) return false
+        if (_baseState(a) === "flying") return Math.abs(_relAlt(a) - _relAlt(b)) <= 1.0
+        return true
+    }
+
     function toggleVehicleSelection(vehicle) {
         if (!vehicle) return
         var idx = -1
         for (var i = 0; i < selectedVehicles.length; i++) {
             if (selectedVehicles[i] === vehicle) { idx = i; break }
         }
-        if (idx !== -1)
+        if (idx !== -1) {
             selectedVehicles.splice(idx, 1)
-        else
+        } else {
+            // incompatible drone (different state, or flying at a different altitude)
+            // starts a fresh selection with just this one
+            if (selectedVehicles.length > 0 && !_compatible(vehicle, selectedVehicles[0]))
+                selectedVehicles = []
             selectedVehicles.push(vehicle)
+        }
         _selectionRev++
         selectedVehiclesChanged()
     }
 
     function selectAll() {
+        // select every drone compatible with the reference drone
+        var ref = QGroundControl.multiVehicleManager.activeVehicle
+        if (selectedVehicles.length > 0) ref = selectedVehicles[0]
+        else if (!ref && _vehicleModel && _vehicleModel.count > 0) ref = _vehicleModel.get(0)
         selectedVehicles = []
-        if (_vehicleModel) {
-            for (var i = 0; i < _vehicleModel.count; i++)
-                selectedVehicles.push(_vehicleModel.get(i))
+        if (_vehicleModel && ref) {
+            for (var i = 0; i < _vehicleModel.count; i++) {
+                var v = _vehicleModel.get(i)
+                if (_compatible(v, ref)) selectedVehicles.push(v)
+            }
         }
         _selectionRev++
         selectedVehiclesChanged()
@@ -76,11 +103,15 @@ Item {
         selectedVehiclesChanged()
     }
 
+    // true when the whole compatible group is selected
     property bool _allSelected: {
         void _selectionRev
-        return _vehicleModel
-            ? (selectedVehicles.length === _vehicleModel.count && _vehicleModel.count > 0)
-            : false
+        if (!_vehicleModel || selectedVehicles.length === 0) return false
+        var groupCount = 0
+        for (var i = 0; i < _vehicleModel.count; i++) {
+            if (_compatible(_vehicleModel.get(i), selectedVehicles[0])) groupCount++
+        }
+        return selectedVehicles.length >= groupCount
     }
 
     property bool _hasSelection: {
