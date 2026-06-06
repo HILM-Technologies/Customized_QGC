@@ -515,7 +515,7 @@ Item {
                                 if (_isManualVehicle(v)) {
                                     v.armed = true
                                 } else {
-                                    v.setFlightMode(_safeArmMode(v))   // PX4: Position, ArduPilot: Guided
+                                    v.flightMode = _safeArmMode(v)   // PX4: Position, ArduPilot: Guided
                                     deferred.push(v)
                                 }
                             }
@@ -626,13 +626,17 @@ Item {
                 }
                 // last commanded altitude per vehicle id
                 property var _lastCmdAlt: ({})
-                // typed altitude differs from this drone's last command
+                // On the ground, takeoff is always allowed (valid altitude entered).
+                // In flight, GO TO ALT requires the typed altitude to differ from
+                // this drone's last command (so you don't re-send the same target).
                 property bool _altDiffers: {
                     var entered = parseFloat(altField.text)
                     if (!entered || entered <= 0) return false
                     var targets = targetVehicles()
                     for (var i = 0; i < targets.length; i++) {
-                        var key = "" + targets[i].id
+                        var v = targets[i]
+                        if (!v.flying) return true            // on ground → takeoff allowed
+                        var key = "" + v.id
                         if (!(key in _lastCmdAlt) || Math.abs(_lastCmdAlt[key] - entered) > 0.001) return true
                     }
                     return false
