@@ -457,6 +457,10 @@ Item {
 
                 // ARM
                 Rectangle {
+                    id: armBtn
+                    // mode to switch to when a drone can't be armed in its current mode (e.g. Land)
+                    property string _armSafeMode: "Position"
+                    property var    _armDeferred: []
                     Layout.fillWidth:       true
                     Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
                     radius:                 ScreenTools.defaultFontPixelHeight * 0.35
@@ -498,8 +502,37 @@ Item {
                         cursorShape:  _canArm ? Qt.PointingHandCursor : Qt.ArrowCursor
                         enabled:      _canArm
                         onClicked: {
+                            // ARM command itself is unchanged. If a drone is in a non-armable
+                            // mode (e.g. Land), switch it to an armable mode first, then arm.
                             var targets = targetVehicles()
-                            for (var i = 0; i < targets.length; i++) targets[i].armed = true
+                            var deferred = []
+                            for (var i = 0; i < targets.length; i++) {
+                                var v = targets[i]
+                                if (!v) continue
+                                if (_isManualVehicle(v)) {
+                                    v.armed = true
+                                } else {
+                                    v.setFlightMode(armBtn._armSafeMode)
+                                    deferred.push(v)
+                                }
+                            }
+                            if (deferred.length > 0) {
+                                armBtn._armDeferred = deferred
+                                armRetryTimer.restart()
+                            }
+                        }
+                    }
+
+                    // Arm the deferred drones once the mode switch has taken effect
+                    Timer {
+                        id: armRetryTimer
+                        interval: 900
+                        repeat: false
+                        onTriggered: {
+                            for (var i = 0; i < armBtn._armDeferred.length; i++) {
+                                if (armBtn._armDeferred[i]) armBtn._armDeferred[i].armed = true
+                            }
+                            armBtn._armDeferred = []
                         }
                     }
                 }
