@@ -205,6 +205,11 @@ Item {
         var m = v.flightMode
         return !_modeMatches(_autoModeNames, m) && !_modeMatches(_rtlModeNames, m) && !_modeMatches(_externalModeNames, m)
     }
+    // Armable mode to switch into when a drone can't be armed in its current mode (e.g. Land)
+    function _safeArmMode(v) {
+        if (v && v.apmFirmware) return "Guided"   // ArduPilot
+        return "Position"                         // PX4 (and default)
+    }
     property bool _isAutoMode:        _modeMatches(_autoModeNames,        _currentMode)
     property bool _isRtlMode:         _modeMatches(_rtlModeNames,         _currentMode)
     property bool _isExternalMode:    _modeMatches(_externalModeNames,    _currentMode)
@@ -458,8 +463,6 @@ Item {
                 // ARM
                 Rectangle {
                     id: armBtn
-                    // mode to switch to when a drone can't be armed in its current mode (e.g. Land)
-                    property string _armSafeMode: "Position"
                     property var    _armDeferred: []
                     Layout.fillWidth:       true
                     Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
@@ -512,7 +515,7 @@ Item {
                                 if (_isManualVehicle(v)) {
                                     v.armed = true
                                 } else {
-                                    v.setFlightMode(armBtn._armSafeMode)
+                                    v.setFlightMode(_safeArmMode(v))   // PX4: Position, ArduPilot: Guided
                                     deferred.push(v)
                                 }
                             }
