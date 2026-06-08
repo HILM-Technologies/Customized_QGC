@@ -273,6 +273,8 @@ Item {
             allowGCSLocationCenter: true
             allowVehicleLocationCenter: true
             planView: true
+            showZoomControls: true
+            zoomControlsRightInset: _rightToolWidth + _margin + (ScreenTools.defaultFontPixelWidth * 1.5)
 
             zoomLevel: QGroundControl.flightMapZoom
             center: QGroundControl.flightMapPosition

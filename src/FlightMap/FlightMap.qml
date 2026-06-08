@@ -33,6 +33,8 @@ Map {
     property bool   firstGCSPositionReceived:       false   ///< true: first gcs position update was responded to
     property bool   firstVehiclePositionReceived:   false   ///< true: first vehicle position update was responded to
     property bool   planView:                       false   ///< true: map being using for Plan view, items should be draggable
+    property bool   showZoomControls:               false   ///< show +/- zoom buttons
+    property real   zoomControlsRightInset:         ScreenTools.defaultFontPixelWidth * 2   ///< zoom buttons right margin
 
     property var    _activeVehicle:             QGroundControl.multiVehicleManager.activeVehicle
     property var    _activeVehicleCoordinate:   _activeVehicle ? _activeVehicle.coordinate : QtPositioning.coordinate()
@@ -192,22 +194,61 @@ Map {
         }
     }
 
-    // =========================================================
-    // Emergency cursor overlay (ONLY for cursor shape)
-    // =========================================================
+    // Cross cursor while picking an emergency target; inert otherwise and
+    // never eats wheel events (so it can't break map zoom/pan).
     MouseArea {
         anchors.fill: parent
-        hoverEnabled: true
+        enabled: _activeVehicle && _activeVehicle.emergencyController
+                 && _activeVehicle.emergencyController.selectingTarget
+        hoverEnabled: enabled
         acceptedButtons: Qt.NoButton    // does NOT steal clicks
-        propagateComposedEvents: true   // lets events pass through
-        preventStealing: true
+        propagateComposedEvents: true
         z: 999999                       // always on top
+        cursorShape: Qt.CrossCursor
+        onWheel: (wheel) => { wheel.accepted = false }   // let the map zoom
+    }
 
-        cursorShape: (_activeVehicle &&
-                      _activeVehicle.emergencyController &&
-                      _activeVehicle.emergencyController.selectingTarget)
-                     ? Qt.CrossCursor
-                     : Qt.ArrowCursor
+    // Transparent +/- zoom buttons (enable via showZoomControls)
+    Column {
+        id:                       _zoomControls
+        visible:                  _map.showZoomControls
+        z:                        1000
+        anchors.right:            parent.right
+        anchors.rightMargin:      _map.zoomControlsRightInset
+        anchors.bottom:           parent.bottom
+        anchors.bottomMargin:     ScreenTools.defaultFontPixelHeight * 2
+        spacing:                  ScreenTools.defaultFontPixelHeight * 0.5
+
+        Repeater {
+            model: [ { sym: "+", delta: 1 }, { sym: "−", delta: -1 } ]
+            delegate: Rectangle {
+                width:        ScreenTools.defaultFontPixelHeight * 2.6
+                height:       width
+                radius:       width * 0.25
+                color:        zoomBtnArea.pressed ? Qt.rgba(0, 0, 0, 0.75)
+                                  : (zoomBtnArea.containsMouse ? Qt.rgba(0, 0, 0, 0.60) : Qt.rgba(0, 0, 0, 0.45))
+                border.color: Qt.rgba(1, 1, 1, 0.25)
+                border.width: 1
+
+                Text {
+                    anchors.centerIn: parent
+                    text:             modelData.sym
+                    color:            "white"
+                    font.pixelSize:   ScreenTools.defaultFontPixelHeight * 1.4
+                    font.bold:        true
+                }
+
+                MouseArea {
+                    id:           zoomBtnArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: {
+                        var nz = _map.zoomLevel + modelData.delta
+                        _map.zoomLevel = Math.max(_map.minimumZoomLevel, Math.min(_map.maximumZoomLevel, nz))
+                    }
+                }
+            }
+        }
     }
 
     /// Ground Station location

@@ -60,7 +60,7 @@ Item {
     }
 
     property var _activeVehicle:    QGroundControl.multiVehicleManager.activeVehicle
-    // drone the panel (telemetry + altitude field) reflects: first selected, else active
+    // panel reflects: first selected drone, else active
     property var _repVehicle: {
         void selectionRevision
         var t = targetVehicles()
@@ -205,10 +205,16 @@ Item {
         var m = v.flightMode
         return !_modeMatches(_autoModeNames, m) && !_modeMatches(_rtlModeNames, m) && !_modeMatches(_externalModeNames, m)
     }
-    // Armable mode to switch into when a drone can't be armed in its current mode (e.g. Land)
+    // armable mode to switch to if not armable (e.g. Land)
     function _safeArmMode(v) {
         if (v && v.apmFirmware) return "Guided"   // ArduPilot
         return "Position"                         // PX4 (and default)
+    }
+    // takeoff ok from manual or guided modes; auto/RTL blocks it
+    function _takeoffReadyMode(v) {
+        if (!v) return false
+        var m = v.flightMode
+        return !_modeMatches(_autoModeNames, m) && !_modeMatches(_rtlModeNames, m)
     }
     property bool _isAutoMode:        _modeMatches(_autoModeNames,        _currentMode)
     property bool _isRtlMode:         _modeMatches(_rtlModeNames,         _currentMode)
@@ -505,8 +511,7 @@ Item {
                         cursorShape:  _canArm ? Qt.PointingHandCursor : Qt.ArrowCursor
                         enabled:      _canArm
                         onClicked: {
-                            // ARM command itself is unchanged. If a drone is in a non-armable
-                            // mode (e.g. Land), switch it to an armable mode first, then arm.
+                            // if not armable (e.g. Land), switch mode first, then arm
                             var targets = targetVehicles()
                             var deferred = []
                             for (var i = 0; i < targets.length; i++) {
@@ -526,7 +531,7 @@ Item {
                         }
                     }
 
-                    // Arm the deferred drones once the mode switch has taken effect
+                    // arm once the mode switch has applied
                     Timer {
                         id: armRetryTimer
                         interval: 900
@@ -606,12 +611,12 @@ Item {
                     return 30.0
                 }
 
-                // ground takeoff: every target armed, on ground, manual mode
+                // ground takeoff: every target armed, on ground, in a takeoff-ready mode
                 property bool _canGroundTakeoff: {
                     void selectionRevision
                     var targets = targetVehicles(); if (!targets.length) return false
                     for (var i = 0; i < targets.length; i++) {
-                        if (!targets[i].armed || targets[i].flying || !_isManualVehicle(targets[i])) return false
+                        if (!targets[i].armed || targets[i].flying || !_takeoffReadyMode(targets[i])) return false
                     }
                     return true
                 }
@@ -626,9 +631,7 @@ Item {
                 }
                 // last commanded altitude per vehicle id
                 property var _lastCmdAlt: ({})
-                // On the ground, takeoff is always allowed (valid altitude entered).
-                // In flight, GO TO ALT requires the typed altitude to differ from
-                // this drone's last command (so you don't re-send the same target).
+                // on ground: takeoff always ok; in flight: must differ from last cmd
                 property bool _altDiffers: {
                     var entered = parseFloat(altField.text)
                     if (!entered || entered <= 0) return false

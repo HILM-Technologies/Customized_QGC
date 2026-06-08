@@ -93,6 +93,8 @@ Item {
             toolInsets:             customOverlay.totalToolInsets
             mapName:                "FlightDisplayView"
             enabled:                !viewer3DWindow.isOpen
+            // zoom buttons sit left of the right panel (slide to edge when collapsed)
+            zoomControlsRightInset: hilmRightPanel.width + _widgetMargin + (ScreenTools.defaultFontPixelWidth * 1.5)
         }
 
         FlyViewVideo {
