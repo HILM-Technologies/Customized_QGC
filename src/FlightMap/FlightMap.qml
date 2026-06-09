@@ -137,15 +137,34 @@ Map {
         }
     }
 
-    WheelHandler {
-        // workaround for QTBUG-87646 / QTBUG-112394 / QTBUG-112432:
-        // Magic Mouse pretends to be a trackpad but doesn't work with PinchHandler
-        // and we don't yet distinguish mice and trackpads on Wayland either
-        acceptedDevices:    Qt.platform.pluginName === "cocoa" || Qt.platform.pluginName === "wayland" ?
-                                PointerDevice.Mouse | PointerDevice.TouchPad : PointerDevice.Mouse
-        rotationScale:      1 / 120
-        property:           "zoomLevel"
+    // Wheel zoom via MouseArea (classic path) so it also works over remote desktop.
+    // NoButton keeps panning on the touch area.
+    MouseArea {
+        anchors.fill:            parent
+        acceptedButtons:         Qt.NoButton
+        propagateComposedEvents: true
+        onWheel: (wheel) => {
+            var step = 0.0
+            if (wheel.angleDelta.y !== 0)      step = wheel.angleDelta.y / 120.0
+            else if (wheel.pixelDelta.y !== 0) step = wheel.pixelDelta.y / 50.0
+            if (step !== 0.0) {
+                _map.zoomLevel = Math.max(_map.minimumZoomLevel,
+                                    Math.min(_map.maximumZoomLevel, _map.zoomLevel + step * 0.5))
+            }
+            wheel.accepted = true
+        }
+    }
 
+    // Keyboard zoom (Ctrl +/-); avoids stealing +/-/= from text fields.
+    Shortcut {
+        sequences:   [StandardKey.ZoomIn, "Ctrl+="]
+        enabled:     _map.visible
+        onActivated: _map.zoomLevel = Math.min(_map.maximumZoomLevel, _map.zoomLevel + 1)
+    }
+    Shortcut {
+        sequences:   [StandardKey.ZoomOut]
+        enabled:     _map.visible
+        onActivated: _map.zoomLevel = Math.max(_map.minimumZoomLevel, _map.zoomLevel - 1)
     }
 
     // We specifically do not use a DragHandler for panning. It just causes too many problems if you overlay anything else like a Flickable above it.
@@ -194,8 +213,7 @@ Map {
         }
     }
 
-    // Cross cursor while picking an emergency target; inert otherwise and
-    // never eats wheel events (so it can't break map zoom/pan).
+    // Cross cursor while picking an emergency target; inert + passes wheel otherwise.
     MouseArea {
         anchors.fill: parent
         enabled: _activeVehicle && _activeVehicle.emergencyController
