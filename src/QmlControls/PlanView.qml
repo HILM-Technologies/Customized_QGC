@@ -314,13 +314,9 @@ Item {
 
                 switch (_editingLayer) {
                 case _layerMission: if (addWaypointRallyPointAction.checked) {
-                        // HILM: First waypoint is always a takeoff item
+                        // HILM: first click drops the takeoff/launch point; later clicks add waypoints
                         if (_missionController.visualItems.count <= 1) {
                             _missionController.insertTakeoffItem(coordinate, 1, true /* makeCurrentItem */)
-                            // HILM: Auto-add RTL at end so return-to-launch line is always visible
-                            if (_missionController.isInsertLandValid) {
-                                _missionController.insertLandItem(coordinate, _missionController.visualItems.count, false /* not current */)
-                            }
                         } else {
                             insertSimpleItemAfterCurrent(coordinate)
                         }

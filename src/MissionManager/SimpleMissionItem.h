@@ -51,6 +51,10 @@ public:
     Q_PROPERTY(QmlObjectListModel*  textFieldFacts  READ textFieldFacts CONSTANT)
     Q_PROPERTY(QmlObjectListModel*  nanFacts        READ nanFacts       CONSTANT)
 
+    // Accept/Pass radius (param2/param3) — exposed directly since firmware may hide them from the editor
+    Q_PROPERTY(Fact*            acceptanceRadius        READ acceptanceRadius   CONSTANT)
+    Q_PROPERTY(Fact*            passRadius              READ passRadius         CONSTANT)
+
     /// This should be called before changing the command. It is needed if the command changes
     /// from an item which does not include a coordinate to an item which requires a coordinate.
     /// It uses this value to set that new coordinate.
@@ -74,6 +78,8 @@ public:
     QGroundControlQmlGlobal::AltMode altitudeMode(void) const { return _altitudeMode; }
     Fact*           altitude            (void) { return &_altitudeFact; }
     Fact*           amslAltAboveTerrain (void) { return &_amslAltAboveTerrainFact; }
+    Fact*           acceptanceRadius    (void) { return _missionItem.param2Fact(); }
+    Fact*           passRadius          (void) { return _missionItem.param3Fact(); }
     bool            isLoiterItem        (void) const;
     bool            showLoiterRadius    (void) const;
     double          loiterRadius        (void) const;

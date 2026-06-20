@@ -196,14 +196,14 @@ Rectangle {
         }
 
         QGCLabel {
-            text:              "Click on map to add waypoints"
+            text:              "First tap sets the takeoff point"
             color:             _dimText
             font.pixelSize:    ScreenTools.defaultFontPixelHeight * 0.55
             Layout.leftMargin: _pad * 0.3
         }
 
         QGCLabel {
-            text:              "Return to launch is auto-added"
+            text:              "Then tap to add waypoints"
             color:             Qt.rgba(0, 0.749, 1.0, 0.65)
             font.pixelSize:    ScreenTools.defaultFontPixelHeight * 0.5
             Layout.leftMargin: _pad * 0.3

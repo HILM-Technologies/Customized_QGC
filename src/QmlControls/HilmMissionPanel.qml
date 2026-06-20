@@ -548,6 +548,31 @@ Item {
                                         spacing: _pad * 0.5
                                         visible: _expandedWpIdx === index
 
+                                        // Yaw (param4) fact, if this item type supports it
+                                        property var _yawFact: {
+                                            if (!object || !object.nanFacts) return null
+                                            for (var i = 0; i < object.nanFacts.count; i++) {
+                                                var f = object.nanFacts.get(i)
+                                                if (f && f.name && f.name.toLowerCase().indexOf("yaw") !== -1)
+                                                    return f
+                                            }
+                                            return null
+                                        }
+
+                                        // Hold/hover (param1) fact, present on waypoints (not takeoff)
+                                        property var _holdFact: {
+                                            if (!object || !object.textFieldFacts) return null
+                                            for (var i = 0; i < object.textFieldFacts.count; i++) {
+                                                var f = object.textFieldFacts.get(i)
+                                                if (f && f.name && f.name.toLowerCase().indexOf("hold") !== -1)
+                                                    return f
+                                            }
+                                            return null
+                                        }
+
+                                        // Advanced (camera/gimbal/radius) section open state
+                                        property bool _advOpen: false
+
                                         // Altitude header
                                         QGCLabel {
                                             text:           "↑  ALTITUDE"
@@ -715,30 +740,32 @@ Item {
 
                                         // Hover at point
                                         QGCLabel {
-                                            text:           "🕐  HOVER AT POINT  (for inspection / photo)"
-                                            color:          _dimText
+                                            text:           "🕐  HOVER AT POINT" + (_holdFact ? "  —  NOW " + _holdFact.rawValue.toFixed(0) + "s" : "")
+                                            color:          _holdFact && _holdFact.rawValue > 0 ? _teal : _dimText
                                             font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
                                             font.bold:      true
                                             font.letterSpacing: 1.0
                                             Layout.topMargin: _pad * 0.3
+                                            visible:        _holdFact !== null
                                         }
                                         GridLayout {
                                             Layout.fillWidth: true
                                             columns: 5
                                             columnSpacing: _pad * 0.25
+                                            visible: _holdFact !== null
                                             Repeater {
-                                                model: [{ k: "—",  v: 0 },
+                                                model: [{ k: "OFF", v: 0 },
                                                         { k: "5S", v: 5 },
                                                         { k: "10S", v: 10 },
                                                         { k: "30S", v: 30 },
                                                         { k: "60S", v: 60 }]
                                                 delegate: Rectangle {
-                                                    // Hover lives in NAV_WAYPOINT param1 ("Hold" textField fact).
+                                                    // Hover = NAV_WAYPOINT param1 ("Hold"); read via object (resolves in delegates)
                                                     property var _hoverFact: {
                                                         if (!object || !object.textFieldFacts) return null
                                                         for (var i = 0; i < object.textFieldFacts.count; i++) {
                                                             var f = object.textFieldFacts.get(i)
-                                                            if (f && (f.name === "Hold" || f.name === "Hold time" || f.name === "Hold Time"))
+                                                            if (f && f.name && f.name.toLowerCase().indexOf("hold") !== -1)
                                                                 return f
                                                         }
                                                         return null
@@ -765,6 +792,252 @@ Item {
                                                         onClicked: { if (_hoverFact) _hoverFact.rawValue = modelData.v }
                                                     }
                                                 }
+                                            }
+                                        }
+                                        // Custom hover time — type any value (overrides the presets above)
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            visible:          _holdFact !== null
+                                            spacing:          _pad * 0.4
+                                            QGCLabel {
+                                                Layout.fillWidth: true
+                                                text:             "Custom hover (sec)"
+                                                color:            "white"
+                                                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                                            }
+                                            Rectangle {
+                                                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 12
+                                                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                                                radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+                                                color:                  Qt.rgba(1, 1, 1, 0.08)
+                                                border.width:           1
+                                                border.color:           hoverInput.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.20)
+                                                TextInput {
+                                                    id:                  hoverInput
+                                                    anchors.fill:        parent
+                                                    anchors.margins:     _pad * 0.4
+                                                    verticalAlignment:   TextInput.AlignVCenter
+                                                    horizontalAlignment: TextInput.AlignHCenter
+                                                    color:               "white"
+                                                    font.bold:           true
+                                                    font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.7
+                                                    selectByMouse:       true
+                                                    inputMethodHints:    Qt.ImhDigitsOnly
+                                                    validator:           IntValidator { bottom: 0; top: 3600 }
+                                                    text:                _holdFact ? _holdFact.rawValue.toFixed(0) : "0"
+                                                    onActiveFocusChanged: if (activeFocus) selectAll()
+                                                    onEditingFinished:   if (_holdFact) _holdFact.rawValue = parseInt(text.length ? text : "0")
+                                                    Connections {
+                                                        target: _holdFact
+                                                        function onRawValueChanged() { hoverInput.text = _holdFact ? _holdFact.rawValue.toFixed(0) : "0" }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Yaw / heading (optional — waypoints & takeoff)
+                                        QGCLabel {
+                                            text:           "🧭  YAW / HEADING"
+                                            color:          _dimText
+                                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                                            font.bold:      true
+                                            font.letterSpacing: 1.0
+                                            Layout.topMargin: _pad * 0.3
+                                            visible:        _yawFact !== null
+                                        }
+                                        Loader {
+                                            Layout.fillWidth: true
+                                            active:           _yawFact !== null
+                                            visible:          active
+                                            sourceComponent:  yawSliderComponent
+                                        }
+                                        Component {
+                                            id: yawSliderComponent
+                                            FactTextFieldSlider {
+                                                label:                   qsTr("Yaw")
+                                                fact:                    _yawFact
+                                                showEnableCheckbox:      true
+                                                enableCheckBoxChecked:   _yawFact ? !isNaN(_yawFact.rawValue) : false
+                                                onEnableCheckboxClicked: { if (_yawFact) _yawFact.rawValue = enableCheckBoxChecked ? 0 : NaN }
+                                            }
+                                        }
+
+                                        // Advanced (camera · gimbal · acceptance/pass radius) — collapsible
+                                        Rectangle {
+                                            Layout.fillWidth:       true
+                                            Layout.topMargin:       _pad * 0.3
+                                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.8
+                                            radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+                                            color:                  advHdrArea.containsMouse ? _tealDim : Qt.rgba(1, 1, 1, 0.04)
+                                            border.width:           1
+                                            border.color:           Qt.rgba(1, 1, 1, 0.10)
+                                            RowLayout {
+                                                anchors.fill:        parent
+                                                anchors.leftMargin:  _pad * 0.5
+                                                anchors.rightMargin: _pad * 0.5
+                                                QGCLabel {
+                                                    Layout.fillWidth:   true
+                                                    text:               "⚙  ADVANCED  (camera · gimbal · radius)"
+                                                    color:              _dimText
+                                                    font.bold:          true
+                                                    font.letterSpacing: 1.0
+                                                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                                                }
+                                                QGCLabel {
+                                                    text:           _advOpen ? "⌃" : "⌄"
+                                                    color:          _teal
+                                                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9
+                                                }
+                                            }
+                                            MouseArea {
+                                                id:           advHdrArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape:  Qt.PointingHandCursor
+                                                onClicked:    _advOpen = !_advOpen
+                                            }
+                                        }
+                                        // Advanced content — native ColumnLayout children so they stay clickable
+                                        ColumnLayout {
+                                            id:               wpAdvCol
+                                            Layout.fillWidth: true
+                                            visible:          _advOpen
+                                            spacing:          _pad * 0.4
+
+                                            property var _cam: object.cameraSection
+
+                                            // Hold / Acceptance / Pass radius — explicit label + input rows
+                                            QGCLabel {
+                                                text:               "📐  HOLD · ACCEPTANCE · PASS RADIUS"
+                                                color:              _dimText
+                                                font.bold:          true
+                                                font.letterSpacing: 1.0
+                                                font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                                            }
+                                            Repeater {
+                                                model: object.textFieldFacts
+                                                delegate: RowLayout {
+                                                    Layout.fillWidth:       true
+                                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                                                    spacing:                _pad * 0.4
+                                                    QGCLabel {
+                                                        Layout.fillWidth: true
+                                                        text:             object.name
+                                                        color:            "white"
+                                                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.6
+                                                    }
+                                                    FactTextField {
+                                                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 12
+                                                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.6
+                                                        fact:                   object
+                                                        textColor:              "white"
+                                                    }
+                                                }
+                                            }
+                                            // Acceptance & Pass radius (firmware hides these from textFieldFacts) — waypoints only
+                                            Repeater {
+                                                model: (object.command === 16)   // MAV_CMD_NAV_WAYPOINT
+                                                       ? [ { lbl: "Acceptance (m)", f: object.acceptanceRadius },
+                                                           { lbl: "Pass Radius (m)", f: object.passRadius } ]
+                                                       : []
+                                                delegate: RowLayout {
+                                                    Layout.fillWidth:       true
+                                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                                                    spacing:                _pad * 0.4
+                                                    QGCLabel {
+                                                        Layout.fillWidth: true
+                                                        text:             modelData.lbl
+                                                        color:            "white"
+                                                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.6
+                                                    }
+                                                    FactTextField {
+                                                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 12
+                                                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.6
+                                                        fact:                   modelData.f
+                                                        textColor:              "white"
+                                                    }
+                                                }
+                                            }
+
+                                            // Camera action (buttons — this panel has no dropdowns)
+                                            QGCLabel {
+                                                text:               "📷  CAMERA"
+                                                color:              _dimText
+                                                font.bold:          true
+                                                font.letterSpacing: 1.0
+                                                font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                                                visible:            wpAdvCol._cam && wpAdvCol._cam.available
+                                            }
+                                            GridLayout {
+                                                Layout.fillWidth: true
+                                                columns:          2
+                                                columnSpacing:    _pad * 0.25
+                                                rowSpacing:       _pad * 0.25
+                                                visible:          wpAdvCol._cam && wpAdvCol._cam.available
+                                                Repeater {
+                                                    model: wpAdvCol._cam ? wpAdvCol._cam.cameraAction.enumStrings : []
+                                                    delegate: Rectangle {
+                                                        Layout.fillWidth:       true
+                                                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                                                        property bool _sel: wpAdvCol._cam && wpAdvCol._cam.cameraAction.enumIndex === index
+                                                        radius:       ScreenTools.defaultFontPixelHeight * 0.2
+                                                        color:        _sel ? _tealDim : Qt.rgba(1, 1, 1, 0.04)
+                                                        border.width: 1
+                                                        border.color: _sel ? _teal : Qt.rgba(1, 1, 1, 0.10)
+                                                        QGCLabel {
+                                                            anchors.fill:        parent
+                                                            anchors.margins:     _pad * 0.2
+                                                            horizontalAlignment: Text.AlignHCenter
+                                                            verticalAlignment:   Text.AlignVCenter
+                                                            text:                modelData
+                                                            color:               _sel ? _teal : "white"
+                                                            font.bold:           true
+                                                            font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.5
+                                                            elide:               Text.ElideRight
+                                                        }
+                                                        MouseArea {
+                                                            anchors.fill:    parent
+                                                            preventStealing: true
+                                                            cursorShape:     Qt.PointingHandCursor
+                                                            onClicked: if (wpAdvCol._cam) wpAdvCol._cam.cameraAction.value = wpAdvCol._cam.cameraAction.enumValues[index]
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            LabelledFactTextField {
+                                                Layout.fillWidth: true
+                                                label:            qsTr("Interval (s)")
+                                                fact:             wpAdvCol._cam ? wpAdvCol._cam.cameraPhotoIntervalTime : null
+                                                visible:          wpAdvCol._cam && wpAdvCol._cam.cameraAction.rawValue === 1
+                                            }
+                                            LabelledFactTextField {
+                                                Layout.fillWidth: true
+                                                label:            qsTr("Distance (m)")
+                                                fact:             wpAdvCol._cam ? wpAdvCol._cam.cameraPhotoIntervalDistance : null
+                                                visible:          wpAdvCol._cam && wpAdvCol._cam.cameraAction.rawValue === 2
+                                            }
+
+                                            // Gimbal (checkbox + pitch/yaw fields)
+                                            QGCCheckBox {
+                                                id:        gimbalChk
+                                                text:      qsTr("Gimbal")
+                                                visible:   wpAdvCol._cam && wpAdvCol._cam.available
+                                                checked:   wpAdvCol._cam ? wpAdvCol._cam.specifyGimbal : false
+                                                onClicked: if (wpAdvCol._cam) wpAdvCol._cam.specifyGimbal = checked
+                                            }
+                                            LabelledFactTextField {
+                                                Layout.fillWidth: true
+                                                label:            qsTr("Pitch")
+                                                fact:             wpAdvCol._cam ? wpAdvCol._cam.gimbalPitch : null
+                                                enabled:          gimbalChk.checked
+                                                visible:          gimbalChk.visible && gimbalChk.checked
+                                            }
+                                            LabelledFactTextField {
+                                                Layout.fillWidth: true
+                                                label:            qsTr("Yaw")
+                                                fact:             wpAdvCol._cam ? wpAdvCol._cam.gimbalYaw : null
+                                                enabled:          gimbalChk.checked
+                                                visible:          gimbalChk.visible && gimbalChk.checked
                                             }
                                         }
 

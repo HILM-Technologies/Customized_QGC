@@ -194,10 +194,9 @@ Item {
                             anchors.fill:   parent
                             hoverEnabled:   true
                             onClicked:      {
-                                if (mainWindow.allowViewSwitch()) {
-                                    control.activeTab = index
-                                    control.tabClicked(index)
-                                }
+                                mainWindow.allowViewSwitch()   // commit any active field edit
+                                control.activeTab = index      // navigation is never blocked
+                                control.tabClicked(index)
                             }
                         }
                     }

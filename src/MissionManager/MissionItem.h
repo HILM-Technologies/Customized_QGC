@@ -71,6 +71,10 @@ public:
     QGeoCoordinate  coordinate      (void) const;
     int             doJumpId        (void) const { return _doJumpId; }
 
+    // Direct fact access (used to expose params the firmware hides from the editor, e.g. accept/pass radius)
+    Fact*           param2Fact      (void) { return &_param2Fact; }
+    Fact*           param3Fact      (void) { return &_param3Fact; }
+
     /// @return Flight speed change value if this item supports it. If not it returns NaN.
     double specifiedFlightSpeed(void) const;
 

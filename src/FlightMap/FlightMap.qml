@@ -137,8 +137,7 @@ Map {
         }
     }
 
-    // Wheel zoom via MouseArea (classic path) so it also works over remote desktop.
-    // NoButton keeps panning on the touch area.
+    // Wheel zoom via MouseArea (classic path, works over remote); NoButton keeps panning on the touch area
     MouseArea {
         anchors.fill:            parent
         acceptedButtons:         Qt.NoButton
