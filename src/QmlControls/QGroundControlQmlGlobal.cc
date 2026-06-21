@@ -27,6 +27,7 @@
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
 #include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QStorageInfo>
 #include <QtCore/QUrl>
@@ -196,6 +197,57 @@ QVariantMap QGroundControlQmlGlobal::mediaInfo() const
     result[QStringLiteral("diskRoot")]       = storage.rootPath();
 
     return result;
+}
+
+bool QGroundControlQmlGlobal::deleteMediaFile(const QString &fileUrlOrPath) const
+{
+    if (fileUrlOrPath.isEmpty()) {
+        return false;
+    }
+
+    // Accept either a file:// URL (as emitted by mediaInfo()) or a plain path.
+    QString localPath;
+    if (fileUrlOrPath.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+        localPath = QUrl(fileUrlOrPath).toLocalFile();
+    } else {
+        localPath = fileUrlOrPath;
+    }
+    if (localPath.isEmpty()) {
+        return false;
+    }
+
+    const QFileInfo fi(localPath);
+    if (!fi.exists() || !fi.isFile()) {
+        qWarning() << "deleteMediaFile: not a file:" << localPath;
+        return false;
+    }
+
+    // Guard: only allow deletion inside the configured media save paths.
+    AppSettings* app = SettingsManager::instance()->appSettings();
+    if (!app) {
+        return false;
+    }
+    const QString canonicalTarget = fi.canonicalFilePath();
+    const auto isInside = [&](const QString &dirPath) {
+        if (dirPath.isEmpty()) return false;
+        const QString canonicalDir = QFileInfo(dirPath).canonicalFilePath();
+        if (canonicalDir.isEmpty()) return false;
+        // Normalize trailing slash for a strict prefix match
+        QString prefix = canonicalDir;
+        if (!prefix.endsWith(QLatin1Char('/'))) prefix.append(QLatin1Char('/'));
+        return canonicalTarget.startsWith(prefix);
+    };
+    if (!isInside(app->photoSavePath()) && !isInside(app->videoSavePath())) {
+        qWarning() << "deleteMediaFile: refused, file outside media save paths:" << canonicalTarget;
+        return false;
+    }
+
+    QFile f(localPath);
+    if (!f.remove()) {
+        qWarning() << "deleteMediaFile: QFile::remove failed:" << localPath << f.errorString();
+        return false;
+    }
+    return true;
 }
 
 void QGroundControlQmlGlobal::startPX4MockLink(bool sendStatusText)
