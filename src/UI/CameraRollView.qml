@@ -32,9 +32,32 @@ Rectangle {
     property string _searchText: ""
     property bool   _gridMode:   true
 
+    // Preview / delete state
+    property var _previewItem:       null   // item being shown in fullscreen viewer, or null
+    property var _confirmDeleteItem: null   // item awaiting delete confirmation, or null
+
     function _refresh() {
         _info     = QGroundControl.mediaInfo()
         _allItems = _info.items ? _info.items : []
+    }
+
+    function _openPreview(item) { _previewItem = item }
+    function _closePreview()    { _previewItem = null }
+    function _askDelete(item)   { _confirmDeleteItem = item }
+    function _cancelDelete()    { _confirmDeleteItem = null }
+    function _confirmDelete() {
+        if (!_confirmDeleteItem) return
+        var url   = _confirmDeleteItem.url
+        var name  = _confirmDeleteItem.name
+        var alsoClosePreview = _previewItem && _previewItem.url === url
+        if (QGroundControl.deleteMediaFile(url)) {
+            _confirmDeleteItem = null
+            if (alsoClosePreview) _previewItem = null
+            _refresh()
+        } else {
+            console.warn("CameraRoll: failed to delete", name)
+            _confirmDeleteItem = null
+        }
     }
 
     function _formatGB(bytes) {
@@ -277,12 +300,15 @@ Rectangle {
                     height: GridView.view.cellHeight
 
                     Rectangle {
+                        id: gridCard
                         anchors.fill: parent
                         anchors.margins: _pad * 0.5
                         radius: _fontSize * 0.4
                         color: _cardBg
-                        border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                        border.color: gridCardHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.08)
+                        border.width: 1
                         clip: true
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -342,6 +368,45 @@ Rectangle {
                                 }
                             }
                         }
+
+                        // Hover surface — opens preview on click
+                        MouseArea {
+                            id: gridCardHov
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: _openPreview(modelData)
+                        }
+
+                        // Trash icon (top-right, visible on hover)
+                        Rectangle {
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: _pad * 0.5
+                            width: _fontSize * 1.9; height: width
+                            radius: width / 2
+                            opacity: gridCardHov.containsMouse || gridTrashHov.containsMouse ? 1.0 : 0.0
+                            visible: opacity > 0
+                            color: gridTrashHov.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.90) : Qt.rgba(0, 0, 0, 0.65)
+                            border.color: gridTrashHov.containsMouse ? "#FF5252" : Qt.rgba(1,1,1,0.25); border.width: 1
+                            scale: gridTrashHov.pressed ? 0.90 : 1.0
+                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on scale { NumberAnimation { duration: 80 } }
+                            QGCColoredImage {
+                                anchors.centerIn: parent
+                                width: _fontSize * 0.95; height: width
+                                source: "/InstrumentValueIcons/trash.svg"
+                                color: "white"; fillMode: Image.PreserveAspectFit
+                            }
+                            MouseArea {
+                                id: gridTrashHov
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { _askDelete(modelData); mouse.accepted = true }
+                            }
+                        }
                     }
                 }
             }
@@ -355,11 +420,14 @@ Rectangle {
                 model: _filtered
 
                 delegate: Rectangle {
+                    id: listRow
                     width: ListView.view.width
                     height: _fontSize * 3.2
                     radius: _fontSize * 0.35
-                    color: _cardBg
-                    border.color: Qt.rgba(1,1,1,0.08); border.width: 1
+                    color: listRowHov.containsMouse ? Qt.rgba(1,1,1,0.07) : _cardBg
+                    border.color: listRowHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.08); border.width: 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
 
                     RowLayout {
                         anchors.fill: parent
@@ -385,6 +453,264 @@ Rectangle {
                             text: modelData.modified; color: _dimText
                             font.pixelSize: _fontSize * 0.75
                         }
+
+                        // Trash icon (visible on row hover)
+                        Rectangle {
+                            Layout.preferredWidth:  _fontSize * 2.0
+                            Layout.preferredHeight: _fontSize * 2.0
+                            radius: _fontSize * 0.3
+                            opacity: listRowHov.containsMouse || listTrashHov.containsMouse ? 1.0 : 0.0
+                            visible: opacity > 0
+                            color: listTrashHov.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.85) : "transparent"
+                            border.color: listTrashHov.containsMouse ? "#FF5252" : Qt.rgba(1,1,1,0.25); border.width: 1
+                            scale: listTrashHov.pressed ? 0.90 : 1.0
+                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on scale { NumberAnimation { duration: 80 } }
+                            QGCColoredImage {
+                                anchors.centerIn: parent
+                                width: _fontSize * 1.0; height: width
+                                source: "/InstrumentValueIcons/trash.svg"
+                                color: "white"; fillMode: Image.PreserveAspectFit
+                            }
+                            MouseArea {
+                                id: listTrashHov
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { _askDelete(modelData); mouse.accepted = true }
+                            }
+                        }
+                    }
+
+                    // Row click → preview (under the trash button so trash wins)
+                    MouseArea {
+                        id: listRowHov
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        z: -1
+                        onClicked: _openPreview(modelData)
+                    }
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // FULLSCREEN PREVIEW OVERLAY
+    // ══════════════════════════════════════════════════════════
+    Rectangle {
+        id: _previewOverlay
+        anchors.fill: parent
+        z: 100
+        visible: _previewItem !== null
+        opacity: _previewItem !== null ? 1.0 : 0.0
+        color: Qt.rgba(0, 0, 0, 0.92)
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+
+        // Backdrop click closes — sits behind the image
+        MouseArea {
+            anchors.fill: parent
+            onClicked: _closePreview()
+        }
+
+        // Photo preview
+        Image {
+            anchors.fill: parent
+            anchors.margins: _pad * 3
+            anchors.topMargin: _pad * 5
+            visible: _previewItem && !_previewItem.isVideo
+            source: _previewItem && !_previewItem.isVideo ? _previewItem.url : ""
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            cache: false
+            asynchronous: true
+            // Block clicks on the image area so they don't reach the backdrop MouseArea
+            MouseArea { anchors.fill: parent }
+        }
+
+        // Video placeholder (we don't decode video here)
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: _pad
+            visible: _previewItem && _previewItem.isVideo
+            QGCColoredImage {
+                Layout.alignment: Qt.AlignHCenter
+                width: _fontSize * 4; height: width
+                source: "/qmlimages/CameraIcon.svg"
+                color: _teal; fillMode: Image.PreserveAspectFit
+            }
+            QGCLabel {
+                Layout.alignment: Qt.AlignHCenter
+                text: _previewItem ? _previewItem.name : ""
+                color: "white"; font.pixelSize: _fontSize * 1.0; font.bold: true
+            }
+            QGCLabel {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Video preview not available"
+                color: _dimText; font.pixelSize: _fontSize * 0.85
+            }
+        }
+
+        // Top bar: filename + delete + close
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: _fontSize * 3.5
+            color: Qt.rgba(0, 0, 0, 0.55)
+
+            // Filename (left)
+            QGCLabel {
+                anchors.left: parent.left
+                anchors.leftMargin: _pad * 1.5
+                anchors.verticalCenter: parent.verticalCenter
+                text: _previewItem ? _previewItem.name : ""
+                color: "white"; font.pixelSize: _fontSize * 0.9; font.bold: true
+                elide: Text.ElideMiddle
+                width: parent.width * 0.55
+            }
+
+            // Buttons (right)
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: _pad
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: _pad * 0.5
+
+                // Delete
+                Rectangle {
+                    width:  _fontSize * 2.3
+                    height: _fontSize * 2.3
+                    radius: width / 2
+                    color: pvDelHov.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.90) : Qt.rgba(1,1,1,0.10)
+                    border.color: pvDelHov.containsMouse ? "#FF5252" : Qt.rgba(1,1,1,0.22); border.width: 1
+                    scale: pvDelHov.pressed ? 0.90 : 1.0
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on scale { NumberAnimation { duration: 80 } }
+                    QGCColoredImage {
+                        anchors.centerIn: parent
+                        width: _fontSize * 1.1; height: width
+                        source: "/InstrumentValueIcons/trash.svg"
+                        color: "white"; fillMode: Image.PreserveAspectFit
+                    }
+                    MouseArea {
+                        id: pvDelHov
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: _askDelete(_previewItem)
+                    }
+                }
+
+                // Close
+                Rectangle {
+                    width:  _fontSize * 2.3
+                    height: _fontSize * 2.3
+                    radius: width / 2
+                    color: pvCloseHov.containsMouse ? Qt.rgba(1,1,1,0.22) : Qt.rgba(1,1,1,0.10)
+                    border.color: Qt.rgba(1,1,1,0.22); border.width: 1
+                    scale: pvCloseHov.pressed ? 0.90 : 1.0
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on scale { NumberAnimation { duration: 80 } }
+                    QGCColoredImage {
+                        anchors.centerIn: parent
+                        width: _fontSize * 1.1; height: width
+                        source: "/InstrumentValueIcons/close.svg"
+                        color: "white"; fillMode: Image.PreserveAspectFit
+                    }
+                    MouseArea {
+                        id: pvCloseHov
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: _closePreview()
+                    }
+                }
+            }
+        }
+
+        // Escape closes
+        focus: visible
+        Keys.onEscapePressed: _closePreview()
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // DELETE CONFIRMATION
+    // ══════════════════════════════════════════════════════════
+    Rectangle {
+        id: _confirmOverlay
+        anchors.fill: parent
+        z: 200
+        visible: _confirmDeleteItem !== null
+        color: Qt.rgba(0, 0, 0, 0.70)
+
+        // Clicking outside the dialog cancels
+        MouseArea { anchors.fill: parent; onClicked: _cancelDelete() }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(_fontSize * 28, parent.width - _pad * 4)
+            height: dialogCol.implicitHeight + _pad * 2.8
+            radius: _fontSize * 0.45
+            color: "#161D27"
+            border.color: "#FF5252"; border.width: 1
+
+            // Eat clicks inside the dialog
+            MouseArea { anchors.fill: parent }
+
+            ColumnLayout {
+                id: dialogCol
+                anchors.fill: parent
+                anchors.margins: _pad * 1.4
+                spacing: _pad * 0.8
+
+                QGCLabel {
+                    text: "Delete this file?"
+                    color: "white"; font.pixelSize: _fontSize * 1.05; font.bold: true
+                }
+                QGCLabel {
+                    Layout.fillWidth: true
+                    text: _confirmDeleteItem ? _confirmDeleteItem.name : ""
+                    color: _dimText; font.pixelSize: _fontSize * 0.8
+                    elide: Text.ElideMiddle
+                }
+                QGCLabel {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: "This action cannot be undone."
+                    color: Qt.rgba(1, 0.32, 0.32, 0.85); font.pixelSize: _fontSize * 0.75
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: _pad * 0.4
+                    spacing: _pad * 0.6
+                    Item { Layout.fillWidth: true }
+
+                    // Cancel
+                    Rectangle {
+                        Layout.preferredWidth:  _fontSize * 6
+                        Layout.preferredHeight: _fontSize * 2.4
+                        radius: _fontSize * 0.35
+                        color: cancelHov.containsMouse ? Qt.rgba(1,1,1,0.10) : "transparent"
+                        border.color: Qt.rgba(1,1,1,0.30); border.width: 1
+                        QGCLabel { anchors.centerIn: parent; text: "Cancel"; color: "white"; font.pixelSize: _fontSize * 0.85 }
+                        MouseArea { id: cancelHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: _cancelDelete() }
+                    }
+
+                    // Confirm Delete
+                    Rectangle {
+                        Layout.preferredWidth:  _fontSize * 6
+                        Layout.preferredHeight: _fontSize * 2.4
+                        radius: _fontSize * 0.35
+                        color: confirmHov.containsMouse ? "#FF5252" : Qt.rgba(1, 0.32, 0.32, 0.85)
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        QGCLabel { anchors.centerIn: parent; text: "Delete"; color: "white"; font.pixelSize: _fontSize * 0.85; font.bold: true }
+                        MouseArea { id: confirmHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: _confirmDelete() }
                     }
                 }
             }

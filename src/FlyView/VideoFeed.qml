@@ -33,6 +33,46 @@ Item {
     readonly property int _restartDebounceMs: 250
 
     signal fullscreenRequested()
+    signal snapshotSaved(string filePath)
+    signal snapshotFailed(string reason)
+
+    // Capture the current video frame and save as JPEG to AppSettings.photoSavePath.
+    // Filename: <photoSavePath>/<streamId>_YYYY-MM-DD_hh.mm.ss.zzz.jpg
+    function takeSnapshot() {
+        if (!isConnected) {
+            console.warn("VideoFeed: snapshot skipped, stream not connected:", streamId)
+            root.snapshotFailed(qsTr("Stream not connected"))
+            return
+        }
+        var savePath = QGroundControl.settingsManager.appSettings.photoSavePath
+        if (!savePath || savePath === "") {
+            console.warn("VideoFeed: photoSavePath unavailable")
+            root.snapshotFailed(qsTr("Photo save path is not configured"))
+            return
+        }
+        var d = new Date()
+        var pad = function(n, w) { var s = String(n); while (s.length < w) s = "0" + s; return s }
+        var stamp = d.getFullYear() + "-" + pad(d.getMonth() + 1, 2) + "-" + pad(d.getDate(), 2) +
+                    "_" + pad(d.getHours(), 2) + "." + pad(d.getMinutes(), 2) + "." + pad(d.getSeconds(), 2) +
+                    "." + pad(d.getMilliseconds(), 3)
+        var safeId = (root.streamId && root.streamId !== "") ? root.streamId : "cam"
+        var filename = savePath + "/" + safeId + "_" + stamp + ".jpg"
+
+        var grab = _videoBackground.grabToImage(function(result) {
+            if (result && result.saveToFile(filename)) {
+                console.log("VideoFeed snapshot saved:", filename)
+                _snapshotFlashAnim.restart()
+                root.snapshotSaved(filename)
+            } else {
+                console.error("VideoFeed: failed to save snapshot:", filename)
+                root.snapshotFailed(qsTr("Failed to save snapshot to %1").arg(filename))
+            }
+        })
+        if (!grab) {
+            console.warn("VideoFeed: grabToImage returned null for", root.streamId)
+            root.snapshotFailed(qsTr("Video surface is not ready"))
+        }
+    }
 
     Connections {
         target: QGroundControl.videoManager
@@ -165,6 +205,22 @@ Item {
                     function onActiveChanged()    { _restartTimer.restart() }
                     function onRtspUrlChanged()   { _restartTimer.restart() }
                     function onStreamIdChanged()  { _restartTimer.restart() }
+                }
+            }
+
+            // Snapshot flash overlay (white flash on successful capture)
+            Rectangle {
+                id: _snapshotFlash
+                anchors.fill: parent
+                color: "white"
+                opacity: 0
+                z: 1000
+                radius: 6
+                SequentialAnimation on opacity {
+                    id: _snapshotFlashAnim
+                    running: false
+                    NumberAnimation { from: 0; to: 0.75; duration: 70 }
+                    NumberAnimation { to: 0;          duration: 240 }
                 }
             }
 
@@ -342,39 +398,55 @@ Item {
                 // Control Buttons
                 Repeater {
                     model: [
-                        {icon: "◼", tooltip: "Stop", color: "#ff4444"},
-                        {icon: "📷", tooltip: "Snapshot", color: "#0066cc"},
-                        {icon: isFullscreen ? "⊟" : "⊞", tooltip: isFullscreen ? "Exit Fullscreen" : "Fullscreen", color: "#0066cc"}
+                        {icon: "◼", iconSource: "", tooltip: "Stop", color: "#ff4444"},
+                        {icon: "",  iconSource: "/InstrumentValueIcons/camera.svg", tooltip: "Snapshot", color: "#0066cc"},
+                        {icon: isFullscreen ? "⊟" : "⊞", iconSource: "", tooltip: isFullscreen ? "Exit Fullscreen" : "Fullscreen", color: "#0066cc"}
                     ]
 
                     Rectangle {
                         width: 32
                         height: 32
                         radius: 6
-                        color: btnMouseArea.containsMouse ? modelData.color : "#404040"
+                        // Snapshot button (index 1) is disabled when there is no live stream
+                        readonly property bool _btnEnabled: index !== 1 || isConnected
+                        opacity: _btnEnabled ? 1.0 : 0.4
+                        color: (btnMouseArea.containsMouse && _btnEnabled) ? modelData.color : "#404040"
                         border.color: "#505050"
                         border.width: 1
+                        scale: (btnMouseArea.pressed && _btnEnabled) ? 0.90 : 1.0
 
                         Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on scale { NumberAnimation { duration: 80 } }
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
 
                         Text {
                             anchors.centerIn: parent
+                            visible: modelData.iconSource === ""
                             text: modelData.icon
                             color: "white"
                             font.pixelSize: 14
+                        }
+                        QGCColoredImage {
+                            anchors.centerIn: parent
+                            visible: modelData.iconSource !== ""
+                            width: 16; height: 16
+                            source: modelData.iconSource
+                            color: "white"
+                            fillMode: Image.PreserveAspectFit
                         }
 
                         MouseArea {
                             id: btnMouseArea
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            cursorShape: parent._btnEnabled ? Qt.PointingHandCursor : Qt.ForbiddenCursor
 
                             onClicked: {
+                                if (!parent._btnEnabled) return
                                 if (index === 2) { // Fullscreen button
                                     root.fullscreenRequested()
                                 } else if (index === 1) { // Snapshot
-                                    console.log("Snapshot:", streamId)
+                                    root.takeSnapshot()
                                 } else if (index === 0) { // Stop
                                     console.log("Stop stream:", streamId)
                                 }

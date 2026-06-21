@@ -145,6 +145,11 @@ public:
     /// video/photo counts, file list, and disk storage (bytes)
     Q_INVOKABLE QVariantMap mediaInfo() const;
 
+    /// Delete a media file (photo or video) shown by mediaInfo(). Accepts a file:// URL
+    /// or a local path. Refuses to delete anything outside the configured photo/video
+    /// save directories. Returns true on success.
+    Q_INVOKABLE bool deleteMediaFile(const QString &fileUrlOrPath) const;
+
     Q_INVOKABLE static void deleteAllSettingsNextBoot();
     Q_INVOKABLE static void clearDeleteAllSettingsNextBoot();
 

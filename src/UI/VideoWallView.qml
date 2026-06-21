@@ -317,17 +317,26 @@ Item {
                     height: 32; width: snapRow.implicitWidth + 20; radius: 5
                     color:        snapHov.containsMouse ? _tealDim : Qt.rgba(1,1,1,0.05)
                     border.color: snapHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.12); border.width: 1
+                    scale: snapHov.pressed ? 0.95 : 1.0
                     Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on scale { NumberAnimation { duration: 80 } }
                     Row {
                         id: snapRow; anchors.centerIn: parent; spacing: 6
                         QGCColoredImage {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 13; height: 13; source: "/qmlimages/CameraIcon.svg"
+                            width: 14; height: 14; source: "/InstrumentValueIcons/camera.svg"
                             color: snapHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.7); fillMode: Image.PreserveAspectFit
                         }
                         QGCLabel { text: qsTr("SNAPSHOT ALL"); color: snapHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.7); font.pixelSize: 11; font.bold: true; font.letterSpacing: 0.5 }
                     }
-                    MouseArea { id: snapHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: console.log("Snapshot all") }
+                    MouseArea { id: snapHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            for (var i = 0; i < feedRepeater.count; i++) {
+                                var item = feedRepeater.itemAt(i)
+                                if (item && item.takeSnapshot) item.takeSnapshot()
+                            }
+                        }
+                    }
                 }
 
                 // Exit fullscreen
@@ -356,11 +365,15 @@ Item {
                 columnSpacing: 8
 
                 Repeater {
+                    id:    feedRepeater
                     model: _cellCount()
 
                     // ── Feed Card
                     Item {
                         id:    feedCard
+
+                        function takeSnapshot() { if (videoFeed && videoFeed.isConnected) videoFeed.takeSnapshot() }
+                        readonly property bool _canSnapshot: videoFeed ? videoFeed.isConnected : false
                         Layout.fillWidth:  true
                         Layout.fillHeight: true
                         Layout.rowSpan:    (gridLayout === 2 && index === 0) ? 3 : 1
@@ -434,6 +447,7 @@ Item {
                                 clip: true
 
                                 VideoFeed {
+                                    id:            videoFeed
                                     anchors.fill:  parent
                                     streamName:    feedCard._name
                                     streamId:      "cam" + (feedCard._vehicle ? feedCard._vehicle.id : index)
@@ -555,10 +569,29 @@ Item {
                                         QGCColoredImage { anchors.centerIn: parent; width: 13; height: 13; source: "/InstrumentValueIcons/volume-up.svg"; color: Qt.rgba(1,1,1,0.6); fillMode: Image.PreserveAspectFit }
                                         MouseArea { id: muteHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
                                     }
-                                    // Snapshot
-                                    Rectangle { width: 28; height: 28; radius: 5; color: snapCardHov.containsMouse ? Qt.rgba(1,1,1,0.15) : "transparent"
-                                        QGCColoredImage { anchors.centerIn: parent; width: 13; height: 13; source: "/qmlimages/CameraIcon.svg"; color: Qt.rgba(1,1,1,0.7); fillMode: Image.PreserveAspectFit }
-                                        MouseArea { id: snapCardHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: console.log("Snapshot:", index) }
+                                    // Snapshot  — same palette/animation as SNAPSHOT ALL
+                                    Rectangle { width: 28; height: 28; radius: 5
+                                        opacity: feedCard._canSnapshot ? 1.0 : 0.45
+                                        color:        snapCardHov.containsMouse ? _tealDim : Qt.rgba(1,1,1,0.05)
+                                        border.color: snapCardHov.containsMouse ? _teal    : Qt.rgba(1,1,1,0.12)
+                                        border.width: 1
+                                        scale: snapCardHov.pressed ? 0.95 : 1.0
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        Behavior on border.color { ColorAnimation { duration: 120 } }
+                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                                        Behavior on scale { NumberAnimation { duration: 80 } }
+                                        QGCColoredImage {
+                                            anchors.centerIn: parent
+                                            width: 14; height: 14
+                                            source: "/InstrumentValueIcons/camera.svg"
+                                            color: snapCardHov.containsMouse ? _teal : Qt.rgba(1,1,1,0.7)
+                                            fillMode: Image.PreserveAspectFit
+                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                        }
+                                        MouseArea { id: snapCardHov; anchors.fill: parent; hoverEnabled: true
+                                            cursorShape: feedCard._canSnapshot ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+                                            onClicked: feedCard.takeSnapshot()
+                                        }
                                     }
                                     // Stop/record
                                     Rectangle { width: 28; height: 28; radius: 5; color: stopHov.containsMouse ? Qt.rgba(1,1,1,0.15) : "transparent"
