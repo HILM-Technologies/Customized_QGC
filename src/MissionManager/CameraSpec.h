@@ -11,6 +11,7 @@
 
 #include "SettingsFact.h"
 
+
 class CameraSpec : public QObject
 {
     Q_OBJECT
