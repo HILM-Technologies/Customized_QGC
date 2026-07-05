@@ -80,6 +80,13 @@ Item {
                 root._deployPending = false
                 root._uploadStatus = "success"
                 uploadStatusTimer.restart()
+                // Kick off the uploaded mission on the same vehicle that received it.
+                // Without this the plan sits idle on ArduPilot: sendToVehicle() only
+                // uploads items — startMission() switches to Auto/Guided, arms, and
+                // sends MAV_CMD_MISSION_START so takeoff → waypoint → land actually runs.
+                if (!_planMaster.offline && _planMaster.managerVehicle) {
+                    _planMaster.managerVehicle.startMission()
+                }
                 mainWindow.showFlyView()
             }
             // Track upload completion for non-deploy uploads
@@ -163,6 +170,41 @@ Item {
         _expandedWpIdx = -1
     }
 
+    // MAV_CMD values used to detect a mission that already terminates itself.
+    readonly property int _cmdNavLand:      21
+    readonly property int _cmdNavRtl:       20
+    readonly property int _cmdNavVtolLand:  85
+
+    // If the mission's last item isn't already a return/land command, append an
+    // RTL so the vehicle comes home instead of holding at the last waypoint.
+    // Idempotent — deploying twice won't stack multiple RTLs.
+    function _ensureMissionEndsWithReturn() {
+        if (!_missionCtrl || !_missionCtrl.visualItems) return
+        var items = _missionCtrl.visualItems
+        var lastIdx = items.count - 1
+        if (lastIdx <= 0) return   // only home present; nothing to append to
+
+        var last = items.get(lastIdx)
+        // SimpleMissionItem exposes an integer `command`. ComplexMissionItems
+        // (surveys, structure scans, landing patterns) don't — for those we
+        // still append RTL as the next terminal step.
+        if (last && typeof last.command === "number") {
+            if (last.command === _cmdNavRtl ||
+                last.command === _cmdNavLand ||
+                last.command === _cmdNavVtolLand) {
+                return
+            }
+        }
+
+        // insertLandItem() maps to NAV_RETURN_TO_LAUNCH for copters (see
+        // MissionController.cc). The coordinate arg is unused for RTL — pass
+        // the last item's coordinate so the visual anchors near that point.
+        var coord = (last && last.coordinate && last.coordinate.isValid)
+                    ? last.coordinate
+                    : ((_checkVehicle && _checkVehicle.coordinate) ? _checkVehicle.coordinate : null)
+        _missionCtrl.insertLandItem(coord, items.count, false)
+    }
+
     function deployMission() {
         if (!_planMaster) return
         // Apply mission name + repeat to patrol controller if non-default.
@@ -176,29 +218,53 @@ Item {
                 case "Continuous": _patrolCtrl.loopsMode = 0;                          break
             }
         }
+        // Guarantee the plan terminates with a return so the vehicle doesn't
+        // hover at the last waypoint after finishing.
+        _ensureMissionEndsWithReturn()
         _uploadStatus = "uploading"
         _deployPending = true
         _planMaster.sendToVehicle()
-    }
-
-    // QUICK FLY: when armed, the next map drop in PlanView auto-inserts the
-    // takeoff + land items. Watch the visualItems count cross from 1 (home only)
-    // to >1 (something dropped) and immediately deploy + switch to FlyView.
-    Connections {
-        target: _missionCtrl ? _missionCtrl.visualItems : null
-        function onCountChanged() {
-            if (!root._quickFlyArmed) return
-            if (_missionCtrl.visualItems.count > 1) {
-                root._quickFlyArmed = false
-                root.deployMission()
-            }
-        }
     }
 
     function armQuickFly() {
         if (!_planMaster) return
         _planMaster.removeAll()
         _quickFlyArmed = true
+    }
+
+    // Assemble and deploy a full Quick Fly mission from one map click.
+    // Sequence: TAKEOFF (at vehicle position) → WAYPOINT (clicked point) → RTL.
+    // insertLandItem() emits MAV_CMD_NAV_RETURN_TO_LAUNCH for copters, so the
+    // vehicle returns home instead of holding at the last waypoint.
+    function buildAndDeployQuickFly(destinationCoord) {
+        if (!_planMaster || !_missionCtrl) return
+        // Consume the armed flag first so any downstream signals don't re-enter.
+        _quickFlyArmed = false
+
+        _planMaster.removeAll()
+
+        // Prefer the live vehicle position for the takeoff visual; fall back to
+        // the destination if the vehicle hasn't published its coordinate yet.
+        var takeoffCoord = (_checkVehicle && _checkVehicle.coordinate && _checkVehicle.coordinate.isValid)
+                           ? _checkVehicle.coordinate
+                           : destinationCoord
+
+        var takeoff = _missionCtrl.insertTakeoffItem(takeoffCoord, 1, false)
+        if (takeoff && takeoff.altitude && _defaultAltitude > 0) {
+            takeoff.altitude.rawValue = _defaultAltitude
+        }
+
+        var wp = _missionCtrl.insertSimpleMissionItem(destinationCoord, 2, false)
+        if (wp && wp.altitude && _defaultAltitude > 0) {
+            wp.altitude.rawValue = _defaultAltitude
+        }
+
+        // For copters insertLandItem() actually inserts a NAV_RETURN_TO_LAUNCH
+        // command (see MissionController.cc). The coordinate argument is unused
+        // for RTL — it's just required by the signature.
+        _missionCtrl.insertLandItem(destinationCoord, 3, false)
+
+        deployMission()
     }
 
     // ══════════════════════════════════════════════
