@@ -43,7 +43,8 @@ Item {
     property bool   _lightWidgetBorders: editorMap.isSatelliteMap
     property bool   _addROIOnClick: false
     property bool   _singleComplexItem: _missionController.complexMissionItemNames.length === 1
-    property int    _editingLayer: _layerMission
+    // Driven by the mission panel's active tab (BUILD→mission, FENCE→fence, RALLY→rally).
+    property int    _editingLayer: rightPanel.requestedEditingLayer
     property int    _toolStripBottom: toolStrip.height + toolStrip.y
     property var    _appSettings: QGroundControl.settingsManager.appSettings
     property var    _planViewSettings: QGroundControl.settingsManager.planViewSettings
@@ -65,8 +66,8 @@ Item {
         if(visible) {
             editorMap.zoomLevel = QGroundControl.flightMapZoom
             editorMap.center    = QGroundControl.flightMapPosition
-            _editingLayer       = _layerMission  // HILM: always in mission-edit mode
-            // HILM: Auto-enable waypoint adding so clicking always adds waypoints
+            // HILM: _editingLayer is bound to the panel's active tab; leave it alone here.
+            // HILM: Auto-enable waypoint/rally adding so clicking always adds points
             addWaypointRallyPointAction.checked = true
         }
     }

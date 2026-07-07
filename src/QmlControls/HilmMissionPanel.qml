@@ -8,6 +8,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtPositioning
 
 import QGroundControl
 import QGroundControl.Controls
@@ -39,8 +40,19 @@ Item {
     readonly property real  _pad:        ScreenTools.defaultFontPixelWidth * 0.8
     readonly property real  _sectionGap: ScreenTools.defaultFontPixelHeight * 0.9
 
+    // Editing layers — kept in sync with PlanView's _editingLayer via requestedEditingLayer.
+    readonly property int layerMission: 1
+    readonly property int layerFence:   2
+    readonly property int layerRally:   3
+
+    // The layer PlanView should switch to for the active tab. FENCE/RALLY make their
+    // respective map visuals interactive; everything else edits the mission.
+    readonly property int requestedEditingLayer:
+        _activeTab === 1 ? layerFence :
+        _activeTab === 2 ? layerRally : layerMission
+
     // State
-    property int    _activeTab:       0       // 0=BUILD, 1=SAVED
+    property int    _activeTab:       0       // 0=BUILD, 1=FENCE, 2=RALLY, 3=SAVED
     property string _missionName:     ""
     property var    _selectedDroneIds: []
     property real   _defaultAltitude: 30
@@ -254,48 +266,41 @@ Item {
             }
         }
 
-        // ── BUILD | SAVED tab bar
+        // ── BUILD | FENCE | RALLY | SAVED tab bar
         RowLayout {
             Layout.fillWidth: true
             Layout.topMargin: _pad * 0.3
-            spacing:          _pad * 0.5
+            spacing:          _pad * 0.35
 
-            Rectangle {
-                Layout.fillWidth:       true
-                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2
-                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
-                color:                  _activeTab === 0 ? _teal : _cardBg
-                border.width:           _activeTab === 0 ? 0 : 1
-                border.color:           Qt.rgba(1, 1, 1, 0.08)
+            Repeater {
+                model: [
+                    { key: 0, label: "BUILD" },
+                    { key: 1, label: "FENCE" },
+                    { key: 2, label: "RALLY" },
+                    { key: 3, label: "SAVED" }
+                ]
+                delegate: Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2
+                    radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                    color:                  _activeTab === modelData.key ? _teal : _cardBg
+                    border.width:           _activeTab === modelData.key ? 0 : 1
+                    border.color:           Qt.rgba(1, 1, 1, 0.08)
 
-                QGCLabel {
-                    anchors.centerIn: parent
-                    text:             "BUILD"
-                    color:            _activeTab === 0 ? "#000000" : _dimText
-                    font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
-                    font.bold:        _activeTab === 0
-                    font.letterSpacing: 0.5
+                    QGCLabel {
+                        anchors.centerIn:   parent
+                        text:               modelData.label
+                        color:              _activeTab === modelData.key ? "#000000" : _dimText
+                        font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.62
+                        font.bold:          _activeTab === modelData.key
+                        font.letterSpacing: 0.3
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape:  Qt.PointingHandCursor
+                        onClicked:    _activeTab = modelData.key
+                    }
                 }
-                MouseArea { anchors.fill: parent; onClicked: _activeTab = 0 }
-            }
-
-            Rectangle {
-                Layout.fillWidth:       true
-                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2
-                radius:                 ScreenTools.defaultFontPixelHeight * 0.25
-                color:                  _activeTab === 1 ? _teal : _cardBg
-                border.width:           _activeTab === 1 ? 0 : 1
-                border.color:           Qt.rgba(1, 1, 1, 0.08)
-
-                QGCLabel {
-                    anchors.centerIn: parent
-                    text:             "SAVED"
-                    color:            _activeTab === 1 ? "#000000" : _dimText
-                    font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.7
-                    font.bold:        _activeTab === 1
-                    font.letterSpacing: 0.5
-                }
-                MouseArea { anchors.fill: parent; onClicked: _activeTab = 1 }
             }
         }
 
@@ -312,7 +317,10 @@ Item {
             Loader {
                 id:    tabLoader
                 width: parent.width
-                sourceComponent: _activeTab === 0 ? buildTabComponent : savedTabComponent
+                sourceComponent: _activeTab === 0 ? buildTabComponent :
+                                 _activeTab === 1 ? fenceTabComponent :
+                                 _activeTab === 2 ? rallyTabComponent :
+                                                    savedTabComponent
             }
         }
     }
@@ -1891,6 +1899,596 @@ Item {
                 color:          Qt.rgba(1, 1, 1, 0.2)
                 font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
             }
+        }
+    }
+
+    // ── Fence tab
+    Component {
+        id: fenceTabComponent
+
+        ColumnLayout {
+            id:      fenceRoot
+            width:   parent ? parent.width : 100
+            spacing: _pad * 0.6
+
+            // Returns the map viewport corners — new fences span the visible area (same as QGC).
+            function _viewportCorners() {
+                var vp = editorMap.centerViewport
+                return {
+                    tl: editorMap.toCoordinate(Qt.point(vp.x, vp.y), false),
+                    br: editorMap.toCoordinate(Qt.point(vp.x + vp.width, vp.y + vp.height), false)
+                }
+            }
+
+            Item { Layout.preferredHeight: _pad * 0.4 }
+
+            // ── Intro / support state
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: fenceIntroCol.implicitHeight + _pad * 2
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color:                  _cardBg
+                border.width:           1
+                border.color:           Qt.rgba(1, 1, 1, 0.10)
+
+                ColumnLayout {
+                    id: fenceIntroCol
+                    anchors.left:    parent.left
+                    anchors.right:   parent.right
+                    anchors.top:     parent.top
+                    anchors.margins: _pad
+                    spacing:         _pad * 0.4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.5
+                        QGCLabel { text: "🛡"; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9 }
+                        QGCLabel {
+                            text:           "GEOFENCE"
+                            color:          _teal
+                            font.bold:      true
+                            font.letterSpacing: 1.0
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                            Layout.fillWidth: true
+                        }
+                    }
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        wrapMode:         Text.WordWrap
+                        color:            _dimText
+                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                        text: _fenceCtrl && _fenceCtrl.supported
+                              ? "Set a virtual fence around the area you want to fly in. Drag the fence handles on the map to reshape."
+                              : "This vehicle does not support GeoFence."
+                    }
+                }
+            }
+
+            // Everything below requires fence support
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing:          _pad * 0.6
+                visible:          _fenceCtrl && _fenceCtrl.supported
+
+                // ── Insert GeoFence — buttons map to addInclusionPolygon / addInclusionCircle
+                QGCLabel {
+                    text:               "INSERT GEOFENCE"
+                    color:              _dimText
+                    font.bold:          true
+                    font.letterSpacing: 1.0
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                    Layout.topMargin:   _pad * 0.3
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: _pad * 0.5
+
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                        radius: ScreenTools.defaultFontPixelHeight * 0.25
+                        color:  addPolyArea.containsMouse ? _tealDim : _cardBg
+                        border.width: 1
+                        border.color: _tealBorder
+                        QGCLabel {
+                            anchors.centerIn: parent
+                            text: "▱  Polygon Fence"
+                            color: _teal
+                            font.bold: true
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                        }
+                        MouseArea {
+                            id: addPolyArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                var c = fenceRoot._viewportCorners()
+                                _fenceCtrl.addInclusionPolygon(c.tl, c.br)
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                        radius: ScreenTools.defaultFontPixelHeight * 0.25
+                        color:  addCircArea.containsMouse ? _tealDim : _cardBg
+                        border.width: 1
+                        border.color: _tealBorder
+                        QGCLabel {
+                            anchors.centerIn: parent
+                            text: "◯  Circular Fence"
+                            color: _teal
+                            font.bold: true
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                        }
+                        MouseArea {
+                            id: addCircArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked: {
+                                var c = fenceRoot._viewportCorners()
+                                _fenceCtrl.addInclusionCircle(c.tl, c.br)
+                            }
+                        }
+                    }
+                }
+
+                // ── Polygon fences list
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.06); Layout.topMargin: _pad * 0.3 }
+                QGCLabel {
+                    text:               "POLYGON FENCES"
+                    color:              _dimText
+                    font.bold:          true
+                    font.letterSpacing: 1.0
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                }
+                QGCLabel {
+                    text:           "None"
+                    color:          Qt.rgba(1, 1, 1, 0.3)
+                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                    visible:        !_fenceCtrl.polygons || _fenceCtrl.polygons.count === 0
+                }
+                // Header row
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: _pad * 0.4
+                    visible: _fenceCtrl.polygons && _fenceCtrl.polygons.count > 0
+                    QGCLabel { text: "#";        color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 3 }
+                    QGCLabel { text: "Include";  color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 7; horizontalAlignment: Text.AlignHCenter }
+                    QGCLabel { text: "Edit";     color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 5; horizontalAlignment: Text.AlignHCenter }
+                    Item { Layout.fillWidth: true }
+                    QGCLabel { text: "Delete";   color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; horizontalAlignment: Text.AlignRight }
+                }
+                Repeater {
+                    model: _fenceCtrl.polygons
+                    delegate: RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.4
+
+                        QGCLabel {
+                            text: "P" + (index + 1)
+                            color: "white"
+                            font.bold: true
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 3
+                        }
+                        // Inclusion (keep-in) vs exclusion (keep-out) fence
+                        QGCCheckBox {
+                            checked:          object.inclusion
+                            onClicked:        object.inclusion = checked
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 7
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        // Edit radio — makes only this polygon interactive so its vertices are draggable on the map
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 5
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.4
+                            color: "transparent"
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width:  ScreenTools.defaultFontPixelHeight * 1.1
+                                height: width
+                                radius: width / 2
+                                color:  "transparent"
+                                border.width: 1.5
+                                border.color: object.interactive ? _teal : Qt.rgba(1, 1, 1, 0.3)
+                                // Filled dot when this polygon is the interactive one
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width:  parent.width * 0.5
+                                    height: width
+                                    radius: width / 2
+                                    color:  _teal
+                                    visible: object.interactive
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                // Clear others first so only one shape is editable at a time (QGC behaviour)
+                                onClicked: {
+                                    _fenceCtrl.clearAllInteractive()
+                                    object.interactive = true
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                        // Delete this polygon
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                            radius: ScreenTools.defaultFontPixelHeight * 0.2
+                            color:  delPolyArea.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.16) : Qt.rgba(1, 1, 1, 0.04)
+                            border.width: 1
+                            border.color: Qt.rgba(1, 0.32, 0.32, 0.4)
+                            QGCLabel { anchors.centerIn: parent; text: "Del"; color: _errColor; font.bold: true; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55 }
+                            MouseArea {
+                                id: delPolyArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    _fenceCtrl.deletePolygon(index)
+                            }
+                        }
+                    }
+                }
+
+                // ── Circular fences list
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.06); Layout.topMargin: _pad * 0.3 }
+                QGCLabel {
+                    text:               "CIRCULAR FENCES"
+                    color:              _dimText
+                    font.bold:          true
+                    font.letterSpacing: 1.0
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                }
+                QGCLabel {
+                    text:           "None"
+                    color:          Qt.rgba(1, 1, 1, 0.3)
+                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                    visible:        !_fenceCtrl.circles || _fenceCtrl.circles.count === 0
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: _pad * 0.4
+                    visible: _fenceCtrl.circles && _fenceCtrl.circles.count > 0
+                    QGCLabel { text: "#";       color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 3 }
+                    QGCLabel { text: "Inc";     color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 4; horizontalAlignment: Text.AlignHCenter }
+                    QGCLabel { text: "Edit";    color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 4; horizontalAlignment: Text.AlignHCenter }
+                    QGCLabel { text: "Radius";  color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                    QGCLabel { text: "Del";     color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5; Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 7; horizontalAlignment: Text.AlignRight }
+                }
+                Repeater {
+                    model: _fenceCtrl.circles
+                    delegate: RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.4
+
+                        QGCLabel {
+                            text: "C" + (index + 1)
+                            color: "white"
+                            font.bold: true
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 3
+                        }
+                        // Inclusion (keep-in) vs exclusion (keep-out) fence
+                        QGCCheckBox {
+                            checked:          object.inclusion
+                            onClicked:        object.inclusion = checked
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 4
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        // Edit radio — makes only this circle interactive so it can be dragged/resized on the map
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 4
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.4
+                            color: "transparent"
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width:  ScreenTools.defaultFontPixelHeight * 1.1
+                                height: width
+                                radius: width / 2
+                                color:  "transparent"
+                                border.width: 1.5
+                                border.color: object.interactive ? _teal : Qt.rgba(1, 1, 1, 0.3)
+                                // Filled dot when this circle is the interactive one
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width:  parent.width * 0.5
+                                    height: width
+                                    radius: width / 2
+                                    color:  _teal
+                                    visible: object.interactive
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape:  Qt.PointingHandCursor
+                                // Clear others first so only one shape is editable at a time (QGC behaviour)
+                                onClicked: {
+                                    _fenceCtrl.clearAllInteractive()
+                                    object.interactive = true
+                                }
+                            }
+                        }
+                        // Circle radius fact — edits the same value as dragging the ring on the map
+                        FactTextField {
+                            fact:                   object.radius
+                            Layout.fillWidth:       true
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                        }
+                        // Delete this circle
+                        Rectangle {
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 7
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                            radius: ScreenTools.defaultFontPixelHeight * 0.2
+                            color:  delCircArea.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.16) : Qt.rgba(1, 1, 1, 0.04)
+                            border.width: 1
+                            border.color: Qt.rgba(1, 0.32, 0.32, 0.4)
+                            QGCLabel { anchors.centerIn: parent; text: "Del"; color: _errColor; font.bold: true; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55 }
+                            MouseArea {
+                                id: delCircArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape:  Qt.PointingHandCursor
+                                onClicked:    _fenceCtrl.deleteCircle(index)
+                            }
+                        }
+                    }
+                }
+
+                // ── Breach return point — where the vehicle heads if it breaches the fence
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.06); Layout.topMargin: _pad * 0.3 }
+                QGCLabel {
+                    text:               "BREACH RETURN POINT"
+                    color:              _dimText
+                    font.bold:          true
+                    font.letterSpacing: 1.0
+                    font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
+                }
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                    radius: ScreenTools.defaultFontPixelHeight * 0.25
+                    color:  breachArea.containsMouse ? _tealDim : _cardBg
+                    border.width: 1
+                    border.color: _tealBorder
+                    QGCLabel {
+                        anchors.centerIn: parent
+                        text:  _fenceCtrl.breachReturnPoint.isValid ? "✕  Remove Breach Return Point" : "＋  Add Breach Return Point"
+                        color: _fenceCtrl.breachReturnPoint.isValid ? _errColor : _teal
+                        font.bold: true
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                    }
+                    MouseArea {
+                        id: breachArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        // Toggle: an invalid coordinate clears the point, map center sets it (same as QGC)
+                        onClicked: {
+                            if (_fenceCtrl.breachReturnPoint.isValid)
+                                _fenceCtrl.breachReturnPoint = QtPositioning.coordinate()
+                            else
+                                _fenceCtrl.breachReturnPoint = editorMap.center
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: _pad * 0.4
+                    visible: _fenceCtrl.breachReturnPoint.isValid
+                    QGCLabel {
+                        text: "Altitude (m)"
+                        color: "white"
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                        Layout.fillWidth: true
+                    }
+                    FactTextField {
+                        fact:                   _fenceCtrl.breachReturnAltitude
+                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 14
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                    }
+                }
+            }
+
+            Item { Layout.preferredHeight: _pad * 1.5 }
+        }
+    }
+
+    // ── Rally tab
+    Component {
+        id: rallyTabComponent
+
+        ColumnLayout {
+            width:   parent ? parent.width : 100
+            spacing: _pad * 0.6
+
+            Item { Layout.preferredHeight: _pad * 0.4 }
+
+            // ── Intro / support state
+            Rectangle {
+                Layout.fillWidth:       true
+                Layout.preferredHeight: rallyIntroCol.implicitHeight + _pad * 2
+                radius:                 ScreenTools.defaultFontPixelHeight * 0.35
+                color:                  _cardBg
+                border.width:           1
+                border.color:           Qt.rgba(1, 1, 1, 0.10)
+
+                ColumnLayout {
+                    id: rallyIntroCol
+                    anchors.left:    parent.left
+                    anchors.right:   parent.right
+                    anchors.top:     parent.top
+                    anchors.margins: _pad
+                    spacing:         _pad * 0.4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.5
+                        QGCLabel { text: "🚩"; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9 }
+                        QGCLabel {
+                            text:           "RALLY POINTS"
+                            color:          _teal
+                            font.bold:      true
+                            font.letterSpacing: 1.0
+                            font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.7
+                            Layout.fillWidth: true
+                        }
+                    }
+                    QGCLabel {
+                        Layout.fillWidth: true
+                        wrapMode:         Text.WordWrap
+                        color:            _dimText
+                        font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                        text: _rallyCtrl && _rallyCtrl.supported
+                              ? "Rally points are alternate landing points used during a Return to Launch (RTL). Tap the map to add one, or use the button below."
+                              : "This vehicle does not support Rally Points."
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing:          _pad * 0.6
+                visible:          _rallyCtrl && _rallyCtrl.supported
+
+                // Add at map center
+                Rectangle {
+                    Layout.fillWidth:       true
+                    Layout.topMargin:       _pad * 0.2
+                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.4
+                    radius: ScreenTools.defaultFontPixelHeight * 0.25
+                    color:  addRallyArea.containsMouse ? _tealDim : _cardBg
+                    border.width: 1
+                    border.color: _tealBorder
+                    QGCLabel {
+                        anchors.centerIn: parent
+                        text: "＋  Add Rally Point (map center)"
+                        color: _teal
+                        font.bold: true
+                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                    }
+                    MouseArea {
+                        id: addRallyArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape:  Qt.PointingHandCursor
+                        // Convenience add; tapping the map also adds points while the RALLY tab is active
+                        onClicked:    _rallyCtrl.addPoint(editorMap.center)
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.06); Layout.topMargin: _pad * 0.3 }
+
+                QGCLabel {
+                    text:           "None yet — tap the map or use the button above"
+                    color:          Qt.rgba(1, 1, 1, 0.3)
+                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                    visible:        !_rallyCtrl.points || _rallyCtrl.points.count === 0
+                }
+
+                // One card per rally point (mirrors RallyPointItemEditor.qml)
+                Repeater {
+                    model: _rallyCtrl.points
+                    delegate: Rectangle {
+                        id: rallyCard
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: rallyCardCol.implicitHeight + _pad
+                        radius:        ScreenTools.defaultFontPixelHeight * 0.25
+                        color:         Qt.rgba(1, 1, 1, 0.03)
+                        border.width:  1
+                        // Highlight the card the controller currently considers selected
+                        property bool _isCurrent: object === _rallyCtrl.currentRallyPoint
+                        border.color:  _isCurrent ? _teal : Qt.rgba(1, 1, 1, 0.08)
+
+                        // Background tap selects this point (buttons/fields above still get their own clicks)
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape:  Qt.PointingHandCursor
+                            onClicked:    _rallyCtrl.currentRallyPoint = object
+                        }
+
+                        ColumnLayout {
+                            id: rallyCardCol
+                            anchors.left:    parent.left
+                            anchors.right:   parent.right
+                            anchors.top:     parent.top
+                            anchors.margins: _pad * 0.6
+                            spacing:         _pad * 0.4
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: _pad * 0.5
+
+                                // "R#" badge
+                                Rectangle {
+                                    Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.5
+                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.5
+                                    radius: width / 2
+                                    color:  _teal
+                                    QGCLabel {
+                                        anchors.centerIn: parent
+                                        text: "R" + (index + 1)
+                                        color: "#000000"
+                                        font.bold: true
+                                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.5
+                                    }
+                                }
+                                QGCLabel {
+                                    text: "Rally Point " + (index + 1)
+                                    color: "white"
+                                    font.bold: true
+                                    font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                                    Layout.fillWidth: true
+                                }
+                                // Delete this rally point
+                                Rectangle {
+                                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
+                                    Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                                    radius: ScreenTools.defaultFontPixelHeight * 0.2
+                                    color:  delRallyArea.containsMouse ? Qt.rgba(1, 0.32, 0.32, 0.16) : Qt.rgba(1, 1, 1, 0.04)
+                                    border.width: 1
+                                    border.color: Qt.rgba(1, 0.32, 0.32, 0.4)
+                                    QGCLabel { anchors.centerIn: parent; text: "Del"; color: _errColor; font.bold: true; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55 }
+                                    MouseArea {
+                                        id: delRallyArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape:  Qt.PointingHandCursor
+                                        onClicked:    _rallyCtrl.removePoint(object)
+                                    }
+                                }
+                            }
+
+                            // Editable lat/lon/alt facts — only for the selected point (same facts QGC edits)
+                            Repeater {
+                                model: rallyCard._isCurrent && object ? object.textFieldFacts : 0
+                                delegate: RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: _pad * 0.4
+                                    QGCLabel {
+                                        text: modelData.name
+                                        color: "white"
+                                        font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55
+                                        Layout.fillWidth: true
+                                    }
+                                    FactTextField {
+                                        fact:                   modelData
+                                        showUnits:              true
+                                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 16
+                                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.8
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item { Layout.preferredHeight: _pad * 1.5 }
         }
     }
 }
