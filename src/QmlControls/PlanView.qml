@@ -315,8 +315,13 @@ Item {
 
                 switch (_editingLayer) {
                 case _layerMission: if (addWaypointRallyPointAction.checked) {
-                        // HILM: first click drops the takeoff/launch point; later clicks add waypoints
-                        if (_missionController.visualItems.count <= 1) {
+                        // HILM Quick Fly: one click assembles the full mission
+                        // (takeoff → clicked point → RTL) and deploys immediately.
+                        if (rightPanel && rightPanel._quickFlyArmed) {
+                            rightPanel.buildAndDeployQuickFly(coordinate)
+                        } else if (_missionController.visualItems.count <= 1) {
+                            // Normal editing: first click drops the takeoff/launch point;
+                            // later clicks add waypoints.
                             _missionController.insertTakeoffItem(coordinate, 1, true /* makeCurrentItem */)
                         } else {
                             insertSimpleItemAfterCurrent(coordinate)
