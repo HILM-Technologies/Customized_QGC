@@ -1970,6 +1970,19 @@ Item {
                 property real _yaw:   _activeGimbal && _activeGimbal.absoluteYaw
                                         ? _activeGimbal.absoluteYaw.rawValue : 0
 
+                // Vehicle-frame (body) yaw for the joystick, so the handle tracks
+                // where the camera points relative to the aircraft - NOT absoluteYaw,
+                // which includes vehicle heading and would drift as the drone rotates.
+                property real _bodyYaw: _activeGimbal && _activeGimbal.bodyYaw
+                                        ? _activeGimbal.bodyYaw.rawValue : 0
+
+                // Degrees of pitch/yaw that map to a full joystick deflection, so
+                // the handle can reflect the gimbal's actual attitude when idle.
+                // 90 => 45 deg sits halfway and 90 deg reaches the edge.
+                property real _padRangeDeg: 90
+                property real _panNorm:  Math.max(-1, Math.min(1, _bodyYaw / _padRangeDeg))  // +right (body frame)
+                property real _tiltNorm: Math.max(-1, Math.min(1, _pitch   / _padRangeDeg))  // +up
+
                 Layout.fillWidth:       true
                 Layout.topMargin:       _sectionGap
                 Layout.preferredHeight: gimbalDockCol.implicitHeight + _pad * 1.6
@@ -1978,7 +1991,10 @@ Item {
                 border.width:           1
                 border.color:           _tealBorder
 
-                // 10Hz throttle: send click-and-point samples (absolute, sticky) while pressed.
+                // 10Hz throttle: send ABSOLUTE pointing targets while pressed. The
+                // handle position maps directly to an absolute body-frame angle, so
+                // the gimbal goes exactly where the dot is and the attitude ring
+                // converges onto it (rather than nudging incrementally).
                 Timer {
                     id: gimbalJoyTimer
                     interval: 100
@@ -1986,12 +2002,10 @@ Item {
                     running: false
                     onTriggered: {
                         if (gimbalDock._gimbalCtl) {
-                            gimbalDock._gimbalCtl.gimbalOnScreenControl(
-                                joyHandle.normPan,
-                                joyHandle.normTilt,
-                                true  /*clickAndPoint*/,
-                                false /*clickAndDrag*/,
-                                false /*rateControl*/)
+                            gimbalDock._gimbalCtl.sendPitchBodyYaw(
+                                joyHandle.normTilt * gimbalDock._padRangeDeg,   // pitch (+up)
+                                joyHandle.normPan  * gimbalDock._padRangeDeg,   // body yaw (+right)
+                                false)
                         }
                     }
                 }
@@ -2099,6 +2113,25 @@ Item {
                             font.pointSize: ScreenTools.defaultFontPointSize * 0.65; font.bold: true
                         }
 
+                        // ── Actual-attitude marker (non-interactive): a hollow ring
+                        // that tracks the gimbal's REPORTED position. Decoupled from
+                        // the draggable handle so it never interferes with dragging;
+                        // moves for real hardware feedback and external/Python commands.
+                        Rectangle {
+                            id: attitudeMarker
+                            visible: gimbalDock._gimbalAvailable
+                            width:   joyArea.width * 0.13
+                            height:  width
+                            radius:  width / 2
+                            color:   "transparent"
+                            border.width: 2
+                            border.color: Qt.rgba(1, 1, 1, 0.75)
+                            x: joyHandle._radius + gimbalDock._panNorm  * joyHandle._maxOffset - width  / 2
+                            y: joyHandle._radius - gimbalDock._tiltNorm * joyHandle._maxOffset - height / 2
+                            Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+                            Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+                        }
+
                         // ── Draggable handle (no MouseArea inside — outer one handles input)
                         Rectangle {
                             id: joyHandle
@@ -2158,19 +2191,25 @@ Item {
                                 joyHandle.y = cy + dy - joyHandle.height / 2
                             }
 
+                            function _sendAbsolute() {
+                                if (gimbalDock._gimbalCtl) {
+                                    gimbalDock._gimbalCtl.sendPitchBodyYaw(
+                                        joyHandle.normTilt * gimbalDock._padRangeDeg,
+                                        joyHandle.normPan  * gimbalDock._padRangeDeg,
+                                        false)
+                                }
+                            }
                             onPressed: function(mouse) {
                                 _placeHandleAt(mouse.x, mouse.y)
-                                if (gimbalDock._gimbalCtl) {
+                                if (gimbalDock._gimbalCtl)
                                     gimbalDock._gimbalCtl.acquireGimbalControl()
-                                    gimbalDock._gimbalCtl.gimbalOnScreenControl(
-                                        joyHandle.normPan, joyHandle.normTilt,
-                                        true, false, false)
-                                }
+                                _sendAbsolute()
                                 gimbalJoyTimer.start()
                             }
                             onPositionChanged: function(mouse) {
                                 if (!pressed) return
                                 _placeHandleAt(mouse.x, mouse.y)
+                                _sendAbsolute()   // update target as you drag
                             }
                             onReleased:  _release()
                             onCanceled:  _release()
