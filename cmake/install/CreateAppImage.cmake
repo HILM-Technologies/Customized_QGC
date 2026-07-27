@@ -73,7 +73,12 @@ set(ENV{ARCH} ${CMAKE_SYSTEM_PROCESSOR})
 set(ENV{VERSION} ${CMAKE_PROJECT_VERSION})
 
 execute_process(
-    COMMAND "${APPIMAGETOOL_PATH}" "${APPDIR_PATH}" "${APPIMAGE_PATH}"
+    # --no-appstream: skip appimagetool's AppStream metadata validation. The
+    # bundled appstreamcli fetches screenshot URLs online, and QGC's docs-site
+    # screenshot URL is a rotating content-hash that 404s after their docs
+    # rebuild, failing the build for reasons unrelated to the app. The check is
+    # cosmetic (metadata lint only) and has no effect on the produced AppImage.
+    COMMAND "${APPIMAGETOOL_PATH}" --no-appstream "${APPDIR_PATH}" "${APPIMAGE_PATH}"
     COMMAND_ECHO STDOUT
     COMMAND_ERROR_IS_FATAL ANY
 )
