@@ -115,6 +115,7 @@ DECLARE_SETTINGGROUP(App, "")
     _checkSavePathDirectories();
 }
 
+DECLARE_SETTINGSFACT(AppSettings, companionComputerEnabled)
 DECLARE_SETTINGSFACT(AppSettings, offlineEditingFirmwareClass)
 DECLARE_SETTINGSFACT(AppSettings, offlineEditingVehicleClass)
 DECLARE_SETTINGSFACT(AppSettings, offlineEditingCruiseSpeed)

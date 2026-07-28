@@ -116,6 +116,10 @@ Item {
     property bool _emergencyActive:     _emergency ? _emergency.emergencyActive : false
     property bool _emergencyEngaged:    _emergencySelecting || _emergencyTargetSet || _emergencyActive
 
+    // Advanced features (Autonomous Patrol, Emergency Deploy, Quick Fly) are only
+    // available when a HILM companion computer is enabled in the Network tab.
+    property bool _companionEnabled:    QGroundControl.settingsManager.appSettings.companionComputerEnabled.rawValue
+
     // ══════════════════════════════════════════════
     // Flight-mode classification + Quick Actions gating
     //
@@ -983,7 +987,7 @@ Item {
                 Layout.topMargin:       _pad * 0.8
                 Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.35
-                visible:                !_emergencyEngaged
+                visible:                _companionEnabled && !_emergencyEngaged
 
                 color: {
                     if (emergencyStopArea.containsMouse) return Qt.rgba(1, 0.20, 0.20, 0.20)
@@ -1320,7 +1324,7 @@ Item {
                 color:   Qt.rgba(1, 0, 0, 0.08)
                 border.width: 1
                 border.color: Qt.rgba(1, 0, 0, 0.25)
-                visible: _emergencyEngaged
+                visible: _companionEnabled && _emergencyEngaged
 
                 ColumnLayout {
                     id: emergencyPanelLayout

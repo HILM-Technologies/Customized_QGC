@@ -36,6 +36,11 @@ Rectangle {
     property int _droneCount:   _vehicleModel ? _vehicleModel.count : 0
     property int _serverChoice: 0   // 0=hardware, 1=cloud (hardcoded)
 
+    // Companion computer: gates advanced features (Autonomous Patrol, Emergency
+    // Deploy, Quick Fly). Persisted app setting, default OFF.
+    property var _appSettings: QGroundControl.settingsManager.appSettings
+    property var _ccFact:      _appSettings ? _appSettings.companionComputerEnabled : null
+
     // plans (hardcoded)
     readonly property var _plans: [
         { icon: "plan-starter.svg",    name: "Starter",    spec: "Raspberry Pi 4 (4GB) · Up to 5 drones",                 later: "Free forever",  cost: "~$80 one-time",    max: 5 },
@@ -138,6 +143,71 @@ Rectangle {
                             wrapMode: Text.WordWrap
                             text: "All tiers, recording, cloud hosting — unlocked for early users until Q3 2026. Prices below show what plans will cost once we go live."
                             color: _dimText; font.pixelSize: _fontSize * 0.78
+                        }
+                    }
+                }
+            }
+
+            // ── COMPANION COMPUTER (gates advanced features) ─
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: _ccRow.implicitHeight + _pad * 3
+                radius: _fontSize * 0.5
+                color:  _cardBg
+                border.color: (_ccFact && _ccFact.rawValue) ? _tealBorder : Qt.rgba(1,1,1,0.06)
+                border.width: 1
+
+                RowLayout {
+                    id: _ccRow
+                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: _pad * 1.8 }
+                    spacing: _pad * 1.2
+
+                    QGCColoredImage {
+                        Layout.alignment: Qt.AlignTop
+                        width: _fontSize * 2.2; height: width
+                        source: "/InstrumentValueIcons/computer-desktop.svg"
+                        color: (_ccFact && _ccFact.rawValue) ? _teal : _dimText
+                        fillMode: Image.PreserveAspectFit
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: _pad * 0.35
+                        QGCLabel { text: "COMPANION COMPUTER"; color: "white"; font.pixelSize: _fontSize * 0.95; font.bold: true; font.letterSpacing: 0.5 }
+                        QGCLabel {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "Enable when a HILM companion computer is connected. Unlocks advanced features: Autonomous Patrol, Emergency Deploy and Quick Fly. Leave off for stock PX4 / ArduPilot drones."
+                            color: _dimText; font.pixelSize: _fontSize * 0.78
+                        }
+                        QGCLabel {
+                            text: (_ccFact && _ccFact.rawValue) ? "Advanced features ENABLED" : "Advanced features disabled"
+                            color: (_ccFact && _ccFact.rawValue) ? _green : _dimText
+                            font.pixelSize: _fontSize * 0.75; font.bold: true
+                        }
+                    }
+
+                    // Pill toggle bound to the persisted setting
+                    Rectangle {
+                        id: _ccToggle
+                        Layout.alignment: Qt.AlignVCenter
+                        property bool on: _ccFact ? _ccFact.rawValue : false
+                        width:  _fontSize * 3.4; height: _fontSize * 1.8; radius: height / 2
+                        color:  on ? _green : Qt.rgba(1,1,1,0.14)
+                        border.color: on ? _greenBorder : Qt.rgba(1,1,1,0.25); border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Rectangle {   // knob
+                            width: parent.height - _fontSize * 0.4; height: width; radius: width / 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: _ccToggle.on ? parent.width - width - _fontSize * 0.2 : _fontSize * 0.2
+                            color: "white"
+                            Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (_ccFact) _ccFact.rawValue = !_ccFact.rawValue }
                         }
                     }
                 }

@@ -4,6 +4,12 @@
     "QGC.MetaData.Facts":
 [
 {
+    "name":             "companionComputerEnabled",
+    "shortDesc": "HILM companion computer connected; enables advanced features (Autonomous Patrol, Emergency Deploy, Quick Fly)",
+    "type":             "bool",
+    "default":     false
+},
+{
     "name":             "offlineEditingFirmwareClass",
     "shortDesc": "Offline editing firmware class",
     "type":             "uint32",

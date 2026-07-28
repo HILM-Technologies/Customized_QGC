@@ -28,6 +28,10 @@ Item {
     property var _rallyCtrl:        planMasterController.rallyPointController
     property var _vehicles:         QGroundControl.multiVehicleManager.vehicles
 
+    // Advanced features (Autonomous Patrol, Quick Fly) require a HILM companion
+    // computer, enabled in the Network tab.
+    property bool _companionEnabled: QGroundControl.settingsManager.appSettings.companionComputerEnabled.rawValue
+
     // HILM design tokens
     readonly property color _teal:       "#00BFFF"
     readonly property color _tealDim:    Qt.rgba(0, 0.749, 1.0, 0.14)
@@ -402,7 +406,7 @@ Item {
 
             Item { Layout.preferredHeight: _pad * 0.4 }
 
-            // ── QUICK FLY card
+            // ── QUICK FLY card (companion-computer feature)
             Rectangle {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: quickFlyCol.implicitHeight + _pad * 2.4
@@ -410,6 +414,7 @@ Item {
                 color:                  _cardBg
                 border.width:           1
                 border.color:           _quickFlyArmed ? _okColor : Qt.rgba(1, 1, 1, 0.10)
+                visible:                _companionEnabled
 
                 ColumnLayout {
                     id: quickFlyCol
@@ -1303,6 +1308,7 @@ Item {
                                 text:           "🔁 Repeats: " + _repeatChoice
                                 color:          "white"
                                 font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.6
+                                visible:        _companionEnabled   // patrol loop — companion-computer only
                             }
                             QGCLabel {
                                 text:           "🏠 Auto-returns to launch when done"
@@ -1539,6 +1545,7 @@ Item {
 
                             Column {
                                 Layout.fillWidth: true
+                                visible: _companionEnabled   // patrol loop config — companion-computer only
                                 spacing: 4
                                 QGCLabel { text: "Repeat"; color: _dimText; font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.55 }
                                 Rectangle {
@@ -1664,15 +1671,16 @@ Item {
                             }
                         }
 
-                        // Schedule subsection
+                        // Schedule subsection (Autonomous Patrol — companion-computer feature)
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.topMargin: _pad * 0.4
+                            Layout.topMargin: _companionEnabled ? _pad * 0.4 : 0
                             Layout.preferredHeight: schedCol.implicitHeight + _pad * 1.2
                             radius: ScreenTools.defaultFontPixelHeight * 0.25
                             color:  Qt.rgba(1, 1, 1, 0.02)
                             border.width: 1
                             border.color: Qt.rgba(1, 1, 1, 0.08)
+                            visible: _companionEnabled
 
                             ColumnLayout {
                                 id: schedCol
