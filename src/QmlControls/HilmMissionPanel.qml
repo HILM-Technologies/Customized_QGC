@@ -28,8 +28,8 @@ Item {
     property var _rallyCtrl:        planMasterController.rallyPointController
     property var _vehicles:         QGroundControl.multiVehicleManager.vehicles
 
-    // Advanced features (Autonomous Patrol, Quick Fly) require a HILM companion
-    // computer, enabled in the Network tab.
+    // Autonomous Patrol (scheduled/looping) requires a HILM companion computer,
+    // enabled in the Network tab. (Quick Fly is NOT gated — it works on stock PX4.)
     property bool _companionEnabled: QGroundControl.settingsManager.appSettings.companionComputerEnabled.rawValue
 
     // HILM design tokens
@@ -406,7 +406,7 @@ Item {
 
             Item { Layout.preferredHeight: _pad * 0.4 }
 
-            // ── QUICK FLY card (companion-computer feature)
+            // ── QUICK FLY card (works on stock PX4/ArduPilot too — not gated)
             Rectangle {
                 Layout.fillWidth:       true
                 Layout.preferredHeight: quickFlyCol.implicitHeight + _pad * 2.4
@@ -414,7 +414,6 @@ Item {
                 color:                  _cardBg
                 border.width:           1
                 border.color:           _quickFlyArmed ? _okColor : Qt.rgba(1, 1, 1, 0.10)
-                visible:                _companionEnabled
 
                 ColumnLayout {
                     id: quickFlyCol

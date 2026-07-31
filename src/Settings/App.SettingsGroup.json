@@ -5,7 +5,7 @@
 [
 {
     "name":             "companionComputerEnabled",
-    "shortDesc": "HILM companion computer connected; enables advanced features (Autonomous Patrol, Emergency Deploy, Quick Fly)",
+    "shortDesc": "HILM companion computer connected; enables advanced features (Autonomous Patrol, Emergency Deploy)",
     "type":             "bool",
     "default":     false
 },
