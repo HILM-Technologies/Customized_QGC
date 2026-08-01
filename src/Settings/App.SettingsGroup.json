@@ -5,7 +5,7 @@
 [
 {
     "name":             "companionComputerEnabled",
-    "shortDesc": "HILM companion computer connected; enables advanced features (Autonomous Patrol, Emergency Deploy)",
+    "shortDesc": "HILM companion computer connected; enables Autonomous Patrol (scheduled/looping missions)",
     "type":             "bool",
     "default":     false
 },

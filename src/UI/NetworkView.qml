@@ -177,7 +177,7 @@ Rectangle {
                         QGCLabel {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "Enable when a HILM companion computer is connected. Unlocks advanced features: Autonomous Patrol and Emergency Deploy. Leave off for stock PX4 / ArduPilot drones."
+                            text: "Enable when a HILM companion computer is connected. Unlocks Autonomous Patrol (scheduled/looping missions). Leave off for stock PX4 / ArduPilot drones."
                             color: _dimText; font.pixelSize: _fontSize * 0.78
                         }
                         QGCLabel {

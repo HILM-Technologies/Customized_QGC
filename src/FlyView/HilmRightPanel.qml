@@ -116,10 +116,6 @@ Item {
     property bool _emergencyActive:     _emergency ? _emergency.emergencyActive : false
     property bool _emergencyEngaged:    _emergencySelecting || _emergencyTargetSet || _emergencyActive
 
-    // Advanced features (Autonomous Patrol, Emergency Deploy, Quick Fly) are only
-    // available when a HILM companion computer is enabled in the Network tab.
-    property bool _companionEnabled:    QGroundControl.settingsManager.appSettings.companionComputerEnabled.rawValue
-
     // ══════════════════════════════════════════════
     // Flight-mode classification + Quick Actions gating
     //
@@ -987,7 +983,7 @@ Item {
                 Layout.topMargin:       _pad * 0.8
                 Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 3.0
                 radius:                 ScreenTools.defaultFontPixelHeight * 0.35
-                visible:                _companionEnabled && !_emergencyEngaged
+                visible:                !_emergencyEngaged
 
                 color: {
                     if (emergencyStopArea.containsMouse) return Qt.rgba(1, 0.20, 0.20, 0.20)
@@ -1324,7 +1320,7 @@ Item {
                 color:   Qt.rgba(1, 0, 0, 0.08)
                 border.width: 1
                 border.color: Qt.rgba(1, 0, 0, 0.25)
-                visible: _companionEnabled && _emergencyEngaged
+                visible: _emergencyEngaged
 
                 ColumnLayout {
                     id: emergencyPanelLayout
@@ -1352,6 +1348,51 @@ Item {
                                 return "TARGET: " + coord.latitude.toFixed(5) + ", " + coord.longitude.toFixed(5)
                             }
                             return ""
+                        }
+                    }
+
+                    // HOVER ALTITUDE — set before deploy; adjusts the vehicle live while active
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: _emergencyTargetSet || _emergencyActive
+                        spacing: _pad * 0.4
+
+                        QGCLabel {
+                            text: "HOVER ALT"
+                            color: _dimText
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.65
+                            font.bold: true; font.letterSpacing: 0.5
+                        }
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {   // −5 m
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.7
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                            radius: width / 2
+                            color:  altMinusArea.containsMouse ? Qt.rgba(1,1,1,0.10) : _cardBg
+                            border.width: 1; border.color: Qt.rgba(1,1,1,0.18)
+                            QGCLabel { anchors.centerIn: parent; text: "−"; color: "white"; font.pointSize: ScreenTools.defaultFontPointSize }
+                            MouseArea { id: altMinusArea; anchors.fill: parent; hoverEnabled: true
+                                onClicked: { if (_emergency) _emergency.setEmergencyAltitude(_emergency.emergencyAltitude - 5) }
+                            }
+                        }
+                        QGCLabel {
+                            Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 7
+                            horizontalAlignment: Text.AlignHCenter
+                            text: (_emergency ? _emergency.emergencyAltitude.toFixed(0) : "10") + " m"
+                            color: "white"; font.bold: true
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.85
+                        }
+                        Rectangle {   // +5 m
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelHeight * 1.7
+                            Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.7
+                            radius: width / 2
+                            color:  altPlusArea.containsMouse ? Qt.rgba(1,1,1,0.10) : _cardBg
+                            border.width: 1; border.color: Qt.rgba(1,1,1,0.18)
+                            QGCLabel { anchors.centerIn: parent; text: "+"; color: "white"; font.pointSize: ScreenTools.defaultFontPointSize }
+                            MouseArea { id: altPlusArea; anchors.fill: parent; hoverEnabled: true
+                                onClicked: { if (_emergency) _emergency.setEmergencyAltitude(_emergency.emergencyAltitude + 5) }
+                            }
                         }
                     }
 
@@ -1408,11 +1449,46 @@ Item {
                         }
                     }
 
-                    // CANCEL
+                    // LAND HERE — lands at the current (target) position. Two-tap
+                    // confirm because landing is irreversible.
+                    Rectangle {
+                        id: landBtn
+                        property bool _armed: false
+                        Layout.fillWidth:       true
+                        Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 2.2
+                        radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                        visible: _emergencyActive
+                        color:   emergencyLandArea.containsMouse ? Qt.lighter("#FF9800", 1.15) : Qt.rgba(1, 0.60, 0, 0.85)
+
+                        QGCLabel {
+                            anchors.centerIn: parent
+                            text:  landBtn._armed ? "TAP AGAIN TO LAND" : "LAND HERE"
+                            color: "#1A0F00"
+                            font.pointSize: ScreenTools.defaultFontPointSize * 0.78
+                            font.bold: true; font.letterSpacing: 0.5
+                        }
+                        Timer { id: landResetTimer; interval: 3000; onTriggered: landBtn._armed = false }
+                        MouseArea { id: emergencyLandArea; anchors.fill: parent; hoverEnabled: true
+                            onClicked: {
+                                if (!landBtn._armed) {
+                                    landBtn._armed = true
+                                    landResetTimer.restart()
+                                } else {
+                                    landBtn._armed = false
+                                    landResetTimer.stop()
+                                    if (_emergency) _emergency.landAtLocation()
+                                }
+                            }
+                        }
+                    }
+
+                    // CANCEL — only before deploy (aborts target selection). Once the
+                    // vehicle is deployed, use LAND HERE or RETURN HOME instead.
                     Rectangle {
                         Layout.fillWidth:       true
                         Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.8
                         radius:                 ScreenTools.defaultFontPixelHeight * 0.25
+                        visible:                !_emergencyActive
                         color:                  cancelArea.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : _cardBg
                         border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.10)
 

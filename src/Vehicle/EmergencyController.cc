@@ -3,6 +3,8 @@
 #include "FirmwarePlugin.h"
 #include "QGCLoggingCategory.h"
 
+#include <QtCore/QtMath>
+
 QGC_LOGGING_CATEGORY(EmergencyControllerLog, "qgc.vehicle.emergency")
 
 EmergencyController::EmergencyController(Vehicle* vehicle, QObject* parent)
@@ -46,21 +48,79 @@ void EmergencyController::deployEmergency()
     if (!fw)
         return;
 
-    qCWarning(EmergencyControllerLog) << "EMERGENCY DEPLOYMENT STARTED";
+    qCWarning(EmergencyControllerLog) << "EMERGENCY DEPLOYMENT STARTED, hover alt =" << _emergencyAltitude;
+
+    const bool wasFlying = _vehicle->armed();
 
             // 1. Switch to guided
     fw->setGuidedMode(_vehicle, true);
 
-            // 2. Arm + takeoff if needed
-    if (!_vehicle->armed()) {
-        fw->guidedModeTakeoff(_vehicle, 10.0);   // 10m default
+            // 2. Arm + takeoff to the requested altitude if on the ground
+    if (!wasFlying) {
+        fw->guidedModeTakeoff(_vehicle, _emergencyAltitude);
     }
 
-            // 3. Go to emergency coordinate
+            // 3. Go to emergency coordinate (holds the vehicle's CURRENT altitude)
     fw->guidedModeGotoLocation(_vehicle, _emergencyCoord, 0);
+
+            // 4. If already airborne, goto kept the old altitude — nudge to target.
+    if (wasFlying) {
+        _applyHoverAltitude();
+    }
 
     _emergencyActive = true;
     emit emergencyActiveChanged();
+}
+
+// Command the requested hover altitude via a relative-delta change (PX4/APM
+// guidedModeChangeAltitude takes a delta, not an absolute altitude).
+void EmergencyController::_applyHoverAltitude()
+{
+    if (!_vehicle)
+        return;
+
+    const double currentRel = _vehicle->altitudeRelative()->rawValue().toDouble();
+    if (qIsNaN(currentRel))
+        return;
+
+    const double delta = _emergencyAltitude - currentRel;
+    if (qFabs(delta) < 0.5)      // already within tolerance
+        return;
+
+    _vehicle->firmwarePlugin()->guidedModeChangeAltitude(_vehicle, delta, false);
+}
+
+// UI: hover-altitude stepper. Persists the target and, if already hovering,
+// adjusts the vehicle live.
+void EmergencyController::setEmergencyAltitude(double altitudeRel)
+{
+    altitudeRel = qBound(2.0, altitudeRel, 500.0);
+    if (qFuzzyCompare(altitudeRel, _emergencyAltitude))
+        return;
+
+    _emergencyAltitude = altitudeRel;
+    emit emergencyAltitudeChanged();
+
+    if (_emergencyActive) {
+        _applyHoverAltitude();
+    }
+}
+
+// UI: "Land Here" — land at the current (target) position.
+void EmergencyController::landAtLocation()
+{
+    if (!_vehicle)
+        return;
+
+    qCWarning(EmergencyControllerLog) << "Emergency land at current location";
+
+    _vehicle->firmwarePlugin()->guidedModeLand(_vehicle);
+
+    _emergencyActive = false;
+    _targetSelected  = false;
+
+    emit emergencyActiveChanged();
+    emit targetSelectedChanged();
 }
 
 // UI: "Return Home"
