@@ -1,0 +1,76 @@
+name: HILM AppImage (Linux)
+
+# Builds the portable Linux AppImage (glibc 2.35, ubuntu-22.04) for HILM QGC
+# and uploads it as a downloadable artifact. Runs on pushes to the working
+# branch and can be triggered manually.
+
+on:
+  push:
+    branches:
+      - feature/UI_UX_Changes_V2
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build x86_64 AppImage (portable, glibc 2.35)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 1
+          fetch-tags: true
+
+      - name: Get build config
+        id: config
+        uses: ./.github/actions/build-config
+
+      - name: Initial Setup
+        uses: ./.github/actions/common
+
+      - name: Install Dependencies
+        run: |
+          chmod a+x ./tools/setup/install-dependencies-debian.sh
+          sudo ./tools/setup/install-dependencies-debian.sh
+
+      - name: Install Qt for Linux
+        uses: ./.github/actions/qt-install
+        with:
+          version: ${{ steps.config.outputs.qt_version }}
+          host: linux
+          arch: linux_gcc_64
+          modules: ${{ steps.config.outputs.qt_modules }}
+
+      - name: Configure
+        run: |
+          mkdir -p ${{ runner.temp }}/build
+          ${{ env.QT_ROOT_DIR }}/bin/qt-cmake -S ${{ github.workspace }} -B ${{ runner.temp }}/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build ${{ runner.temp }}/build --target all --config Release --parallel
+
+      - name: Create AppImage
+        working-directory: ${{ runner.temp }}/build
+        run: cmake --install . --config Release
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HILMGroundControl-x86_64-AppImage
+          path: ${{ runner.temp }}/build/*.AppImage
+          retention-days: 14
+          if-no-files-found: error
