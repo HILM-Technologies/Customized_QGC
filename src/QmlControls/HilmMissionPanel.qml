@@ -622,6 +622,7 @@ Item {
 
                                     // ── Expanded editor
                                     ColumnLayout {
+                                        id: wpExpanded
                                         Layout.fillWidth: true
                                         spacing: _pad * 0.5
                                         visible: _expandedWpIdx === index
@@ -873,9 +874,21 @@ Item {
                                             }
                                         }
                                         // Custom hover time — type any value (overrides the presets above)
+                                        // Fact lookup is local via `object` (same as the preset buttons),
+                                        // which avoids QML scope-resolution issues in nested items.
                                         RowLayout {
+                                            id: customHoverRow
+                                            property var _holdFactLocal: {
+                                                if (!object || !object.textFieldFacts) return null
+                                                for (var i = 0; i < object.textFieldFacts.count; i++) {
+                                                    var f = object.textFieldFacts.get(i)
+                                                    if (f && f.name && f.name.toLowerCase().indexOf("hold") !== -1)
+                                                        return f
+                                                }
+                                                return null
+                                            }
                                             Layout.fillWidth: true
-                                            visible:          _holdFact !== null
+                                            visible:          _holdFactLocal !== null
                                             spacing:          _pad * 0.4
                                             QGCLabel {
                                                 Layout.fillWidth: true
@@ -902,18 +915,29 @@ Item {
                                                     selectByMouse:       true
                                                     inputMethodHints:    Qt.ImhDigitsOnly
                                                     validator:           IntValidator { bottom: 0; top: 3600 }
-                                                    text:                _holdFact ? _holdFact.rawValue.toFixed(0) : "0"
+                                                    text: {
+                                                        var f = customHoverRow._holdFactLocal
+                                                        return f ? f.rawValue.toFixed(0) : "0"
+                                                    }
                                                     onActiveFocusChanged: if (activeFocus) selectAll()
-                                                    onEditingFinished:   if (_holdFact) _holdFact.rawValue = parseInt(text.length ? text : "0")
+                                                    onEditingFinished: {
+                                                        var f = customHoverRow._holdFactLocal
+                                                        if (!f) return
+                                                        f.rawValue = parseInt(text.length ? text : "0")
+                                                    }
                                                     Connections {
-                                                        target: _holdFact
-                                                        function onRawValueChanged() { hoverInput.text = _holdFact ? _holdFact.rawValue.toFixed(0) : "0" }
+                                                        target: customHoverRow._holdFactLocal
+                                                        function onRawValueChanged() {
+                                                            var f = customHoverRow._holdFactLocal
+                                                            hoverInput.text = f ? f.rawValue.toFixed(0) : "0"
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
 
                                         // Yaw / heading (optional — waypoints & takeoff)
+                                        // Fact lookup is local via `object`, matching the preset-button pattern.
                                         QGCLabel {
                                             text:           "🧭  YAW / HEADING"
                                             color:          _dimText
@@ -921,22 +945,106 @@ Item {
                                             font.bold:      true
                                             font.letterSpacing: 1.0
                                             Layout.topMargin: _pad * 0.3
-                                            visible:        _yawFact !== null
+                                            visible:        wpExpanded._yawFact !== null
                                         }
-                                        Loader {
+                                        // Yaw: always-editable compass heading input, 0-360°.
+                                        // NaN = "auto" (face next WP). "AUTO" button clears to NaN.
+                                        RowLayout {
+                                            id: yawRow
+                                            property var _yawFactLocal: {
+                                                if (!object || !object.nanFacts) return null
+                                                for (var i = 0; i < object.nanFacts.count; i++) {
+                                                    var f = object.nanFacts.get(i)
+                                                    if (f && f.name && f.name.toLowerCase().indexOf("yaw") !== -1)
+                                                        return f
+                                                }
+                                                return null
+                                            }
                                             Layout.fillWidth: true
-                                            active:           _yawFact !== null
-                                            visible:          active
-                                            sourceComponent:  yawSliderComponent
-                                        }
-                                        Component {
-                                            id: yawSliderComponent
-                                            FactTextFieldSlider {
-                                                label:                   qsTr("Yaw")
-                                                fact:                    _yawFact
-                                                showEnableCheckbox:      true
-                                                enableCheckBoxChecked:   _yawFact ? !isNaN(_yawFact.rawValue) : false
-                                                onEnableCheckboxClicked: { if (_yawFact) _yawFact.rawValue = enableCheckBoxChecked ? 0 : NaN }
+                                            visible:          _yawFactLocal !== null
+                                            spacing:          _pad * 0.4
+                                            QGCLabel {
+                                                Layout.fillWidth: true
+                                                text:             "Compass heading (0-360°)"
+                                                color:            "white"
+                                                font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                                            }
+                                            // AUTO toggle: clears yaw to NaN so PX4 uses MPC_YAW_MODE default
+                                            Rectangle {
+                                                id:                     yawAutoBtn
+                                                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 6
+                                                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                                                radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+                                                property bool _isAuto:  yawRow._yawFactLocal ? isNaN(yawRow._yawFactLocal.rawValue) : true
+                                                color:                  _isAuto ? _tealDim : Qt.rgba(1, 1, 1, 0.04)
+                                                border.width:           1
+                                                border.color:           _isAuto ? _teal : Qt.rgba(1, 1, 1, 0.20)
+                                                QGCLabel {
+                                                    anchors.centerIn: parent
+                                                    text:             "AUTO"
+                                                    color:            yawAutoBtn._isAuto ? _teal : "white"
+                                                    font.bold:        true
+                                                    font.pixelSize:   ScreenTools.defaultFontPixelHeight * 0.55
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape:  Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        var f = yawRow._yawFactLocal
+                                                        if (f) f.rawValue = NaN
+                                                    }
+                                                }
+                                            }
+                                            Rectangle {
+                                                Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 10
+                                                Layout.preferredHeight: ScreenTools.defaultFontPixelHeight * 1.9
+                                                radius:                 ScreenTools.defaultFontPixelHeight * 0.2
+                                                color:                  Qt.rgba(1, 1, 1, 0.08)
+                                                border.width:           1
+                                                border.color:           yawInput.activeFocus ? _teal : Qt.rgba(1, 1, 1, 0.20)
+                                                TextInput {
+                                                    id:                  yawInput
+                                                    anchors.fill:        parent
+                                                    anchors.margins:     _pad * 0.4
+                                                    verticalAlignment:   TextInput.AlignVCenter
+                                                    horizontalAlignment: TextInput.AlignHCenter
+                                                    color:               "white"
+                                                    font.bold:           true
+                                                    font.pixelSize:      ScreenTools.defaultFontPixelHeight * 0.7
+                                                    selectByMouse:       true
+                                                    inputMethodHints:    Qt.ImhFormattedNumbersOnly
+                                                    validator:           DoubleValidator { bottom: 0; top: 360; decimals: 1 }
+                                                    text: {
+                                                        var f = yawRow._yawFactLocal
+                                                        if (!f) return ""
+                                                        var v = f.rawValue
+                                                        if (isNaN(v)) return ""
+                                                        var display = ((v % 360) + 360) % 360
+                                                        return display.toFixed(1)
+                                                    }
+                                                    onActiveFocusChanged: if (activeFocus) selectAll()
+                                                    onEditingFinished: {
+                                                        var f = yawRow._yawFactLocal
+                                                        if (!f) return
+                                                        if (!text.length) { f.rawValue = NaN; return }
+                                                        var v = parseFloat(text)
+                                                        if (isNaN(v)) { f.rawValue = NaN; return }
+                                                        v = ((v % 360) + 360) % 360
+                                                        if (v > 180) v -= 360
+                                                        f.rawValue = v
+                                                    }
+                                                    Connections {
+                                                        target: yawRow._yawFactLocal
+                                                        function onRawValueChanged() {
+                                                            var f = yawRow._yawFactLocal
+                                                            if (!f) { yawInput.text = ""; return }
+                                                            var v = f.rawValue
+                                                            if (isNaN(v)) { yawInput.text = ""; return }
+                                                            var d = ((v % 360) + 360) % 360
+                                                            yawInput.text = d.toFixed(1)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
 
@@ -962,7 +1070,7 @@ Item {
                                                     font.pixelSize:     ScreenTools.defaultFontPixelHeight * 0.55
                                                 }
                                                 QGCLabel {
-                                                    text:           _advOpen ? "⌃" : "⌄"
+                                                    text:           wpExpanded._advOpen ? "⌃" : "⌄"
                                                     color:          _teal
                                                     font.pixelSize: ScreenTools.defaultFontPixelHeight * 0.9
                                                 }
@@ -972,14 +1080,14 @@ Item {
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape:  Qt.PointingHandCursor
-                                                onClicked:    _advOpen = !_advOpen
+                                                onClicked:    wpExpanded._advOpen = !wpExpanded._advOpen
                                             }
                                         }
                                         // Advanced content — native ColumnLayout children so they stay clickable
                                         ColumnLayout {
                                             id:               wpAdvCol
                                             Layout.fillWidth: true
-                                            visible:          _advOpen
+                                            visible:          wpExpanded._advOpen
                                             spacing:          _pad * 0.4
 
                                             property var _cam: object.cameraSection
